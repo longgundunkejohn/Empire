@@ -39,19 +39,22 @@ namespace Empire.Server.Services
             CardDictionary.Clear();
 
             if (!Directory.Exists(_imagePath))
+            {
+                Console.WriteLine($"[DeckLoaderService] Warning: Image path not found: {_imagePath}");
                 return;
+            }
 
             foreach (var file in Directory.GetFiles(_imagePath, "*.jpg"))
             {
                 string fileName = Path.GetFileNameWithoutExtension(file);
-                string[] parts = fileName.Split(' ', 2); // handle names with spaces
+                string[] parts = fileName.Split(' ', 2);
                 if (parts.Length > 0 && int.TryParse(parts[0], out int cardId))
                 {
-                    // Save image relative path for Blazor
-                    CardDictionary[cardId] = $"images/{fileName}.jpg";
+                    CardDictionary[cardId] = $"images/{Path.GetFileName(file)}";
                 }
             }
         }
+
 
         private void LoadFromCSV()
         {

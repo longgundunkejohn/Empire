@@ -1,13 +1,52 @@
+﻿using Empire.Server.Interfaces;
+using Empire.Server.Services;
+using MongoDB.Driver;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+// ───── Add Services ──────────────────────────────
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Register controllers
+builder.Services.AddControllers(); // ✅ ← Add this line
+
+// ───── MongoDB Configuration ─────────────────────
+
+builder.Services.AddSingleton<IMongoClient>(sp =>
+    new MongoClient(builder.Configuration["MongoDB:ConnectionString"]));
+
+builder.Services.AddSingleton(sp =>
+    sp.GetRequiredService<IMongoClient>()
+      .GetDatabase(builder.Configuration["MongoDB:DatabaseName"]));
+
+builder.Services.AddSingleton<IMongoDbService, MongoDbService>();
+builder.Services.AddSingleton<DeckLoaderService>();
+
+// ───── Game Services ─────────────────────────────
+
+builder.Services.AddScoped<ICardDatabaseService, CardDatabaseService>();
+builder.Services.AddScoped<CardService>();
+builder.Services.AddScoped<CardFactory>();
+builder.Services.AddScoped<GameSessionService>();
+
+// ───── CORS for Blazor client ────────────────────
+
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
+// ───── HTTP Pipeline ─────────────────────────────
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -15,30 +54,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast")
-.WithOpenApi();
+app.MapControllers(); // required to actually serve your endpoints
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}

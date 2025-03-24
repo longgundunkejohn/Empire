@@ -1,0 +1,28 @@
+﻿@page "/test"
+@inject HttpClient Http
+
+<h3>Card Test</h3>
+
+@if (cards == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    @foreach (var card in cards)
+    {
+        <div style="margin-bottom: 1em">
+            <img src="@card.ImageFileName" width="150" />
+            <p>@card.Name</p>
+        </div>
+    }
+}
+
+@code {
+    private List<CardData>? cards;
+
+    protected override async Task OnInitializedAsync()
+    {
+        cards = await Http.GetFromJsonAsync<List<CardData>>("https://localhost:5001/api/card");
+    }
+}

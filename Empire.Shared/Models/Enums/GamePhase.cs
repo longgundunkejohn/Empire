@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Empire.Shared.Models.Enums
+namespace Empire.Shared.Models
 {
     public enum GamePhase
     {

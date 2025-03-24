@@ -19,7 +19,7 @@ namespace Empire.Shared.Models
 
         public Card(CardData data)
         {
-            CardId = data.CardId;
+            CardId = data.CardID;
             Name = data.Name;
             CardText = data.CardText;
             Type = data.CardType;

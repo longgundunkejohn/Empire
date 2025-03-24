@@ -1,77 +1,92 @@
-﻿using Empire.Server.Services;
+﻿using Empire.Server.Interfaces;
 using Empire.Shared.Models;
-using Microsoft.AspNetCore.Cors.Infrastructure;
 
 namespace Empire.Server.Services
 {
-
     public class CardService : ICardService
     {
-        private readonly CardFactory _cardFactory;
+        private readonly Deck _deck;
+        private readonly List<Card> _hand = new();
+        private readonly List<Card> _board = new();
+        private readonly List<Card> _graveyard = new();
+        private readonly List<Card> _sealedAway = new();
 
-        private List<Card> _deck = new();
-        private List<Card> _hand = new();
-        private List<Card> _graveyard = new();
-        private List<Card> _board = new();
-
-        public CardService(CardFactory cardFactory)
+        public CardService(IEnumerable<Card> initialDeck)
         {
-            _cardFactory = cardFactory;
+            if (initialDeck == null || !initialDeck.Any())
+                throw new ArgumentException("Initial deck must contain cards.", nameof(initialDeck));
 
-            // Temporary: hardcoded test deck
-            var testDeck = new List<(int CardId, int Count)>
-        {
-            (101, 2), // Knights of Songdu
-            (102, 2), // Consecrated Paladin
-            (103, 1)  // High Priestess N’Thalla
-        };
-
-            _deck = _cardFactory.CreateDeck(testDeck);
-            ShuffleDeck();
+            _deck = new Deck(initialDeck);
         }
 
-        public List<Card> GetDeck() => _deck;
-        public List<Card> GetHand() => _hand;
-        public List<Card> GetGraveyard() => _graveyard;
-        public List<Card> GetBoard() => _board;
+        // Core Getters
+        public IReadOnlyList<Card> GetDeckCards() => _deck.GetAllCards();
+        public IReadOnlyList<Card> GetHand() => _hand.AsReadOnly();
+        public IReadOnlyList<Card> GetBoard() => _board.AsReadOnly();
+        public IReadOnlyList<Card> GetGraveyard() => _graveyard.AsReadOnly();
+        public IReadOnlyList<Card> GetSealedAway() => _sealedAway.AsReadOnly();
 
-        public void ShuffleDeck()
-        {
-            var rng = new Random();
-            _deck = _deck.OrderBy(_ => rng.Next()).ToList();
-        }
-
+        // Actions
         public Card? DrawCard()
         {
             if (_deck.Count == 0) return null;
 
-            var drawnCard = _deck[0];
-            _deck.RemoveAt(0);
-            _hand.Add(drawnCard);
-            return drawnCard;
+            var card = _deck.Draw();
+            _hand.Add(card);
+            return card;
         }
 
-        public void PlayCard(Card card)
+        public bool PlayCard(Card card)
         {
-            if (_hand.Contains(card))
-            {
-                _hand.Remove(card);
-                _board.Add(card);
-            }
+            if (!_hand.Contains(card)) return false;
+
+            _hand.Remove(card);
+            _board.Add(card);
+            return true;
         }
 
-        public void MoveToGraveyard(Card card)
+        public bool MoveToGraveyard(Card card)
         {
-            if (_board.Contains(card))
+            if (_board.Remove(card) || _hand.Remove(card))
             {
-                _board.Remove(card);
                 _graveyard.Add(card);
+                return true;
             }
-            else if (_hand.Contains(card))
+
+            return false;
+        }
+
+        public bool SealCard(Card card)
+        {
+            if (_board.Remove(card) || _hand.Remove(card))
             {
-                _hand.Remove(card);
-                _graveyard.Add(card);
+                _sealedAway.Add(card);
+                return true;
             }
+
+            return false;
+        }
+
+        public void ShuffleDeck()
+        {
+            _deck.Shuffle();
+        }
+
+        // Optional: Peek methods for UI or abilities
+        public IReadOnlyList<Card> PeekTopOfDeck(int count, bool draw = false)
+        {
+            return _deck.PeekTop(count, draw);
+        }
+
+        // Optional: Move card back to deck
+        public void PutOnTopOfDeck(Card card)
+        {
+            _deck.PutOnTop(card);
+        }
+
+        public void PutOnBottomOfDeck(Card card)
+        {
+            _deck.PutOnBottom(card);
         }
     }
 }
