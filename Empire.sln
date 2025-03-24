@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Empire.Client", "Empire.Client\Empire.Client.csproj", "{A22E13C9-139E-4A6C-B05F-1AC485A51B52}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Empire.Server", "Empire.Server\Empire.Server.csproj", "{BC2159DF-29AE-4E5D-BECA-0063B926346E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Empire.Shared", "Empire.Shared\Empire.Shared.csproj", "{790F18E3-BD3E-463D-9D5B-EF30BD8B23CE}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A22E13C9-139E-4A6C-B05F-1AC485A51B52}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A22E13C9-139E-4A6C-B05F-1AC485A51B52}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A22E13C9-139E-4A6C-B05F-1AC485A51B52}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A22E13C9-139E-4A6C-B05F-1AC485A51B52}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BC2159DF-29AE-4E5D-BECA-0063B926346E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BC2159DF-29AE-4E5D-BECA-0063B926346E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BC2159DF-29AE-4E5D-BECA-0063B926346E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BC2159DF-29AE-4E5D-BECA-0063B926346E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{790F18E3-BD3E-463D-9D5B-EF30BD8B23CE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{790F18E3-BD3E-463D-9D5B-EF30BD8B23CE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{790F18E3-BD3E-463D-9D5B-EF30BD8B23CE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{790F18E3-BD3E-463D-9D5B-EF30BD8B23CE}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
