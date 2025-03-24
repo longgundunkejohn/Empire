@@ -1,51 +1,19 @@
-﻿using Empire.Shared.Models;
-using MongoDB.Driver;
-
-namespace Empire.Server.Services
+﻿namespace Empire.Shared.Models
 {
-    public class CardFactory
+    public class BoardCard
     {
-        private readonly IMongoCollection<CardData> _cardCollection;
+        public int CardId { get; set; }
+        public bool IsExerted { get; set; } = false;
+        public int Damage { get; set; } = 0;
 
-        public CardFactory(IMongoDatabase database)
+        public BoardCard(int cardId)
         {
-            _cardCollection = database.GetCollection<CardData>("Cards");
+            CardId = cardId;
         }
 
-        // Creates one Card from ID
-        public async Task<Card?> CreateCardFromIdAsync(int id)
+        public void Rotate()
         {
-            var data = await _cardCollection.Find(c => c.CardId == id).FirstOrDefaultAsync();
-            return data != null ? new Card(data) : null;
-        }
-
-        // Creates a full deck from a list of (CardId, Count)
-        public async Task<List<Card>> CreateDeckAsync(List<(int CardId, int Count)> deckList)
-        {
-            var cardIds = deckList.Select(d => d.CardId).Distinct().ToList();
-
-            var filter = Builders<CardData>.Filter.In(c => c.CardId, cardIds);
-            var allCardData = await _cardCollection.Find(filter).ToListAsync();
-
-            var cardDictionary = allCardData.ToDictionary(c => c.CardId);
-
-            var cards = new List<Card>();
-            foreach (var (id, count) in deckList)
-            {
-                if (cardDictionary.TryGetValue(id, out var data))
-                {
-                    for (int i = 0; i < count; i++)
-                    {
-                        cards.Add(new Card(data));
-                    }
-                }
-                else
-                {
-                    // Optional: log or throw if CardId is missing in DB
-                }
-            }
-
-            return cards;
+            IsExerted = !IsExerted;
         }
     }
 }

@@ -1,5 +1,5 @@
-﻿using Empire.Shared.Models.Enums;
-using Empire.Shared.Models;
+﻿using Empire.Shared.Models;
+using MongoDB.Driver;
 
 namespace Empire.Server.Services
 {
@@ -24,8 +24,7 @@ namespace Empire.Server.Services
                 CurrentPhase = GamePhase.Strategy,
                 InitiativeHolder = player1Id,
                 PriorityPlayer = player2Id,
-                GameBoardState = new EmpireGame.Models.GameBoard(), // ✅ Specify the correct namespace
-
+                GameBoardState = new Empire.Shared.Models.GameBoard(),
                 PlayerDecks = new Dictionary<string, PlayerDeck>
 {
     { player1Id, new PlayerDeck(new List<int>(), new List<int>()) },

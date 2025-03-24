@@ -1,6 +1,8 @@
 ﻿using System.Collections.Generic;
-
+using Empire.Shared.Models;
+using Empire.Shared.Interfaces;
 public class BoardService
+
 {
     public Dictionary<string, List<BoardCard>> PlayerBoards { get; private set; } = new();
 

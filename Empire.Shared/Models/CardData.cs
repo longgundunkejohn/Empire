@@ -1,43 +1,43 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
+﻿using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
-namespace Empire.Shared.Models
+
+public class CardData
 {
-    public class CardData
-    {
-        [BsonElement("Card ID")]
-        public int CardId { get; set; }
+    [BsonId]
+    public ObjectId Id { get; set; }
 
-        [BsonElement("Name")]
-        public string Name { get; set; }
+    [BsonElement("CardID")]
+    public int CardID { get; set; }
 
-        [BsonElement("Card text")]
-        public string CardText { get; set; }
+    [BsonElement("Name")]
+    public string Name { get; set; }
 
-        [BsonElement("Card type")]
-        public string CardType { get; set; }
+    [BsonElement("CardText")]
+    public string CardText { get; set; }
 
-        [BsonElement("Tier")]
-        public string Tier { get; set; }
+    [BsonElement("CardType")]
+    public string CardType { get; set; }
 
-        [BsonElement("Cost")]
-        public int Cost { get; set; }
+    [BsonElement("Tier")]
+    public string Tier { get; set; }
 
-        [BsonElement("Attack")]
-        public int Attack { get; set; }
+    [BsonElement("Cost")]
+    public int Cost { get; set; }
 
-        [BsonElement("Defence")]
-        public int Defence { get; set; }
+    [BsonElement("Attack")]
+    public int Attack { get; set; }
 
-        [BsonElement("Unique")]
-        public string Unique { get; set; }
+    [BsonElement("Defence")]
+    public int Defence { get; set; }
 
-        [BsonElement("Faction")]
-        public string Faction { get; set; }
-    }
+    [BsonElement("Unique")]
+    public string Unique { get; set; }
+
+    [BsonElement("Faction")]
+    public string Faction { get; set; }
+
+    public string ImageFileName { get; set; } = string.Empty;
+
+
 
 }
