@@ -1,0 +1,17 @@
+# Build stage
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+COPY Empire.Shared/ Empire.Shared/
+COPY Empire.Client/ Empire.Client/
+COPY Empire.Server/ Empire.Server/
+
+RUN dotnet restore Empire.Server/Empire.Server.csproj
+RUN dotnet publish Empire.Server/Empire.Server.csproj -c Release -o /app/publish
+
+# Runtime image
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+COPY --from=build /app/publish .
+
+ENTRYPOINT ["dotnet", "Empire.Server.dll"]
