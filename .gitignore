@@ -1,0 +1,27 @@
+# .NET Core
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# VS Code
+.vscode/
+
+# Runtime files
+*.log
+*.db
+
+# Blazor-specific
+wwwroot/cards/
+wwwroot/**/*.cache
+wwwroot/service-worker-assets.js
+
+# Docker artifacts
+*.pid
+
+# OS files
+.DS_Store
+Thumbs.db
+

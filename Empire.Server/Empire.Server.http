@@ -1,0 +1,6 @@
+@Empire.Server_HostAddress = http://localhost:5281
+
+GET {{Empire.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

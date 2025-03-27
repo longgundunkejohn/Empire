@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  empire-server:
+    container_name: empire-server
+    image: empire-server:latest  # Or build inline if needed
+    build:
+      context: .
+      dockerfile: Dockerfile     # Adjust if yours has a different name
+    ports:
+      - "5000:80"                # Internal app listens on 80, exposed on 5000
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+    restart: unless-stopped
+
+  # Optional NGINX container if you want to dockerize NGINX too
+  # nginx:
+  #   image: nginx:latest
+  #   container_name: nginx
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   depends_on:
+  #     - empire-server
+

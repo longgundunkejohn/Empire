@@ -1,0 +1,11 @@
+<div class="deck" @onclick="OnDrawClick">
+    <img src="images/cardback.jpg" alt="Deck" class="card-image" />
+    <span class="deck-count">@DeckCount</span>
+</div>
+
+@code {
+    [Parameter] public int DeckCount { get; set; }
+    [Parameter] public EventCallback OnDraw { get; set; }
+
+    private async Task OnDrawClick() => await OnDraw.InvokeAsync();
+}

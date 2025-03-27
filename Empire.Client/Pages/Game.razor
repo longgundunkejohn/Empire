@@ -1,0 +1,36 @@
+﻿@page "/game"
+@inject GameApi GameApi
+
+<h2>Your Hand</h2>
+<HandComponent Hand="@hand" OnCardSelected="PlayCard" />
+
+<h2>Your Deck</h2>
+<DeckComponent DeckCount="@deck.Count" OnDraw="DrawCard" />
+
+@code {
+    private List<Card> hand = new();
+    private List<Card> deck = new();
+    private string gameId = "YOUR_GAME_ID";
+    private string playerId = "Player1";
+
+    protected override async Task OnInitializedAsync()
+    {
+        deck = await GameApi.GetDeck(gameId, playerId);
+    }
+
+    private void DrawCard()
+    {
+        if (deck.Any())
+        {
+            var card = deck[0];
+            deck.RemoveAt(0);
+            hand.Add(card);
+        }
+    }
+
+    private void PlayCard(Card card)
+    {
+        hand.Remove(card);
+        Console.WriteLine($"Played {card.Name}");
+    }
+}
