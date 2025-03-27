@@ -20,7 +20,7 @@ namespace Empire.Shared.Models
 
         public GameBoard GameBoardState { get; set; } = new GameBoard();
         public Dictionary<string, List<int>> PlayerBoard { get; set; } = new();
-
+         
         public Dictionary<string, List<int>> PlayerHands { get; set; } = new();
         public Dictionary<string, PlayerDeck> PlayerDecks { get; set; } = new();
         public Dictionary<string, List<int>> PlayerGraveyards { get; set; } = new();

@@ -93,8 +93,15 @@ namespace Empire.Server.Controllers
             return result ? Ok() : BadRequest("Invalid move");
         }
         [HttpPost("join")]
-        public async Task<IActionResult> JoinGame([FromQuery] string gameId, [FromQuery] string player2Id, [FromBody] List<int> civicDeck, [FromBody] List<int> militaryDeck)
+        public async Task<IActionResult> JoinGame(
+    [FromQuery] string gameId,            // gameId as a query parameter
+    [FromQuery] string player2Id,         // player2Id as a query parameter
+    [FromBody] JoinGameRequest request)   // Bind body to JoinGameRequest
         {
+            // Access civicDeck and militaryDeck from the request object
+            var civicDeck = request.CivicDeck;
+            var militaryDeck = request.MilitaryDeck;
+
             var result = await _sessionService.JoinGame(gameId, player2Id, civicDeck, militaryDeck);
 
             if (!result)
@@ -104,6 +111,8 @@ namespace Empire.Server.Controllers
 
             return Ok("Player 2 has joined the game successfully.");
         }
+
+
 
 
     }
