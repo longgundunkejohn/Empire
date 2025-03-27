@@ -92,24 +92,29 @@ namespace Empire.Server.Controllers
             var result = await _sessionService.ApplyMove(gameId, move);
             return result ? Ok() : BadRequest("Invalid move");
         }
-        [HttpPost("join")]
+        [HttpPost("join/{gameId}/{playerId}")]
         public async Task<IActionResult> JoinGame(
-    [FromQuery] string gameId,            // gameId as a query parameter
-    [FromQuery] string player2Id,         // player2Id as a query parameter
-    [FromBody] JoinGameRequest request)   // Bind body to JoinGameRequest
+            [FromRoute] string gameId,
+            [FromRoute] string playerId,
+            [FromBody] PlayerDeck playerDeck)
         {
-            // Access civicDeck and militaryDeck from the request object
-            var civicDeck = request.CivicDeck;
-            var militaryDeck = request.MilitaryDeck;
+            // Use the existing _sessionService, not _gameSessionService
+            var gameState = await _sessionService.GetGameState(gameId);
 
-            var result = await _sessionService.JoinGame(gameId, player2Id, civicDeck, militaryDeck);
+            if (gameState == null) return NotFound("Game not found.");
 
-            if (!result)
+            // Assign the player's decks
+            gameState.PlayerDecks[playerId] = playerDeck;
+
+            // Add any other logic for updating the game state
+
+            await _sessionService.ApplyMove(gameId, new GameMove
             {
-                return BadRequest("Failed to join the game. The game may not exist or is already full.");
-            }
+                PlayerId = playerId,
+                MoveType = "JoinGame"
+            });
 
-            return Ok("Player 2 has joined the game successfully.");
+            return Ok(gameId);
         }
 
 
