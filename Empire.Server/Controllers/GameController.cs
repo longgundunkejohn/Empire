@@ -78,6 +78,32 @@ namespace Empire.Server.Controllers
 
             return Ok(gameId);
         }
+        [HttpGet("state/{gameId}/{playerId}")]
+        public async Task<ActionResult<GameState>> GetGameState(string gameId, string playerId)
+        {
+            var state = await _sessionService.GetGameState(gameId);
+            if (state == null) return NotFound();
+
+            return Ok(state);
+        }
+        [HttpPost("move")]
+        public async Task<IActionResult> SubmitMove([FromBody] GameMove move, [FromQuery] string gameId)
+        {
+            var result = await _sessionService.ApplyMove(gameId, move);
+            return result ? Ok() : BadRequest("Invalid move");
+        }
+        [HttpPost("join")]
+        public async Task<IActionResult> JoinGame([FromQuery] string gameId, [FromQuery] string player2Id, [FromBody] List<int> civicDeck, [FromBody] List<int> militaryDeck)
+        {
+            var result = await _sessionService.JoinGame(gameId, player2Id, civicDeck, militaryDeck);
+
+            if (!result)
+            {
+                return BadRequest("Failed to join the game. The game may not exist or is already full.");
+            }
+
+            return Ok("Player 2 has joined the game successfully.");
+        }
 
 
     }

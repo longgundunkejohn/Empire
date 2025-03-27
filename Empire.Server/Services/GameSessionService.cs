@@ -84,14 +84,67 @@ namespace Empire.Server.Services
         }
         private void ProcessMove(GameState gameState, GameMove move)
         {
-            gameState.PlayerHands[move.PlayerId].Remove(move.CardId.Value);
-            gameState.GameBoardState.PlayedCards.Add(move.CardId.Value);
+            var player = move.PlayerId;
 
-            // Switch priority to the next player
-            gameState.PriorityPlayer = (gameState.PriorityPlayer == gameState.Player1) ? gameState.Player2 : gameState.Player1;
+            switch (move.MoveType)
+            {
+                case "DrawCivicCard":
+                    if (gameState.PlayerDecks[player].CivicDeck.Any())
+                    {
+                        var cardId = gameState.PlayerDecks[player].CivicDeck[0];
+                        gameState.PlayerDecks[player].CivicDeck.RemoveAt(0);
+                        gameState.PlayerHands[player].Add(cardId);
+                    }
+                    break;
 
-            // Save move history
+                case "DrawMilitaryCard":
+                    if (gameState.PlayerDecks[player].MilitaryDeck.Any())
+                    {
+                        var cardId = gameState.PlayerDecks[player].MilitaryDeck[0];
+                        gameState.PlayerDecks[player].MilitaryDeck.RemoveAt(0);
+                        gameState.PlayerHands[player].Add(cardId);
+                    }
+                    break;
+
+                case "PlayCard":
+                    if (move.CardId.HasValue && gameState.PlayerHands[player].Contains(move.CardId.Value))
+                    {
+                        gameState.PlayerHands[player].Remove(move.CardId.Value);
+                        gameState.PlayerBoard[player].Add(move.CardId.Value);
+                    }
+                    break;
+
+                case "MoveToGraveyard":
+                    if (move.CardId.HasValue)
+                    {
+                        int cardId = move.CardId.Value;
+                        // Remove from hand or board
+                        gameState.PlayerHands[player].Remove(cardId);
+                        gameState.PlayerBoard[player].Remove(cardId);
+
+                        gameState.PlayerGraveyards[player].Add(cardId);
+                    }
+                    break;
+
+                case "SealCard":
+                    if (move.CardId.HasValue)
+                    {
+                        int cardId = move.CardId.Value;
+                        gameState.PlayerHands[player].Remove(cardId);
+                        gameState.PlayerBoard[player].Remove(cardId);
+                        // Add sealing logic (new zone?) — we can scaffold a `PlayerSealedAway` dictionary like the others
+                    }
+                    break;
+
+                    // Add more like Exert, Rotate, etc later
+            }
+
             gameState.MoveHistory.Add(move);
+
+            // Rotate priority
+            gameState.PriorityPlayer = gameState.PriorityPlayer == gameState.Player1
+                ? gameState.Player2
+                : gameState.Player1;
         }
         public async Task<List<GameState>> ListOpenGames()
         {
@@ -99,9 +152,38 @@ namespace Empire.Server.Services
                 !string.IsNullOrEmpty(gs.Player1) && string.IsNullOrEmpty(gs.Player2)
             );
 
-            return await _gameCollection.Find(filter).ToListAsync();
+            var openGames = await _gameCollection.Find(filter).ToListAsync();
+            return openGames;
         }
+        public async Task<bool> JoinGame(string gameId, string player2Id, List<int> civicDeck, List<int> militaryDeck)
+        {
+            var gameState = await _gameCollection.Find(gs => gs.GameId == gameId).FirstOrDefaultAsync();
 
+            if (gameState == null || !string.IsNullOrEmpty(gameState.Player2))
+            {
+                // Game does not exist or Player2 has already joined
+                return false;
+            }
+
+            // Assign Player 2
+            gameState.Player2 = player2Id;
+
+            // Create Player 2's deck (same structure as Player 1's deck)
+            gameState.PlayerDecks[player2Id] = new PlayerDeck(civicDeck, militaryDeck);
+
+            // Initialize Player 2's hand and other zones
+            gameState.PlayerHands[player2Id] = new List<int>();
+            gameState.PlayerBoard[player2Id] = new List<int>();
+            gameState.PlayerGraveyards[player2Id] = new List<int>();
+
+            // Set Player 1 as the initiative holder, or set any other rules for turn order
+            gameState.InitiativeHolder = gameState.Player1;
+
+            // Save updated game state
+            await _gameCollection.ReplaceOneAsync(gs => gs.GameId == gameId, gameState);
+
+            return true;
+        }
 
 
     }

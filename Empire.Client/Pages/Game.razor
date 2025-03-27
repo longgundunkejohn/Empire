@@ -1,37 +1,85 @@
-﻿@page "/game"
+﻿@page "/game/{gameId}/{playerId}"
 @using Empire.Shared.Models
 @inject GameApi GameApi
 
 <h2>Your Hand</h2>
-<HandComponent Hand="@hand" OnCardSelected="PlayCard" />
+<HandComponent Hand="@handCards" OnCardSelected="PlayCard" />
 
 <h2>Your Deck</h2>
-<DeckComponent DeckCount="@deck.Count" OnDraw="DrawCard" />
+<div>
+    <h3>Civic Deck</h3>
+    <DeckComponent DeckCount="@civicCount" OnDraw="DrawCivic" CardBackImage="images/civicCardback.png" />
+</div>
+<div>
+    <h3>Military Deck</h3>
+    <DeckComponent DeckCount="@militaryCount" OnDraw="DrawMilitary" CardBackImage="images/armyCardback.png" />
+</div>
+
+<h2>Your Board</h2>
+<!-- Render your own board cards here, if applicable -->
 
 @code {
-    private List<Card> hand = new();
-    private List<Card> deck = new();
-    private string gameId = "YOUR_GAME_ID";
-    private string playerId = "Player1";
+    [Parameter] public string gameId { get; set; } = default!;
+    [Parameter] public string playerId { get; set; } = default!;
+    
+    private GameState? game;
+    private List<Card> handCards = new();
+    private int civicCount;
+    private int militaryCount;
 
     protected override async Task OnInitializedAsync()
     {
-        deck = await GameApi.GetDeck(gameId, playerId);
+        await LoadState();
     }
 
-    private void DrawCard()
+    private async Task LoadState()
     {
-        if (deck.Any())
+        game = await GameApi.GetGameState(gameId, playerId);
+
+        if (game == null) return;
+
+        var allCards = await GameApi.GetDeck(gameId, playerId);
+        var handIds = game.PlayerHands[playerId];
+        handCards = allCards.Where(c => handIds.Contains(c.CardId)).ToList();
+
+        civicCount = game.PlayerDecks[playerId].CivicDeck.Count;
+        militaryCount = game.PlayerDecks[playerId].MilitaryDeck.Count;
+    }
+
+    private async Task DrawCivic()
+    {
+        var move = new GameMove
         {
-            var card = deck[0];
-            deck.RemoveAt(0);
-            hand.Add(card);
-        }
+            PlayerId = playerId,
+            MoveType = "DrawCivicCard"
+        };
+
+        await GameApi.SubmitMove(gameId, move);
+        await LoadState();  // Reload the state after the move is applied
     }
 
-    private void PlayCard(Card card)
+    private async Task DrawMilitary()
     {
-        hand.Remove(card);
-        Console.WriteLine($"Played {card.Name}");
+        var move = new GameMove
+        {
+            PlayerId = playerId,
+            MoveType = "DrawMilitaryCard"
+        };
+
+        await GameApi.SubmitMove(gameId, move);
+        await LoadState();  // Reload the state after the move is applied
+    }
+
+    private async Task PlayCard(Card card)
+    {
+        var move = new GameMove
+        {
+            PlayerId = playerId,
+            MoveType = "PlayCard",
+            CardId = card.CardId
+        };
+
+        await GameApi.SubmitMove(gameId, move);
+        await LoadState();  // Reload the state after the move is applied
     }
 }

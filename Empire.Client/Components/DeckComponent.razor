@@ -1,18 +1,17 @@
 @using Empire.Shared.Models
-@inherits OwningComponentBase
 
-<div class="card" @onclick="HandleClick">
-    <img src="@Card.ImagePath" alt="@Card.Name" class="card-image" />
-    <div class="card-overlay">
-        <strong>@Card.Name</strong>
-        <p>@Card.CardText</p>
-        <p>@Card.Type (@Card.Faction)</p>
-    </div>
+<div class="deck" @onclick="OnDrawClick">
+    <img src="@CardBackImage" alt="Deck" class="card-image" />
+    <span class="deck-count">@DeckCount</span>
 </div>
 
 @code {
-    [Parameter] public Card Card { get; set; } = default!;
-    [Parameter] public EventCallback<Card> OnClick { get; set; }
+    [Parameter] public int DeckCount { get; set; }
+    [Parameter] public string CardBackImage { get; set; } = "images/defaultCardback.png"; // Default fallback
+    [Parameter] public EventCallback OnDraw { get; set; }
 
-    private async Task HandleClick() => await OnClick.InvokeAsync(Card);
+    private async Task OnDrawClick()
+    {
+        await OnDraw.InvokeAsync(); // Trigger the OnDraw action passed from the parent
+    }
 }
