@@ -5,6 +5,7 @@ obj/
 *.suo
 *.userosscache
 *.sln.docstates
+.vs/
 
 # VS Code
 .vscode/

@@ -1,0 +1,53 @@
+﻿@page "/lobby"
+@inject GameApi GameApi
+@inject NavigationManager Nav
+@using Empire.Shared.DTOs
+
+<h2>Available Games</h2>
+
+@if (games == null)
+{
+    <p>Loading...</p>
+}
+else if (games.Count == 0)
+{
+    <p>No open games yet.</p>
+}
+else
+{
+    <ul>
+        @foreach (var g in games)
+        {
+            <li>
+                <strong>@g.HostPlayer</strong> – Game ID: @g.GameId
+                @if (g.IsJoinable)
+                {
+                    <input placeholder="Your Player ID" @bind="joinName" />
+                    <button @onclick="() => Join(g.GameId)">Join</button>
+                }
+                else
+                {
+                    <em>Full</em>
+                }
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private List<GamePreview>? games;
+    private string joinName = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        games = await GameApi.GetOpenGames();
+    }
+
+    private void Join(string gameId)
+    {
+        if (!string.IsNullOrWhiteSpace(joinName))
+        {
+            Nav.NavigateTo($"/game/{gameId}/{joinName}");
+        }
+    }
+}

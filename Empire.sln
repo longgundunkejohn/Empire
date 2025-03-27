@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Empire.Shared", "Empire.Shared\Empire.Shared.csproj", "{40AEE180-CDBE-4B08-B683-112D630C588F}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Empire.Server", "Empire.Server\Empire.Server.csproj", "{8CD93425-E109-48B4-882A-9A364A37D406}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Empire.Client", "Empire.Client\Empire.Client.csproj", "{E42A9337-FF32-4F86-B5B0-9C9FF183905C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{40AEE180-CDBE-4B08-B683-112D630C588F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{40AEE180-CDBE-4B08-B683-112D630C588F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{40AEE180-CDBE-4B08-B683-112D630C588F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{40AEE180-CDBE-4B08-B683-112D630C588F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8CD93425-E109-48B4-882A-9A364A37D406}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8CD93425-E109-48B4-882A-9A364A37D406}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8CD93425-E109-48B4-882A-9A364A37D406}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8CD93425-E109-48B4-882A-9A364A37D406}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E42A9337-FF32-4F86-B5B0-9C9FF183905C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E42A9337-FF32-4F86-B5B0-9C9FF183905C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E42A9337-FF32-4F86-B5B0-9C9FF183905C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E42A9337-FF32-4F86-B5B0-9C9FF183905C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

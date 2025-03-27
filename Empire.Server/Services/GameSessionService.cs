@@ -93,6 +93,15 @@ namespace Empire.Server.Services
             // Save move history
             gameState.MoveHistory.Add(move);
         }
+        public async Task<List<GameState>> ListOpenGames()
+        {
+            var filter = Builders<GameState>.Filter.Where(gs =>
+                !string.IsNullOrEmpty(gs.Player1) && string.IsNullOrEmpty(gs.Player2)
+            );
+
+            return await _gameCollection.Find(filter).ToListAsync();
+        }
+
 
 
     }

@@ -1,6 +1,7 @@
 using Empire.Server.Services;
 using Empire.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
+using Empire.Shared.DTOs;
 
 namespace Empire.Server.Controllers
 {
@@ -10,11 +11,27 @@ namespace Empire.Server.Controllers
     {
         private readonly GameSessionService _sessionService;
         private readonly CardFactory _cardFactory;
+        private readonly DeckLoaderService _deckLoader;
 
-        public GameController(GameSessionService sessionService, CardFactory cardFactory)
+        public GameController(GameSessionService sessionService, CardFactory cardFactory, DeckLoaderService deckLoader)
         {
             _sessionService = sessionService;
             _cardFactory = cardFactory;
+            _deckLoader = deckLoader; //
+        }
+        [HttpGet("open")]
+        public async Task<ActionResult<List<GamePreview>>> GetOpenGames()
+        {
+            var openGames = await _sessionService.ListOpenGames();
+
+            var previews = openGames.Select(g => new GamePreview
+            {
+                GameId = g.GameId,
+                HostPlayer = g.Player1,
+                IsJoinable = string.IsNullOrEmpty(g.Player2)
+            }).ToList();
+
+            return Ok(previews);
         }
 
         [HttpGet("deck/{gameId}/{playerId}")]
@@ -33,34 +50,35 @@ namespace Empire.Server.Controllers
             var fullDeck = await _cardFactory.CreateDeckAsync(deckList);
             return Ok(fullDeck);
         }
-            [HttpPost("create")]
-    public async Task<ActionResult<string>> CreateGame([FromForm] IFormFile deckCsv, [FromForm] string playerId)
-    {
-        if (deckCsv == null || deckCsv.Length == 0)
-            return BadRequest("CSV is required.");
-
-        var tempPath = Path.GetTempFileName();
-        using (var stream = System.IO.File.Create(tempPath))
+        [HttpPost("create")]
+        public async Task<ActionResult<string>> CreateGame([FromForm] IFormFile deckCsv, [FromForm] string playerId)
         {
-            await deckCsv.CopyToAsync(stream);
+            if (deckCsv == null || deckCsv.Length == 0)
+                return BadRequest("CSV is required.");
+
+            var tempPath = Path.GetTempFileName();
+            using (var stream = System.IO.File.Create(tempPath))
+            {
+                await deckCsv.CopyToAsync(stream);
+            }
+
+            var playerDeck = _deckLoader.LoadDeckFromSingleCSV(tempPath);
+            var gameId = await _sessionService.CreateGameSession(playerId, ""); // Create solo game for now
+            var gameState = await _sessionService.GetGameState(gameId);
+            gameState.PlayerDecks[playerId] = playerDeck;
+            gameState.PlayerHands[playerId] = new List<int>(); // empty hand
+            gameState.PlayerBoard[playerId] = new List<int>();
+            gameState.PlayerGraveyards[playerId] = new List<int>();
+
+            await _sessionService.ApplyMove(gameId, new GameMove
+            {
+                PlayerId = playerId,
+                MoveType = "JoinGame"
+            });
+
+            return Ok(gameId);
         }
 
-        var playerDeck = _deckLoader.LoadDeckFromSingleCSV(tempPath);
-        var gameId = await _sessionService.CreateGameSession(playerId, ""); // Create solo game for now
-        var gameState = await _sessionService.GetGameState(gameId);
-        gameState.PlayerDecks[playerId] = playerDeck;
-        gameState.PlayerHands[playerId] = new List<int>(); // empty hand
-        gameState.PlayerBoard[playerId] = new List<int>();
-        gameState.PlayerGraveyards[playerId] = new List<int>();
-
-        await _sessionService.ApplyMove(gameId, new GameMove
-        {
-            PlayerId = playerId,
-            MoveType = "JoinGame"
-        });
-
-        return Ok(gameId);
-    }
 
     }
 }
