@@ -18,7 +18,9 @@
   <ProjectReference Include="..\Empire.Client\Empire.Client.csproj" />
     <ProjectReference Include="..\Empire.Shared\Empire.Shared.csproj" />
   </ItemGroup>
-
+<Target Name="PublishBlazorClient" AfterTargets="Publish">
+  <Exec Command="dotnet publish ../Empire.Client/Empire.Client.csproj -c Release -o $(PublishDir)wwwroot" />
+</Target>
   <ItemGroup>
     <Folder Include="Images\" />
   </ItemGroup>

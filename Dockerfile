@@ -1,20 +1,25 @@
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /src
+# ??? Build Blazor Client ???????????????????????????????
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS client-build
+WORKDIR /client
+COPY Empire.Client/*.csproj Empire.Client/
+RUN dotnet restore Empire.Client/Empire.Client.csproj
+COPY Empire.Client/ Empire.Client/
+RUN dotnet publish Empire.Client/Empire.Client.csproj -c Release -o /client/out
 
-COPY . .
-
-# ✅ Separate restore step for clarity
+# ??? Build Server ??????????????????????????????????????
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS server-build
+WORKDIR /server
+COPY Empire.Server/*.csproj Empire.Server/
+COPY Empire.Shared/*.csproj Empire.Shared/
 RUN dotnet restore Empire.Server/Empire.Server.csproj
+COPY Empire.Server/ Empire.Server/
+COPY Empire.Shared/ Empire.Shared/
+RUN dotnet publish Empire.Server/Empire.Server.csproj -c Release -o /server/out
 
-# ✅ Then publish
-RUN dotnet publish Empire.Server/Empire.Server.csproj -c Release -o /app/publish
-
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
+# ??? Final Runtime Image ???????????????????????????????
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
-
-COPY --from=build /app/publish .
-
+COPY --from=server-build /server/out ./
+COPY --from=client-build /client/out ./wwwroot
 ENV ASPNETCORE_URLS=http://0.0.0.0:80
-
 ENTRYPOINT ["dotnet", "Empire.Server.dll"]
-
