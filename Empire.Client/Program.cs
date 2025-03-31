@@ -9,8 +9,9 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 
 // 🌍 Dynamic API base URL — switch between dev & prod automatically
 var apiBaseUrl = builder.HostEnvironment.IsDevelopment()
-    ? "http://134.209.20.47:5000/api/"  // Use deployed backend in dev
-    : "https://empirecardgame.com/api/"; // Use absolute URL in production
+    ? "http://134.209.20.47:5000"
+    : "https://empirecardgame.com";
+
 
 // 🧠 Register HttpClient with correct base address
 builder.Services.AddScoped(sp => new HttpClient
