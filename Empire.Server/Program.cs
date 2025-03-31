@@ -62,6 +62,11 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 });
+app.Use((context, next) =>
+{
+    context.Request.Host = new HostString("empirecardgame.com");
+    return next();
+});
 
 app.UseHttpsRedirection();
 app.UseBlazorFrameworkFiles();
