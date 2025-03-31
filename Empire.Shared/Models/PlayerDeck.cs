@@ -4,13 +4,12 @@ namespace Empire.Shared.Models
 {
     public class PlayerDeck
     {
-        // List of card IDs for Civic Deck
-        public List<int> CivicDeck { get; set; }
+        public List<int> CivicDeck { get; set; } = new();
+        public List<int> MilitaryDeck { get; set; } = new();
 
-        // List of card IDs for Military Deck
-        public List<int> MilitaryDeck { get; set; }
+        // 👇 Required for Blazor + JSON deserialization + object initializer
+        public PlayerDeck() { }
 
-        // Constructor to initialize the decks
         public PlayerDeck(List<int> civicDeck, List<int> militaryDeck)
         {
             CivicDeck = civicDeck;

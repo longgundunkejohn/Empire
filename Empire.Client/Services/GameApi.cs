@@ -1,7 +1,7 @@
 ﻿using Empire.Shared.Models;
+using Empire.Shared.DTOs;
 using System.Net.Http.Json;
-
-using Empire.Shared.DTOs; // ⬅ Make sure this using is present
+using System.Text.Json;
 
 public class GameApi
 {
@@ -14,31 +14,100 @@ public class GameApi
 
     public async Task<List<GamePreview>> GetOpenGames()
     {
-        var games = await _http.GetFromJsonAsync<List<GamePreview>>("api/game/open");
-        return games ?? new List<GamePreview>();
+        try
+        {
+            var response = await _http.GetAsync("api/game/open");
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"[GameApi] Failed to fetch open games: {response.StatusCode}");
+                return new();
+            }
+
+            var content = await response.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<List<GamePreview>>(content, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            return result ?? new();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[GameApi] GetOpenGames() error: {ex.Message}");
+            return new();
+        }
     }
 
-    // you already likely have this one:
     public async Task<List<Card>> GetDeck(string gameId, string playerId)
     {
-        var result = await _http.GetFromJsonAsync<List<Card>>($"api/game/deck/{gameId}/{playerId}");
-        return result ?? new List<Card>();
+        try
+        {
+            var response = await _http.GetAsync($"api/game/deck/{gameId}/{playerId}");
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"[GameApi] GetDeck failed: {response.StatusCode}");
+                return new();
+            }
+
+            var content = await response.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<List<Card>>(content, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            return result ?? new();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[GameApi] GetDeck() error: {ex.Message}");
+            return new();
+        }
     }
+
     public async Task<GameState?> GetGameState(string gameId, string playerId)
     {
-        return await _http.GetFromJsonAsync<GameState>($"api/game/state/{gameId}/{playerId}");
+        try
+        {
+            return await _http.GetFromJsonAsync<GameState>($"api/game/state/{gameId}/{playerId}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[GameApi] GetGameState() error: {ex.Message}");
+            return null;
+        }
     }
-    public async Task<bool> JoinGame(string gameId, string player2Id, List<int> civicDeck, List<int> militaryDeck)
-    {
-        var response = await _http.PostAsJsonAsync($"api/game/join?gameId={gameId}&player2Id={player2Id}", new { civicDeck, militaryDeck });
 
-        return response.IsSuccessStatusCode;
+    public async Task<bool> JoinGame(string gameId, string playerId, List<int> civicDeck, List<int> militaryDeck)
+    {
+        try
+        {
+            var deck = new PlayerDeck
+            {
+                CivicDeck = civicDeck,
+                MilitaryDeck = militaryDeck
+            };
+
+            var response = await _http.PostAsJsonAsync($"api/game/join/{gameId}/{playerId}", deck);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[GameApi] JoinGame() error: {ex.Message}");
+            return false;
+        }
     }
 
     public async Task<bool> SubmitMove(string gameId, GameMove move)
     {
-        var response = await _http.PostAsJsonAsync($"api/game/move?gameId={gameId}", move);
-        return response.IsSuccessStatusCode;
+        try
+        {
+            var response = await _http.PostAsJsonAsync($"api/game/move?gameId={gameId}", move);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[GameApi] SubmitMove() error: {ex.Message}");
+            return false;
+        }
     }
-
 }
