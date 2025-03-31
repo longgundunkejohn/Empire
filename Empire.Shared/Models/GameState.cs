@@ -8,8 +8,9 @@ namespace Empire.Shared.Models
     public class GameState
     {
         [BsonId]
-        [BsonRepresentation(BsonType.ObjectId)]
+        [BsonRepresentation(BsonType.String)] // ✅ NOT ObjectId
         public string GameId { get; set; } = Guid.NewGuid().ToString();
+
 
         public string Player1 { get; set; }
         public string Player2 { get; set; }
