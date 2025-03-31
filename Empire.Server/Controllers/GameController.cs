@@ -1,4 +1,4 @@
-using Empire.Server.Services;
+﻿using Empire.Server.Services;
 using Empire.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 using Empire.Shared.DTOs;
@@ -63,21 +63,20 @@ namespace Empire.Server.Controllers
             }
 
             var playerDeck = _deckLoader.LoadDeckFromSingleCSV(tempPath);
-            var gameId = await _sessionService.CreateGameSession(playerId, ""); // Create solo game for now
+
+            var gameId = await _sessionService.CreateGameSession(playerId, ""); // player1 = host, no player2 yet
             var gameState = await _sessionService.GetGameState(gameId);
             gameState.PlayerDecks[playerId] = playerDeck;
             gameState.PlayerHands[playerId] = new List<int>(); // empty hand
             gameState.PlayerBoard[playerId] = new List<int>();
             gameState.PlayerGraveyards[playerId] = new List<int>();
 
-            await _sessionService.ApplyMove(gameId, new GameMove
-            {
-                PlayerId = playerId,
-                MoveType = "JoinGame"
-            });
+            // 🛑 DO NOT apply a move here that might trigger game full logic
+            // Leave as-is so player2 can still join and it shows up in /open
 
             return Ok(gameId);
         }
+
         [HttpGet("state/{gameId}/{playerId}")]
         public async Task<ActionResult<GameState>> GetGameState(string gameId, string playerId)
         {
