@@ -17,13 +17,11 @@ public class GameApi
         try
         {
             var response = await _http.GetAsync("api/game/open");
-            if (!response.IsSuccessStatusCode)
-            {
-                Console.WriteLine($"[GameApi] Failed to fetch open games: {response.StatusCode}");
-                return new();
-            }
-
             var content = await response.Content.ReadAsStringAsync();
+
+            Console.WriteLine("[GameApi] Raw response:");
+            Console.WriteLine(content);
+
             var result = JsonSerializer.Deserialize<List<GamePreview>>(content, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
@@ -37,6 +35,7 @@ public class GameApi
             return new();
         }
     }
+
 
     public async Task<List<Card>> GetDeck(string gameId, string playerId)
     {
