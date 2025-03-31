@@ -1,5 +1,6 @@
-﻿using Empire.Server.Interfaces;
+using Empire.Server.Interfaces;
 using Empire.Server.Services;
+using Microsoft.AspNetCore.HttpOverrides;
 using MongoDB.Driver;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -57,6 +58,10 @@ else
 {
     app.UseHsts(); // Production security
 }
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
 
 app.UseHttpsRedirection();
 app.UseBlazorFrameworkFiles();
@@ -67,3 +72,4 @@ app.MapControllers();
 app.MapFallbackToFile("index.html");
 
 app.Run();
+
