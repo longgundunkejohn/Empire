@@ -10,6 +10,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddControllers();
 builder.Services.AddSwaggerGen();
 
+// 🗄 MongoDB setup
 builder.Services.AddSingleton<IMongoClient>(sp =>
     new MongoClient(builder.Configuration["MongoDB:ConnectionString"]));
 
@@ -17,6 +18,7 @@ builder.Services.AddSingleton(sp =>
     sp.GetRequiredService<IMongoClient>()
         .GetDatabase(builder.Configuration["MongoDB:DatabaseName"]));
 
+// 💼 Application services
 builder.Services.AddSingleton<IMongoDbService, MongoDbService>();
 builder.Services.AddSingleton<DeckLoaderService>();
 builder.Services.AddScoped<ICardDatabaseService, CardDatabaseService>();
@@ -24,6 +26,7 @@ builder.Services.AddScoped<CardService>();
 builder.Services.AddScoped<CardFactory>();
 builder.Services.AddScoped<GameSessionService>();
 
+// 🌐 CORS for frontend
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowEmpireClient", policy =>
@@ -48,16 +51,16 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
-    // Removed: app.UseWebAssemblyDebugging();
+    // (Optional) app.UseWebAssemblyDebugging();
 }
 else
 {
-    app.UseHsts(); // Optional hardening
+    app.UseHsts(); // Production security
 }
 
 app.UseHttpsRedirection();
 app.UseBlazorFrameworkFiles();
-app.UseStaticFiles(); 
+app.UseStaticFiles();
 app.UseRouting();
 app.UseCors("AllowEmpireClient");
 app.MapControllers();
