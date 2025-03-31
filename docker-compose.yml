@@ -3,25 +3,40 @@ version: '3.8'
 services:
   empire-server:
     container_name: empire-server
-    image: empire-server:latest  # Or build inline if needed
     build:
       context: .
-      dockerfile: Dockerfile     # Adjust if yours has a different name
+      dockerfile: Dockerfile  # Adjust if yours has a different name
+    image: empire-server:latest  # Optionally use the built image
     ports:
-      - "5000:80"                # Internal app listens on 80, exposed on 5000
+      - "5000:80"  # Exposes port 80 inside the container as port 5000 on the host
     environment:
-      - ASPNETCORE_ENVIRONMENT=Production
-    restart: unless-stopped
+      - ASPNETCORE_ENVIRONMENT=Production  # Set environment to Production
+    restart: unless-stopped  # Automatically restart unless manually stopped
 
   # Optional NGINX container if you want to dockerize NGINX too
-  # nginx:
-  #   image: nginx:latest
-  #   container_name: nginx
-  #   volumes:
-  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #   depends_on:
-  #     - empire-server
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certbot/www:/var/www/certbot      # ✅ Add this
+      - ./certbot/conf:/etc/letsencrypt     # ✅ Add this
+    depends_on:
+      - empire-server
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
 

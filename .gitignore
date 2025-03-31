@@ -26,3 +26,4 @@ wwwroot/service-worker-assets.js
 .DS_Store
 Thumbs.db
 
+/certbot/conf/live
