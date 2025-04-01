@@ -115,6 +115,26 @@ namespace Empire.Server.Controllers
 
             return Ok(gameId);
         }
+        [HttpPost("uploadDeck/{gameId}")]
+        public async Task<IActionResult> UploadDeck(
+    [FromRoute] string gameId,
+    [FromForm] IFormFile deckCsv,
+    [FromForm] string playerName)
+        {
+            if (deckCsv == null || deckCsv.Length == 0)
+                return BadRequest("Deck file is missing");
+
+            var tempPath = Path.GetTempFileName();
+            using (var stream = System.IO.File.Create(tempPath))
+            {
+                await deckCsv.CopyToAsync(stream);
+            }
+
+            var playerDeck = _deckLoader.LoadDeckFromSingleCSV(tempPath);
+
+            var success = await _sessionService.JoinGame(gameId, playerName, playerDeck.CivicDeck, playerDeck.MilitaryDeck);
+            return success ? Ok() : BadRequest("Could not join game");
+        }
 
 
 
