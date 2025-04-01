@@ -97,6 +97,16 @@ namespace Empire.Server.Services
                     }
                     break;
 
+                case "GainLife":
+                    if (move.Value.HasValue)
+                        gameState.PlayerLifeTotals[player] += move.Value.Value;
+                    break;
+
+                case "LoseLife":
+                    if (move.Value.HasValue)
+                        gameState.PlayerLifeTotals[player] -= move.Value.Value;
+                    break;
+
                 case "DrawMilitaryCard":
                     if (gameState.PlayerDecks[player].MilitaryDeck.Any())
                     {

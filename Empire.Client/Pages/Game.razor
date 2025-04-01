@@ -1,6 +1,11 @@
-﻿@page "/game/{gameId}/{playerId}"
+﻿// Game.razor (Blazor page)
+@page "/game/{gameId}/{playerId}"
 @using Empire.Shared.Models
 @inject GameApi GameApi
+
+<h2>Your Life Total: @lifeTotal</h2>
+<button @onclick="() => ModifyLife(1)">+1</button>
+<button @onclick="() => ModifyLife(-1)">-1</button>
 
 <h2>Your Hand</h2>
 <HandComponent Hand="@handCards" OnCardSelected="PlayCard" />
@@ -16,16 +21,28 @@
 </div>
 
 <h2>Your Board</h2>
-<!-- Render your own board cards here, if applicable -->
+<!-- Render your own board cards here -->
+<div class="board">
+    @foreach (var cardId in game?.PlayerBoard.GetValueOrDefault(playerId) ?? Enumerable.Empty<int>())
+    {
+        var card = allCards.FirstOrDefault(c => c.CardId == cardId);
+        if (card != null)
+        {
+            <img src=$"images/{card.CardId}-{card.Name}.jpg" class="card" />
+        }
+    }
+</div>
 
 @code {
     [Parameter] public string gameId { get; set; } = default!;
     [Parameter] public string playerId { get; set; } = default!;
-    
+
     private GameState? game;
     private List<Card> handCards = new();
+    private List<Card> allCards = new();
     private int civicCount;
     private int militaryCount;
+    private int lifeTotal = 25;
 
     protected override async Task OnInitializedAsync()
     {
@@ -38,36 +55,42 @@
 
         if (game == null) return;
 
-        var allCards = await GameApi.GetDeck(gameId, playerId);
-        var handIds = game.PlayerHands[playerId];
+        allCards = await GameApi.GetDeck(gameId, playerId);
+
+        if (game.PlayerLifeTotals.TryGetValue(playerId, out var hp))
+            lifeTotal = hp;
+
+        var handIds = game.PlayerHands.GetValueOrDefault(playerId, new());
         handCards = allCards.Where(c => handIds.Contains(c.CardId)).ToList();
 
         civicCount = game.PlayerDecks[playerId].CivicDeck.Count;
         militaryCount = game.PlayerDecks[playerId].MilitaryDeck.Count;
     }
 
-    private async Task DrawCivic()
+    private async Task ModifyLife(int amount)
     {
         var move = new GameMove
         {
             PlayerId = playerId,
-            MoveType = "DrawCivicCard"
+            MoveType = amount > 0 ? "GainLife" : "LoseLife",
+            Value = Math.Abs(amount)
         };
-
         await GameApi.SubmitMove(gameId, move);
-        await LoadState();  // Reload the state after the move is applied
+        await LoadState();
+    }
+
+    private async Task DrawCivic()
+    {
+        var move = new GameMove { PlayerId = playerId, MoveType = "DrawCivicCard" };
+        await GameApi.SubmitMove(gameId, move);
+        await LoadState();
     }
 
     private async Task DrawMilitary()
     {
-        var move = new GameMove
-        {
-            PlayerId = playerId,
-            MoveType = "DrawMilitaryCard"
-        };
-
+        var move = new GameMove { PlayerId = playerId, MoveType = "DrawMilitaryCard" };
         await GameApi.SubmitMove(gameId, move);
-        await LoadState();  // Reload the state after the move is applied
+        await LoadState();
     }
 
     private async Task PlayCard(Card card)
@@ -78,8 +101,7 @@
             MoveType = "PlayCard",
             CardId = card.CardId
         };
-
         await GameApi.SubmitMove(gameId, move);
-        await LoadState();  // Reload the state after the move is applied
+        await LoadState();
     }
 }

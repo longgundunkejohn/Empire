@@ -2,6 +2,7 @@
 @inject GameApi GameApi
 @inject NavigationManager Nav
 @using Empire.Shared.DTOs
+@inject HttpClient Http
 
 <h2>Available Games</h2>
 
@@ -20,10 +21,20 @@ else
         {
             <li>
                 <strong>@g.HostPlayer</strong> – Game ID: @g.GameId
+
                 @if (g.IsJoinable)
                 {
-                    <input placeholder="Enter your Player ID" @bind="joinName" />
-                    <button @onclick="() => Join(g.GameId)">Join</button>
+                    @if (selectedGameId == g.GameId)
+                    {
+                        <input placeholder="Your Name" @bind="joinName" />
+                        <InputFile OnChange="OnDeckUpload" accept=".csv" />
+                        <button @onclick="() => Join(g.GameId)">Upload & Join</button>
+                        <button @onclick="CancelJoin">Cancel</button>
+                    }
+                    else
+                    {
+                        <button @onclick="() => SelectGame(g.GameId)">Join</button>
+                    }
                 }
                 else
                 {
@@ -31,10 +42,13 @@ else
                 }
             </li>
         }
+
     </ul>
 }
 
 @code {
+    private string selectedGameId = "";
+    IBrowserFile? uploadedDeck;
     private List<GamePreview>? games;
     private string joinName = "";
 
@@ -44,30 +58,41 @@ else
         games = await GameApi.GetOpenGames();
     }
 
-    // Function to join a game by sending a request to the backend
+    private void SelectGame(string gameId)
+    {
+        selectedGameId = gameId;
+        joinName = "";          // Reset input
+        uploadedDeck = null;    // Reset file
+    }
+
+    private void CancelJoin()
+    {
+        selectedGameId = "";
+        joinName = "";
+        uploadedDeck = null;
+    }
+
+    private async Task OnDeckUpload(InputFileChangeEventArgs e)
+    {
+        uploadedDeck = e.File;
+    }
+
     private async Task Join(string gameId)
     {
-        if (string.IsNullOrWhiteSpace(joinName))
+        if (string.IsNullOrWhiteSpace(joinName) || uploadedDeck is null)
+            return;
+
+        using var content = new MultipartFormDataContent();
+        var stream = uploadedDeck.OpenReadStream(1024 * 1024);
+        var fileContent = new StreamContent(stream);
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");
+        content.Add(fileContent, "deckCsv", uploadedDeck.Name);
+        content.Add(new StringContent(joinName), "playerName");
+
+        var response = await Http.PostAsync($"api/game/uploadDeck/{gameId}", content);
+        if (response.IsSuccessStatusCode)
         {
-            // Handle empty player name
-            return;  // You can show a message to the user if needed
-        }
-
-        var civicDeck = new List<int> { 101, 102 }; // Example deck IDs
-        var militaryDeck = new List<int> { 103, 104 }; // Example deck IDs
-
-        // Call the JoinGame API to add Player 2 to the game
-        var success = await GameApi.JoinGame(gameId, joinName, civicDeck, militaryDeck);
-
-        if (success)
-        {
-            // Navigate to the game page once successfully joined
             Nav.NavigateTo($"/game/{gameId}/{joinName}");
-        }
-        else
-        {
-            // Show an error message if joining fails (e.g., game is full)
-            // You can add a notification here for the user
         }
     }
 }

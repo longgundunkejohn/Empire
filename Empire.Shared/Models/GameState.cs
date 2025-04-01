@@ -27,5 +27,8 @@ namespace Empire.Shared.Models
         public Dictionary<string, List<int>> PlayerGraveyards { get; set; } = new();
 
         public List<GameMove> MoveHistory { get; set; } = new();
+        public Dictionary<string, int> PlayerLifeTotals { get; set; } = new();
+
+
     }
 }
