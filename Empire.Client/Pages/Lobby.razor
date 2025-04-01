@@ -1,10 +1,21 @@
 ﻿@page "/lobby"
+
 @inject GameApi GameApi
 @inject NavigationManager Nav
-@using Empire.Shared.DTOs
 @inject HttpClient Http
 
+@using Empire.Shared.DTOs
+@using Microsoft.AspNetCore.Components.Forms
+
 <h2>Available Games</h2>
+
+<!-- 👤 New Game Section -->
+<h4>Create New Game</h4>
+<input placeholder="Your Name" @bind="createName" />
+<InputFile OnChange="OnCreateDeckUpload" accept=".csv" />
+<button @onclick="CreateGame">Create Game</button>
+
+<hr />
 
 @if (games == null)
 {
@@ -42,17 +53,19 @@ else
                 }
             </li>
         }
-
     </ul>
 }
 
 @code {
-    private string selectedGameId = "";
-    IBrowserFile? uploadedDeck;
     private List<GamePreview>? games;
-    private string joinName = "";
 
-    // Fetch the list of open games on initial load
+    private string selectedGameId = "";
+    private string joinName = "";
+    private IBrowserFile? uploadedDeck;
+
+    private string createName = "";
+    private IBrowserFile? createDeck;
+
     protected override async Task OnInitializedAsync()
     {
         games = await GameApi.GetOpenGames();
@@ -61,8 +74,8 @@ else
     private void SelectGame(string gameId)
     {
         selectedGameId = gameId;
-        joinName = "";          // Reset input
-        uploadedDeck = null;    // Reset file
+        joinName = "";
+        uploadedDeck = null;
     }
 
     private void CancelJoin()
@@ -77,6 +90,11 @@ else
         uploadedDeck = e.File;
     }
 
+    private async Task OnCreateDeckUpload(InputFileChangeEventArgs e)
+    {
+        createDeck = e.File;
+    }
+
     private async Task Join(string gameId)
     {
         if (string.IsNullOrWhiteSpace(joinName) || uploadedDeck is null)
@@ -86,6 +104,7 @@ else
         var stream = uploadedDeck.OpenReadStream(1024 * 1024);
         var fileContent = new StreamContent(stream);
         fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");
+
         content.Add(fileContent, "deckCsv", uploadedDeck.Name);
         content.Add(new StringContent(joinName), "playerName");
 
@@ -93,6 +112,27 @@ else
         if (response.IsSuccessStatusCode)
         {
             Nav.NavigateTo($"/game/{gameId}/{joinName}");
+        }
+    }
+
+    private async Task CreateGame()
+    {
+        if (string.IsNullOrWhiteSpace(createName) || createDeck is null)
+            return;
+
+        using var content = new MultipartFormDataContent();
+        var stream = createDeck.OpenReadStream(1024 * 1024);
+        var fileContent = new StreamContent(stream);
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");
+
+        content.Add(fileContent, "deckCsv", createDeck.Name);
+        content.Add(new StringContent(createName), "playerId");
+
+        var response = await Http.PostAsync("api/game/create", content);
+        if (response.IsSuccessStatusCode)
+        {
+            var gameId = await response.Content.ReadAsStringAsync();
+            Nav.NavigateTo($"/game/{gameId}/{createName}");
         }
     }
 }
