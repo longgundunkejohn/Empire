@@ -6,6 +6,7 @@
 <h2>Your Life Total: @lifeTotal</h2>
 <button @onclick="() => ModifyLife(1)">+1</button>
 <button @onclick="() => ModifyLife(-1)">-1</button>
+<button @onclick="UnexertAllCards">Unexert All</button>
 
 <h2>Your Hand</h2>
 <HandComponent Hand="@handCards" OnCardSelected="PlayCard" />
@@ -23,9 +24,9 @@
 <h2>Your Board</h2>
 <!-- Render your own board cards here -->
 <div class="board">
-    @foreach (var cardId in game?.PlayerBoard.GetValueOrDefault(playerId) ?? Enumerable.Empty<int>())
+    @foreach (var boardCard in game?.PlayerBoard.GetValueOrDefault(playerId) ?? new List<BoardCard>())
     {
-        var card = allCards.FirstOrDefault(c => c.CardId == cardId);
+        var card = allCards.FirstOrDefault(c => c.CardId == boardCard.CardId);
         if (card != null)
         {
             <img src=$"images/{card.CardId}-{card.Name}.jpg" class="card" />
@@ -65,6 +66,17 @@
 
         civicCount = game.PlayerDecks[playerId].CivicDeck.Count;
         militaryCount = game.PlayerDecks[playerId].MilitaryDeck.Count;
+    }
+    private async Task UnexertAllCards()
+    {
+        var move = new GameMove
+            {
+                PlayerId = playerId,
+                MoveType = "UnexertAll"
+            };
+
+        await GameApi.SubmitMove(gameId, move);
+        await LoadState();
     }
 
     private async Task ModifyLife(int amount)

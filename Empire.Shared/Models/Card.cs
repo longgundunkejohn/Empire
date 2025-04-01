@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Empire.Shared.Models
 {
@@ -10,12 +6,15 @@ namespace Empire.Shared.Models
     {
         public int CardId { get; set; }
         public string Name { get; set; }
-        public string ImagePath => $"cards/{CardId} - {Name}.jpg"; // assuming wwwroot/cards/
         public string CardText { get; set; }
         public string Type { get; set; }
         public string Faction { get; set; }
         public bool IsExerted { get; set; } = false;
         public int CurrentDamage { get; set; } = 0;
+
+        public string ImagePath => $"images/{CardId} - {Name}.jpg";
+
+        public Card() { } // 🔧 Needed for deserialization
 
         public Card(CardData data)
         {
@@ -26,5 +25,4 @@ namespace Empire.Shared.Models
             Faction = data.Faction;
         }
     }
-
 }

@@ -1,8 +1,7 @@
 @using Empire.Shared.Models
-@inherits OwningComponentBase
 
-<div class="card" @onclick="HandleClick">
-    <img src="@Card.ImagePath" alt="@Card.Name" class="card-image" />
+<div class="card" ondblclick="HandleDoubleClick" @onclick="HandleClick">
+    <img src="@Card.ImagePath" alt="@Card.Name" class="card-image @(Card.IsExerted ? "exerted" : "")" />
     <div class="card-overlay">
         <strong>@Card.Name</strong>
         <p>@Card.CardText</p>
@@ -13,6 +12,8 @@
 @code {
     [Parameter] public Card Card { get; set; } = default!;
     [Parameter] public EventCallback<Card> OnClick { get; set; }
+    [Parameter] public EventCallback<Card> OnDoubleClick { get; set; }
 
     private async Task HandleClick() => await OnClick.InvokeAsync(Card);
+    private async Task HandleDoubleClick() => await OnDoubleClick.InvokeAsync(Card);
 }

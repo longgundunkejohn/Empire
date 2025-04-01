@@ -1,4 +1,4 @@
-@using Empire.Shared.Models
+@using Microsoft.AspNetCore.Components
 
 <div class="deck" @onclick="OnDrawClick">
     <img src="@CardBackImage" alt="Deck" class="card-image" />
@@ -7,11 +7,8 @@
 
 @code {
     [Parameter] public int DeckCount { get; set; }
-    [Parameter] public string CardBackImage { get; set; } = "images/defaultCardback.png"; // Default fallback
+    [Parameter] public string CardBackImage { get; set; } = "images/defaultCardback.png";
     [Parameter] public EventCallback OnDraw { get; set; }
 
-    private async Task OnDrawClick()
-    {
-        await OnDraw.InvokeAsync(); // Trigger the OnDraw action passed from the parent
-    }
+    private async Task OnDrawClick() => await OnDraw.InvokeAsync();
 }

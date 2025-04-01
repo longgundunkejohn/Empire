@@ -68,8 +68,9 @@ namespace Empire.Server.Controllers
             var gameState = await _sessionService.GetGameState(gameId);
             gameState.PlayerDecks[playerId] = playerDeck;
             gameState.PlayerHands[playerId] = new List<int>(); // empty hand
-            gameState.PlayerBoard[playerId] = new List<int>();
+            gameState.PlayerBoard[playerId] = new List<BoardCard>(); // ✅ FIXED
             gameState.PlayerGraveyards[playerId] = new List<int>();
+
 
             // 🛑 DO NOT apply a move here that might trigger game full logic
             // Leave as-is so player2 can still join and it shows up in /open
@@ -116,25 +117,25 @@ namespace Empire.Server.Controllers
             return Ok(gameId);
         }
         [HttpPost("uploadDeck/{gameId}")]
-        public async Task<IActionResult> UploadDeck(
-    [FromRoute] string gameId,
-    [FromForm] IFormFile deckCsv,
-    [FromForm] string playerName)
-        {
-            if (deckCsv == null || deckCsv.Length == 0)
-                return BadRequest("Deck file is missing");
+                public async Task<IActionResult> UploadDeck(
+            [FromRoute] string gameId,
+            [FromForm] IFormFile deckCsv,
+            [FromForm] string playerName)
+                {
+                    if (deckCsv == null || deckCsv.Length == 0)
+                        return BadRequest("Deck file is missing");
 
-            var tempPath = Path.GetTempFileName();
-            using (var stream = System.IO.File.Create(tempPath))
-            {
-                await deckCsv.CopyToAsync(stream);
-            }
+                    var tempPath = Path.GetTempFileName();
+                    using (var stream = System.IO.File.Create(tempPath))
+                    {
+                        await deckCsv.CopyToAsync(stream);
+                    }
 
-            var playerDeck = _deckLoader.LoadDeckFromSingleCSV(tempPath);
+                    var playerDeck = _deckLoader.LoadDeckFromSingleCSV(tempPath);
 
-            var success = await _sessionService.JoinGame(gameId, playerName, playerDeck.CivicDeck, playerDeck.MilitaryDeck);
-            return success ? Ok() : BadRequest("Could not join game");
-        }
+                    var success = await _sessionService.JoinGame(gameId, playerName, playerDeck.CivicDeck, playerDeck.MilitaryDeck);
+                    return success ? Ok() : BadRequest("Could not join game");
+                }
 
 
 

@@ -44,3 +44,8 @@
     padding: 2px 6px;
     border-radius: 4px;
 }
+.card-image.exerted {
+    transform: rotate(90deg);
+    transition: transform 0.2s ease-in-out;
+}
+

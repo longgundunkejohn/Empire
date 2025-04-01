@@ -11,7 +11,6 @@ namespace Empire.Shared.Models
         [BsonRepresentation(BsonType.String)] // ✅ NOT ObjectId
         public string GameId { get; set; } = Guid.NewGuid().ToString();
 
-
         public string Player1 { get; set; }
         public string Player2 { get; set; }
         public string InitiativeHolder { get; set; }
@@ -20,15 +19,16 @@ namespace Empire.Shared.Models
         public GamePhase CurrentPhase { get; set; }
 
         public GameBoard GameBoardState { get; set; } = new GameBoard();
-        public Dictionary<string, List<int>> PlayerBoard { get; set; } = new();
-         
+
+        // ✅ Now using full BoardCard models instead of just ints
+        public Dictionary<string, List<BoardCard>> PlayerBoard { get; set; } = new();
+
         public Dictionary<string, List<int>> PlayerHands { get; set; } = new();
         public Dictionary<string, PlayerDeck> PlayerDecks { get; set; } = new();
         public Dictionary<string, List<int>> PlayerGraveyards { get; set; } = new();
 
         public List<GameMove> MoveHistory { get; set; } = new();
+
         public Dictionary<string, int> PlayerLifeTotals { get; set; } = new();
-
-
     }
 }

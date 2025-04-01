@@ -78,9 +78,15 @@ namespace Empire.Server.Services
         public void PlayCard(string player, int cardId)
         {
             if (!GameState.PlayerHands[player].Contains(cardId)) return;
+
             GameState.PlayerHands[player].Remove(cardId);
-            GameState.PlayerBoard[player].Add(cardId);
+
+            if (!GameState.PlayerBoard.ContainsKey(player))
+                GameState.PlayerBoard[player] = new List<BoardCard>(); // ensure it’s initialized
+
+            GameState.PlayerBoard[player].Add(new BoardCard(cardId)); // ✅ FIXED
         }
+
         private int ExtractCardId(string filename)
         {
             string[] parts = filename.Split(' ');

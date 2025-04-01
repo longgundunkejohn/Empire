@@ -24,21 +24,27 @@ namespace Empire.Server.Services
                 CurrentPhase = GamePhase.Strategy,
                 InitiativeHolder = player1Id,
                 PriorityPlayer = player2Id,
-                GameBoardState = new Empire.Shared.Models.GameBoard(),
+                GameBoardState = new GameBoard(),
                 PlayerDecks = new Dictionary<string, PlayerDeck>
-{
-    { player1Id, new PlayerDeck(new List<int>(), new List<int>()) },
-    { player2Id, new PlayerDeck(new List<int>(), new List<int>()) }
-},
-
+                {
+                    { player1Id, new PlayerDeck(new List<int>(), new List<int>()) },
+                    { player2Id, new PlayerDeck(new List<int>(), new List<int>()) }
+                },
                 PlayerGraveyards = new Dictionary<string, List<int>>(),
-
-                MoveHistory = new List<GameMove>()
+                PlayerHands = new Dictionary<string, List<int>>(),
+                PlayerBoard = new Dictionary<string, List<BoardCard>>(),
+                MoveHistory = new List<GameMove>(),
+                PlayerLifeTotals = new Dictionary<string, int>
+                {
+                    { player1Id, 25 },
+                    { player2Id, 25 }
+                }
             };
 
             await _gameCollection.InsertOneAsync(gameState);
             return gameState.GameId;
         }
+
         public async Task<GameState?> GetGameState(string gameId)
         {
             var state = await _gameCollection.Find(gs => gs.GameId == gameId).FirstOrDefaultAsync();
@@ -48,40 +54,22 @@ namespace Empire.Server.Services
 
         public async Task<bool> ApplyMove(string gameId, GameMove move)
         {
-            // Fetch game state from MongoDB
             var gameState = await _gameCollection.Find(gs => gs.GameId == gameId).FirstOrDefaultAsync();
+            if (gameState == null) return false;
 
-            if (gameState == null) return false; // Game not found
+            if (!ValidateMove(gameState, move)) return false;
 
-            bool isValid = ValidateMove(gameState, move);
-            if (!isValid) return false; // Invalid move, no need to update DB
-
-            // Apply the move
             ProcessMove(gameState, move);
 
-            // Save the updated game state back to MongoDB
             await _gameCollection.ReplaceOneAsync(gs => gs.GameId == gameId, gameState);
-
             return true;
         }
+
         private bool ValidateMove(GameState gameState, GameMove move)
         {
-            // Example: Check if the player is the active player
-            if (gameState.PriorityPlayer != move.PlayerId) return false;
-
-            // Example: Ensure the card exists in the player's hand
-            if (move.CardId == null) return false; // ✅ Prevent null error
-
-            if (!gameState.PlayerHands[move.PlayerId].Contains(move.CardId.Value))
-            {
-                return false;
-            }
-
-
-            // Add more game-specific validation rules here
-
-            return true;
+            return true; // Simplified for now, custom rules can go here
         }
+
         private void ProcessMove(GameState gameState, GameMove move)
         {
             var player = move.PlayerId;
@@ -97,16 +85,6 @@ namespace Empire.Server.Services
                     }
                     break;
 
-                case "GainLife":
-                    if (move.Value.HasValue)
-                        gameState.PlayerLifeTotals[player] += move.Value.Value;
-                    break;
-
-                case "LoseLife":
-                    if (move.Value.HasValue)
-                        gameState.PlayerLifeTotals[player] -= move.Value.Value;
-                    break;
-
                 case "DrawMilitaryCard":
                     if (gameState.PlayerDecks[player].MilitaryDeck.Any())
                     {
@@ -120,81 +98,68 @@ namespace Empire.Server.Services
                     if (move.CardId.HasValue && gameState.PlayerHands[player].Contains(move.CardId.Value))
                     {
                         gameState.PlayerHands[player].Remove(move.CardId.Value);
-                        gameState.PlayerBoard[player].Add(move.CardId.Value);
+                        if (!gameState.PlayerBoard.ContainsKey(player))
+                            gameState.PlayerBoard[player] = new List<BoardCard>();
+
+                        gameState.PlayerBoard[player].Add(new BoardCard(move.CardId.Value));
                     }
                     break;
 
-                case "MoveToGraveyard":
-                    if (move.CardId.HasValue)
+                case "ExertCard":
+                    if (move.CardId.HasValue && gameState.PlayerBoard.ContainsKey(player))
                     {
-                        int cardId = move.CardId.Value;
-                        // Remove from hand or board
-                        gameState.PlayerHands[player].Remove(cardId);
-                        gameState.PlayerBoard[player].Remove(cardId);
-
-                        gameState.PlayerGraveyards[player].Add(cardId);
+                        var card = gameState.PlayerBoard[player].FirstOrDefault(c => c.CardId == move.CardId.Value);
+                        if (card != null)
+                            card.IsExerted = true;
                     }
                     break;
 
-                case "SealCard":
-                    if (move.CardId.HasValue)
+                case "UnexertAll":
+                    if (gameState.PlayerBoard.TryGetValue(player, out var board))
                     {
-                        int cardId = move.CardId.Value;
-                        gameState.PlayerHands[player].Remove(cardId);
-                        gameState.PlayerBoard[player].Remove(cardId);
-                        // Add sealing logic (new zone?) — we can scaffold a `PlayerSealedAway` dictionary like the others
+                        foreach (var c in board)
+                            c.IsExerted = false;
                     }
                     break;
 
-                    // Add more like Exert, Rotate, etc later
+                case "GainLife":
+                    if (move.Value.HasValue)
+                        gameState.PlayerLifeTotals[player] += move.Value.Value;
+                    break;
+
+                case "LoseLife":
+                    if (move.Value.HasValue)
+                        gameState.PlayerLifeTotals[player] -= move.Value.Value;
+                    break;
             }
 
             gameState.MoveHistory.Add(move);
-
-            // Rotate priority
-            gameState.PriorityPlayer = gameState.PriorityPlayer == gameState.Player1
-                ? gameState.Player2
-                : gameState.Player1;
         }
+
         public async Task<List<GameState>> ListOpenGames()
         {
             var filter = Builders<GameState>.Filter.Where(gs =>
-                !string.IsNullOrEmpty(gs.Player1) && string.IsNullOrEmpty(gs.Player2)
-            );
+                !string.IsNullOrEmpty(gs.Player1) && string.IsNullOrEmpty(gs.Player2));
 
-            var openGames = await _gameCollection.Find(filter).ToListAsync();
-            return openGames;
+            return await _gameCollection.Find(filter).ToListAsync();
         }
+
         public async Task<bool> JoinGame(string gameId, string player2Id, List<int> civicDeck, List<int> militaryDeck)
         {
             var gameState = await _gameCollection.Find(gs => gs.GameId == gameId).FirstOrDefaultAsync();
 
             if (gameState == null || !string.IsNullOrEmpty(gameState.Player2))
-            {
-                // Game does not exist or Player2 has already joined
                 return false;
-            }
 
-            // Assign Player 2
             gameState.Player2 = player2Id;
-
-            // Create Player 2's deck (same structure as Player 1's deck)
             gameState.PlayerDecks[player2Id] = new PlayerDeck(civicDeck, militaryDeck);
-
-            // Initialize Player 2's hand and other zones
             gameState.PlayerHands[player2Id] = new List<int>();
-            gameState.PlayerBoard[player2Id] = new List<int>();
+            gameState.PlayerBoard[player2Id] = new List<BoardCard>();
             gameState.PlayerGraveyards[player2Id] = new List<int>();
+            gameState.PlayerLifeTotals[player2Id] = 25;
 
-            // Set Player 1 as the initiative holder, or set any other rules for turn order
-            gameState.InitiativeHolder = gameState.Player1;
-
-            // Save updated game state
             await _gameCollection.ReplaceOneAsync(gs => gs.GameId == gameId, gameState);
-
             return true;
         }
-
-
     }
 }
