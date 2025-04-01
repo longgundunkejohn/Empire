@@ -29,19 +29,19 @@
 }
 
 .deck {
+    display: inline-block;
     position: relative;
-    width: 150px;
-    cursor: pointer;
+    margin: 10px;
 }
 
 .deck-count {
     position: absolute;
     bottom: 4px;
-    right: 8px;
-    font-weight: bold;
-    color: white;
-    background: rgba(0,0,0,0.6);
+    right: 6px;
+    background: #000;
+    color: #fff;
     padding: 2px 6px;
+    font-size: 0.8rem;
     border-radius: 4px;
 }
 .card-image.exerted {
