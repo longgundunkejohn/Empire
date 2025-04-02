@@ -1,43 +1,43 @@
-﻿// Game.razor (Blazor page)
-@page "/game/{gameId}/{playerId}"
+﻿@page "/game/{gameId}/{playerId}"
 @using Empire.Shared.Models
 @inject GameApi GameApi
 
-<h2>Your Life Total: @lifeTotal</h2>
-<button @onclick="() => ModifyLife(1)">+1</button>
-<button @onclick="() => ModifyLife(-1)">-1</button>
-<button @onclick="UnexertAllCards">Unexert All</button>
+<div class="game-layout">
+    <h2>Your Life Total: @lifeTotal</h2>
+    <button @onclick="() => ModifyLife(1)">+1</button>
+    <button @onclick="() => ModifyLife(-1)">-1</button>
+    <button @onclick="UnexertAllCards">Unexert All</button>
 
-<h2>Your Hand</h2>
-<HandComponent Hand="@handCards" OnCardSelected="PlayCard" />
+    <section>
+        <h3>Your Hand</h3>
+        <HandComponent Hand="@handCards" OnCardSelected="PlayCard" />
+    </section>
 
-<h2>Your Deck</h2>
-<div>
-    <h3>Civic Deck</h3>
-    <DeckComponent DeckCount="@civicCount" OnDraw="DrawCivic" CardBackImage="images/Cards/civicCardback.png" />
-</div>
-<div>
-    <h3>Military Deck</h3>
-    <DeckComponent DeckCount="@militaryCount" OnDraw="DrawMilitary" CardBackImage="images/Cards/armyCardback.png" />
-</div>
+    <section>
+        <h3>Your Deck</h3>
+        <div class="decks">
+            <DeckComponent DeckCount="@civicCount" OnDraw="DrawCivic" CardBackImage="images/Cards/civicCardback.png" />
+            <DeckComponent DeckCount="@militaryCount" OnDraw="DrawMilitary" CardBackImage="images/Cards/armyCardback.png" />
+        </div>
+    </section>
 
-<h2>Your Board</h2>
-<!-- Render your own board cards here -->
-<div class="board">
-    @foreach (var boardCard in game?.PlayerBoard.GetValueOrDefault(playerId) ?? new List<BoardCard>())
-    {
-        var card = allCards.FirstOrDefault(c => c.CardId == boardCard.CardId);
-        if (card != null)
-        {
-            <picture>
-                <source srcset="@($"images/Cards/{Sanitize(card.CardId)}-{Sanitize(card.Name)}.png")" type="image/png" />
-                <source srcset="@($"images/Cards/{Sanitize(card.CardId)}-{Sanitize(card.Name)}.jpg")" type="image/jpeg" />
-                <img src="images/Cards/defaultCardback.png" class="card" />
-            </picture>
-
-
-        }
-    }
+    <section>
+        <h3>Your Board</h3>
+        <div class="board">
+            @foreach (var boardCard in game?.PlayerBoard.GetValueOrDefault(playerId) ?? Enumerable.Empty<BoardCard>())
+            {
+                var card = allCards.FirstOrDefault(c => c.CardId == boardCard.CardId);
+                if (card != null)
+                {
+                    <picture>
+                        <source srcset="@($"images/Cards/{Sanitize(card.CardId)}-{Sanitize(card.Name)}.png")" type="image/png" />
+                        <source srcset="@($"images/Cards/{Sanitize(card.CardId)}-{Sanitize(card.Name)}.jpg")" type="image/jpeg" />
+                        <img src="images/Cards/defaultCardback.png" class="card" />
+                    </picture>
+                }
+            }
+        </div>
+    </section>
 </div>
 
 @code {
@@ -45,32 +45,22 @@
     [Parameter] public string playerId { get; set; } = default!;
 
     private GameState? game;
-    private List<Card> handCards = new();
     private List<Card> allCards = new();
+    private List<Card> handCards = new();
     private int civicCount;
     private int militaryCount;
     private int lifeTotal = 25;
 
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadState();
-    }
-    private string Sanitize(object? input)
-    {
-        string raw = input?.ToString() ?? "";
-        return System.Text.RegularExpressions.Regex.Replace(raw, @"[^a-zA-Z0-9_-]", "");
-    }
-
+    protected override async Task OnInitializedAsync() => await LoadState();
+    protected override async Task OnParametersSetAsync() => await LoadState();
 
     private async Task LoadState()
     {
         game = await GameApi.GetGameState(gameId, playerId);
-
         if (game == null) return;
 
         allCards = await GameApi.GetDeck(gameId, playerId);
 
-        // Set the ImagePath based on sanitized filenames
         foreach (var card in allCards)
         {
             string safeName = Sanitize(card.Name);
@@ -86,52 +76,41 @@
         civicCount = game.PlayerDecks[playerId].CivicDeck.Count;
         militaryCount = game.PlayerDecks[playerId].MilitaryDeck.Count;
     }
+
+    private string Sanitize(object? input)
+    {
+        string raw = input?.ToString() ?? "";
+        return System.Text.RegularExpressions.Regex.Replace(raw, @"[^a-zA-Z0-9_-]", "");
+    }
+
     private async Task UnexertAllCards()
     {
-        var move = new GameMove
-            {
-                PlayerId = playerId,
-                MoveType = "UnexertAll"
-            };
-
-        await GameApi.SubmitMove(gameId, move);
-        await LoadState();
+        await SubmitMove("UnexertAll");
     }
 
     private async Task ModifyLife(int amount)
     {
-        var move = new GameMove
-        {
-            PlayerId = playerId,
-            MoveType = amount > 0 ? "GainLife" : "LoseLife",
-            Value = Math.Abs(amount)
-        };
-        await GameApi.SubmitMove(gameId, move);
-        await LoadState();
+        await SubmitMove(amount > 0 ? "GainLife" : "LoseLife", Math.Abs(amount));
     }
 
-    private async Task DrawCivic()
-    {
-        var move = new GameMove { PlayerId = playerId, MoveType = "DrawCivicCard" };
-        await GameApi.SubmitMove(gameId, move);
-        await LoadState();
-    }
-
-    private async Task DrawMilitary()
-    {
-        var move = new GameMove { PlayerId = playerId, MoveType = "DrawMilitaryCard" };
-        await GameApi.SubmitMove(gameId, move);
-        await LoadState();
-    }
+    private async Task DrawCivic() => await SubmitMove("DrawCivicCard");
+    private async Task DrawMilitary() => await SubmitMove("DrawMilitaryCard");
 
     private async Task PlayCard(Card card)
     {
+        await SubmitMove("PlayCard", cardId: card.CardId);
+    }
+
+    private async Task SubmitMove(string moveType, int value = 0, int cardId = 0)
+    {
         var move = new GameMove
         {
             PlayerId = playerId,
-            MoveType = "PlayCard",
-            CardId = card.CardId
+            MoveType = moveType,
+            Value = value,
+            CardId = cardId
         };
+
         await GameApi.SubmitMove(gameId, move);
         await LoadState();
     }
