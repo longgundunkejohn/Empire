@@ -12,7 +12,7 @@ namespace Empire.Shared.Models
         public bool IsExerted { get; set; } = false;
         public int CurrentDamage { get; set; } = 0;
 
-        public string ImagePath => $"images/Cards/{CardId} - {Name}.jpg";
+        public string? ImagePath { get; set; }
 
         public Card() { } // 🔧 Needed for deserialization
 
