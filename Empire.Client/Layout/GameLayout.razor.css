@@ -1,0 +1,32 @@
+﻿.game-layout {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px;
+}
+
+.enemy-zone, .player-zone {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    padding: 10px;
+}
+
+.board-zone {
+    display: flex;
+    justify-content: center;
+    padding: 20px 0;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 180px;
+}
+
+.hand, .decks {
+    display: flex;
+    gap: 8px;
+}
+
+.card-image {
+    width: clamp(80px, 12vw, 120px);
+    height: auto;
+}
