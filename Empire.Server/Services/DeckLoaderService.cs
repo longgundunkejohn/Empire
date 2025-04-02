@@ -105,8 +105,8 @@ namespace Empire.Server.Services
 
         public PlayerDeck LoadDeckFromSingleCSV(string filePath)
         {
-            var civicDeck = new List<CardData>();
-            var militaryDeck = new List<CardData>();
+            var civicDeck = new List<int>();
+            var militaryDeck = new List<int>();
 
             using var reader = new StreamReader(filePath);
             using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
@@ -116,23 +116,27 @@ namespace Empire.Server.Services
 
             while (csv.Read())
             {
-                // Try to get Card ID using multiple possible header names
-                string? cardIdStr = null;
-                if (csv.TryGetField("Card ID", out cardIdStr) || csv.TryGetField("CardId", out cardIdStr))
+                if (csv.TryGetField("Card ID", out string? cardIdStr) || csv.TryGetField("CardId", out cardIdStr))
                 {
-                    var cardId = int.Parse(cardIdStr ?? "0");
+                    if (!int.TryParse(cardIdStr, out var cardId)) continue;
 
-                    var name = csv.GetField("Card Name") ?? csv.GetField("Name");
-                    var count = csv.GetField<int>("Count");
+                    int count = csv.GetField<int>("Count");
 
+                    // 🔍 Lookup CardData in MongoDB to determine its type
+                    var cardData = _cardCollection.Find(cd => cd.CardID == cardId).FirstOrDefault();
+                    if (cardData == null)
+                    {
+                        Console.WriteLine($"⚠️ Card ID {cardId} not found in DB.");
+                        continue;
+                    }
+
+                    bool isCivic = cardData.CardType.Equals("Villager", StringComparison.OrdinalIgnoreCase) ||
+                                   cardData.CardType.Equals("Settlement", StringComparison.OrdinalIgnoreCase);
+
+                    var targetDeck = isCivic ? civicDeck : militaryDeck;
                     for (int i = 0; i < count; i++)
                     {
-                        civicDeck.Add(new CardData
-                        {
-                            CardID = cardId,
-                            Name = name ?? $"Unnamed {cardId}"
-                            // You can optionally default the other properties or look them up here
-                        });
+                        targetDeck.Add(cardId);
                     }
                 }
                 else
@@ -143,10 +147,9 @@ namespace Empire.Server.Services
 
             return new PlayerDeck
             {
-                CivicDeck = civicDeck.Select(c => c.CardID).ToList(),
-                MilitaryDeck = militaryDeck.Select(c => c.CardID).ToList()
+                CivicDeck = civicDeck,
+                MilitaryDeck = militaryDeck
             };
-
         }
 
     }
