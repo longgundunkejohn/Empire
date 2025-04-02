@@ -29,7 +29,13 @@
         var card = allCards.FirstOrDefault(c => c.CardId == boardCard.CardId);
         if (card != null)
         {
-            <img src=$"images/{card.CardId}-{card.Name}.jpg" class="card" />
+            <picture>
+                <source srcset="@($"images/{Sanitize(card.CardId)}-{Sanitize(card.Name)}.png")" type="image/png" />
+                <source srcset="@($"images/{Sanitize(card.CardId)}-{Sanitize(card.Name)}.jpg")" type="image/jpeg" />
+                <img src="images/defaultCardback.png" class="card" />
+            </picture>
+
+
         }
     }
 </div>
@@ -49,6 +55,12 @@
     {
         await LoadState();
     }
+    private string Sanitize(object? input)
+    {
+        string raw = input?.ToString() ?? "";
+        return System.Text.RegularExpressions.Regex.Replace(raw, @"[^a-zA-Z0-9_-]", "");
+    }
+
 
     private async Task LoadState()
     {
