@@ -4,10 +4,9 @@
     <img src="@Card.ImagePath" alt="@Card.Name" class="card-image @(Card.IsExerted ? "exerted" : "")" />
     <div class="card-overlay">
         <strong>@Card.Name</strong>
-        <p>@Card.CardText</p>
-        <p>@Card.Type (@Card.Faction)</p>
     </div>
 </div>
+
 
 @code {
     [Parameter] public Card Card { get; set; } = default!;
