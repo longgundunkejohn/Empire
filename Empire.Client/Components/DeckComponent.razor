@@ -1,12 +1,12 @@
 @using Microsoft.AspNetCore.Components
 
-<div class="deck" title="Click to draw a card" @onclick="OnDrawClick" style="cursor: @(DeckCount > 0 ? "pointer" : "not-allowed"); opacity: @(DeckCount > 0 ? "1" : "0.5");">
-    <img src="@CardBackImage" alt="Deck" class="card-image" onerror="this.src='images/Cards/defaultCardback.png'" />
-    <span class="deck-count">@DeckCount</span>
+<div class="deck" @onclick="OnDrawClick" style="cursor: pointer; display: inline-block; margin: 10px;">
+    <img src="@CardBackImage" alt="Deck" class="card-image" style="width: 120px; height: auto;" />
+    <div class="deck-count" style="text-align: center;">@DeckCount</div>
 </div>
 
 @code {
-    [Parameter] public int DeckCount { get; set; }
+    [Parameter] public int DeckCount { get; set; } = 0;
 
     [Parameter] public string CardBackImage { get; set; } = "images/Cards/defaultCardback.png";
 
@@ -14,7 +14,8 @@
 
     private async Task OnDrawClick()
     {
-        if (DeckCount > 0 && OnDraw.HasDelegate)
+        Console.WriteLine($"Draw clicked, DeckCount: {DeckCount}");
+        if (DeckCount > 0)
             await OnDraw.InvokeAsync();
     }
 }

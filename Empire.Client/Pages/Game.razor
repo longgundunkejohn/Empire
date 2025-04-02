@@ -1,6 +1,7 @@
 ﻿@page "/game/{gameId}/{playerId}"
 @using Empire.Shared.Models
 @inject GameApi GameApi
+@inject ILogger<Game> Logger
 
 <div class="game-layout">
     <h2>Your Life Total: @lifeTotal</h2>
@@ -56,10 +57,17 @@
 
     private async Task LoadState()
     {
+        Logger.LogInformation("Loading game state for GameId: {GameId}, PlayerId: {PlayerId}", gameId, playerId);
+
         game = await GameApi.GetGameState(gameId, playerId);
-        if (game == null) return;
+        if (game == null)
+        {
+            Logger.LogWarning("Game state returned null!");
+            return;
+        }
 
         allCards = await GameApi.GetDeck(gameId, playerId);
+        Logger.LogInformation("Fetched {CardCount} cards from deck", allCards.Count);
 
         foreach (var card in allCards)
         {
@@ -72,10 +80,13 @@
 
         var handIds = game.PlayerHands.GetValueOrDefault(playerId, new());
         handCards = allCards.Where(c => handIds.Contains(c.CardId)).ToList();
+        Logger.LogInformation("Hand contains {HandCount} cards", handCards.Count);
 
         civicCount = game.PlayerDecks[playerId].CivicDeck.Count;
         militaryCount = game.PlayerDecks[playerId].MilitaryDeck.Count;
+        Logger.LogInformation("Deck counts - Civic: {Civic}, Military: {Military}", civicCount, militaryCount);
     }
+
 
     private string Sanitize(object? input)
     {
