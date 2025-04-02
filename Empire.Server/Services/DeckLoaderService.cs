@@ -108,41 +108,65 @@ namespace Empire.Server.Services
             var civicDeck = new List<int>();
             var militaryDeck = new List<int>();
 
-            using var reader = new StreamReader(filePath);
-            using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
-
-            csv.Read();
-            csv.ReadHeader();
-
-            while (csv.Read())
+            try
             {
-                if (csv.TryGetField("Card ID", out string? cardIdStr) || csv.TryGetField("CardId", out cardIdStr))
+                using var reader = new StreamReader(filePath);
+                using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+
+                csv.Read();
+                csv.ReadHeader();
+
+                while (csv.Read())
                 {
-                    if (!int.TryParse(cardIdStr, out var cardId)) continue;
-
-                    int count = csv.GetField<int>("Count");
-
-                    // 🔍 Lookup CardData in MongoDB to determine its type
-                    var cardData = _cardCollection.Find(cd => cd.CardID == cardId).FirstOrDefault();
-                    if (cardData == null)
+                    try
                     {
-                        Console.WriteLine($"⚠️ Card ID {cardId} not found in DB.");
-                        continue;
+                        // 🧠 Attempt to get Card ID from either possible header
+                        string? cardIdStr = null;
+                        if (!(csv.TryGetField("Card ID", out cardIdStr) || csv.TryGetField("CardId", out cardIdStr)))
+                        {
+                            _logger.LogWarning("❌ Missing Card ID in row, skipping.");
+                            continue;
+                        }
+
+                        if (!int.TryParse(cardIdStr, out int cardId))
+                        {
+                            _logger.LogWarning("❌ Could not parse Card ID '{CardIdStr}'", cardIdStr);
+                            continue;
+                        }
+
+                        int count = csv.GetField<int>("Count");
+
+                        // 🔍 Lookup the card in MongoDB
+                        var cardData = _cardCollection.Find(cd => cd.CardID == cardId).FirstOrDefault();
+                        if (cardData == null)
+                        {
+                            _logger.LogWarning("❌ Card ID {CardId} not found in MongoDB", cardId);
+                            continue;
+                        }
+
+                        // 🏷️ Decide whether it belongs in Civic or Military
+                        bool isCivic = cardData.CardType?.Equals("Villager", StringComparison.OrdinalIgnoreCase) == true ||
+                                       cardData.CardType?.Equals("Settlement", StringComparison.OrdinalIgnoreCase) == true;
+
+                        var targetDeck = isCivic ? civicDeck : militaryDeck;
+                        for (int i = 0; i < count; i++)
+                        {
+                            targetDeck.Add(cardId);
+                        }
+
+                        _logger.LogInformation("✅ Added {Count}x {CardName} (ID {CardId}) to {DeckType}",
+                            count, cardData.Name, cardId, isCivic ? "Civic" : "Military");
                     }
-
-                    bool isCivic = cardData.CardType.Equals("Villager", StringComparison.OrdinalIgnoreCase) ||
-                                   cardData.CardType.Equals("Settlement", StringComparison.OrdinalIgnoreCase);
-
-                    var targetDeck = isCivic ? civicDeck : militaryDeck;
-                    for (int i = 0; i < count; i++)
+                    catch (Exception exRow)
                     {
-                        targetDeck.Add(cardId);
+                        _logger.LogError(exRow, "⚠️ Failed to parse row in CSV.");
                     }
                 }
-                else
-                {
-                    Console.WriteLine("⚠️ Skipped a row due to missing Card ID");
-                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "🔥 Error loading deck from CSV at {FilePath}", filePath);
+                throw;
             }
 
             return new PlayerDeck
@@ -151,6 +175,7 @@ namespace Empire.Server.Services
                 MilitaryDeck = militaryDeck
             };
         }
+
 
     }
 }
