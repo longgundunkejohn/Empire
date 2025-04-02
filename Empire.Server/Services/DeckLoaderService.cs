@@ -7,6 +7,9 @@ using Microsoft.Extensions.Logging;
 using Empire.Shared.Models;
 using MongoDB.Driver;
 using Empire.Server.Interfaces;
+using System.Formats.Asn1;
+using System.Globalization;
+using CsvHelper;
 
 namespace Empire.Server.Services
 {
@@ -100,39 +103,51 @@ namespace Empire.Server.Services
                 : "Unknown Card";
         }
 
-        public PlayerDeck LoadDeckFromSingleCSV(string csvPath)
+        public PlayerDeck LoadDeckFromSingleCSV(string filePath)
         {
-            var civic = new List<int>();
-            var military = new List<int>();
+            var civicDeck = new List<CardData>();
+            var militaryDeck = new List<CardData>();
 
-            if (!File.Exists(csvPath)) throw new FileNotFoundException("Deck file not found", csvPath);
+            using var reader = new StreamReader(filePath);
+            using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
 
-            var lines = File.ReadAllLines(csvPath);
+            csv.Read();
+            csv.ReadHeader();
 
-            foreach (var line in lines)
+            while (csv.Read())
             {
-                if (string.IsNullOrWhiteSpace(line)) continue;
-
-                var parts = line.Split(',');
-
-                if (parts.Length < 3) continue; // ID, Name, Count
-                if (!int.TryParse(parts[0], out int cardId)) continue;
-                if (!int.TryParse(parts[2], out int count)) continue;
-
-                var data = _cardCollection.Find(c => c.CardID == cardId).FirstOrDefault();
-                if (data == null) continue;
-
-                var targetList = (data.CardType.Equals("villager", StringComparison.OrdinalIgnoreCase) ||
-                                  data.CardType.Equals("settlement", StringComparison.OrdinalIgnoreCase))
-                                  ? civic : military;
-
-                for (int i = 0; i < count; i++)
+                // Try to get Card ID using multiple possible header names
+                string? cardIdStr = null;
+                if (csv.TryGetField("Card ID", out cardIdStr) || csv.TryGetField("CardId", out cardIdStr))
                 {
-                    targetList.Add(cardId);
+                    var cardId = int.Parse(cardIdStr ?? "0");
+
+                    var name = csv.GetField("Card Name") ?? csv.GetField("Name");
+                    var count = csv.GetField<int>("Count");
+
+                    for (int i = 0; i < count; i++)
+                    {
+                        civicDeck.Add(new CardData
+                        {
+                            CardID = cardId,
+                            Name = name ?? $"Unnamed {cardId}"
+                            // You can optionally default the other properties or look them up here
+                        });
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("⚠️ Skipped a row due to missing Card ID");
                 }
             }
 
-            return new PlayerDeck(civic, military);
+            return new PlayerDeck
+            {
+                CivicDeck = civicDeck.Select(c => c.CardID).ToList(),
+                MilitaryDeck = militaryDeck.Select(c => c.CardID).ToList()
+            };
+
         }
+
     }
 }
