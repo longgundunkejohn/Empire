@@ -65,6 +65,12 @@
             Logger.LogWarning("Game state returned null!");
             return;
         }
+        foreach (var card in allCards)
+        {
+            string safeName = Sanitize(card.Name);
+            card.ImagePath = $"images/Cards/{card.CardId}-{safeName}.jpg";
+            Console.WriteLine($"Card: {card.Name}, ImagePath: {card.ImagePath}");
+        }
 
         allCards = await GameApi.GetDeck(gameId, playerId);
         Logger.LogInformation("Fetched {CardCount} cards from deck", allCards.Count);
