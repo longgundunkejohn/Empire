@@ -32,7 +32,7 @@
             <picture>
                 <source srcset="@($"images/Cards/{Sanitize(card.CardId)}-{Sanitize(card.Name)}.png")" type="image/png" />
                 <source srcset="@($"images/Cards/{Sanitize(card.CardId)}-{Sanitize(card.Name)}.jpg")" type="image/jpeg" />
-                <img src="images/defaultCardback.png" class="card" />
+                <img src="images/Cards/defaultCardback.png" class="card" />
             </picture>
 
 
@@ -69,6 +69,13 @@
         if (game == null) return;
 
         allCards = await GameApi.GetDeck(gameId, playerId);
+
+        // Set the ImagePath based on sanitized filenames
+        foreach (var card in allCards)
+        {
+            string safeName = Sanitize(card.Name);
+            card.ImagePath = $"images/Cards/{card.CardId}-{safeName}.jpg";
+        }
 
         if (game.PlayerLifeTotals.TryGetValue(playerId, out var hp))
             lifeTotal = hp;
