@@ -14,11 +14,11 @@
 <h2>Your Deck</h2>
 <div>
     <h3>Civic Deck</h3>
-    <DeckComponent DeckCount="@civicCount" OnDraw="DrawCivic" CardBackImage="images/civicCardback.png" />
+    <DeckComponent DeckCount="@civicCount" OnDraw="DrawCivic" CardBackImage="images/Cards/civicCardback.png" />
 </div>
 <div>
     <h3>Military Deck</h3>
-    <DeckComponent DeckCount="@militaryCount" OnDraw="DrawMilitary" CardBackImage="images/armyCardback.png" />
+    <DeckComponent DeckCount="@militaryCount" OnDraw="DrawMilitary" CardBackImage="images/Cards/armyCardback.png" />
 </div>
 
 <h2>Your Board</h2>
@@ -30,8 +30,8 @@
         if (card != null)
         {
             <picture>
-                <source srcset="@($"images/{Sanitize(card.CardId)}-{Sanitize(card.Name)}.png")" type="image/png" />
-                <source srcset="@($"images/{Sanitize(card.CardId)}-{Sanitize(card.Name)}.jpg")" type="image/jpeg" />
+                <source srcset="@($"images/Cards/{Sanitize(card.CardId)}-{Sanitize(card.Name)}.png")" type="image/png" />
+                <source srcset="@($"images/Cards/{Sanitize(card.CardId)}-{Sanitize(card.Name)}.jpg")" type="image/jpeg" />
                 <img src="images/defaultCardback.png" class="card" />
             </picture>
 

@@ -90,7 +90,7 @@ namespace Empire.Server.Services
 
         public string GetImagePath(int cardId)
         {
-            return CardDictionary.TryGetValue(cardId, out var path) ? path : "images/placeholder.jpg";
+            return CardDictionary.TryGetValue(cardId, out var path) ? path : "images/Cards/placeholder.jpg";
         }
 
         public string GetCardDisplayName(int cardId)
