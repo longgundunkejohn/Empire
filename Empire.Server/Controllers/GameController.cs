@@ -64,16 +64,8 @@ namespace Empire.Server.Controllers
 
             var playerDeck = _deckLoader.LoadDeckFromSingleCSV(tempPath);
 
-            var gameId = await _sessionService.CreateGameSession(playerId, ""); // player1 = host, no player2 yet
-            var gameState = await _sessionService.GetGameState(gameId);
-            gameState.PlayerDecks[playerId] = playerDeck;
-            gameState.PlayerHands[playerId] = new List<int>(); // empty hand
-            gameState.PlayerBoard[playerId] = new List<BoardCard>(); // ✅ FIXED
-            gameState.PlayerGraveyards[playerId] = new List<int>();
-
-
-            // 🛑 DO NOT apply a move here that might trigger game full logic
-            // Leave as-is so player2 can still join and it shows up in /open
+            // Create game session with player1's deck
+            var gameId = await _sessionService.CreateGameSession(playerId, playerDeck.CivicDeck, playerDeck.MilitaryDeck);
 
             return Ok(gameId);
         }

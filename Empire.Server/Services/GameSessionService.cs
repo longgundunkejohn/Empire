@@ -14,36 +14,43 @@ namespace Empire.Server.Services
             _gameCollection = database.GetCollection<GameState>("GameSessions");
         }
 
-        public async Task<string> CreateGameSession(string player1Id, string player2Id)
+        public async Task<string> CreateGameSession(string player1Id, List<int> civicDeck, List<int> militaryDeck)
         {
             var gameState = new GameState
             {
                 GameId = Guid.NewGuid().ToString(),
                 Player1 = player1Id,
-                Player2 = player2Id,
                 CurrentPhase = GamePhase.Strategy,
                 InitiativeHolder = player1Id,
-                PriorityPlayer = player2Id,
+                PriorityPlayer = player1Id,
                 GameBoardState = new GameBoard(),
                 PlayerDecks = new Dictionary<string, PlayerDeck>
-                {
-                    { player1Id, new PlayerDeck(new List<int>(), new List<int>()) },
-                    { player2Id, new PlayerDeck(new List<int>(), new List<int>()) }
-                },
-                PlayerGraveyards = new Dictionary<string, List<int>>(),
-                PlayerHands = new Dictionary<string, List<int>>(),
-                PlayerBoard = new Dictionary<string, List<BoardCard>>(),
-                MoveHistory = new List<GameMove>(),
+        {
+            { player1Id, new PlayerDeck(civicDeck, militaryDeck) }
+        },
+                PlayerHands = new Dictionary<string, List<int>>
+        {
+            { player1Id, new List<int>() }
+        },
+                PlayerBoard = new Dictionary<string, List<BoardCard>>
+        {
+            { player1Id, new List<BoardCard>() }
+        },
+                PlayerGraveyards = new Dictionary<string, List<int>>
+        {
+            { player1Id, new List<int>() }
+        },
                 PlayerLifeTotals = new Dictionary<string, int>
-                {
-                    { player1Id, 25 },
-                    { player2Id, 25 }
-                }
+        {
+            { player1Id, 25 }
+        },
+                MoveHistory = new List<GameMove>()
             };
 
             await _gameCollection.InsertOneAsync(gameState);
             return gameState.GameId;
         }
+
 
         public async Task<GameState?> GetGameState(string gameId)
         {
