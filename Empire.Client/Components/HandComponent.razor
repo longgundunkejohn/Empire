@@ -1,11 +1,24 @@
-<div class="deck" @onclick="OnDrawClick">
-    <img src="images/cardback.jpg" alt="Deck" class="card-image" />
-    <span class="deck-count">@DeckCount</span>
+@using Empire.Shared.Models
+
+<div class="hand">
+    @foreach (var card in Hand)
+    {
+        <CardComponent Card="card" OnClick="HandleCardClick" OnDoubleClick="HandleCardDoubleClick" />
+    }
 </div>
 
 @code {
-    [Parameter] public int DeckCount { get; set; }
-    [Parameter] public EventCallback OnDraw { get; set; }
+    [Parameter] public List<Card> Hand { get; set; } = new();
+    [Parameter] public EventCallback<Card> OnCardSelected { get; set; }
 
-    private async Task OnDrawClick() => await OnDraw.InvokeAsync();
+    private async Task HandleCardClick(Card card)
+    {
+        if (OnCardSelected.HasDelegate)
+            await OnCardSelected.InvokeAsync(card);
+    }
+
+    private async Task HandleCardDoubleClick(Card card)
+    {
+        // Optional: double-click handling, if needed
+    }
 }
