@@ -21,12 +21,14 @@ namespace Empire.Server.Controllers
             CardFactory cardFactory,
             DeckLoaderService deckLoader,
             ICardService cardService,
-            ICardDatabaseService cardDatabase)
+            ICardDatabaseService cardDatabase) // 🔥 add this
         {
             _sessionService = sessionService;
             _cardFactory = cardFactory;
             _deckLoader = deckLoader;
             _cardService = cardService;
+
+            // if you also need to store/use _cardDatabase later
             _cardDatabase = cardDatabase;
         }
 
