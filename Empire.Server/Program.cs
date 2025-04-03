@@ -23,8 +23,7 @@ builder.Services.AddSingleton(sp =>
 builder.Services.AddSingleton<IMongoDbService, MongoDbService>();
 builder.Services.AddSingleton<DeckLoaderService>();
 builder.Services.AddScoped<ICardDatabaseService, CardDatabaseService>();
-builder.Services.AddScoped<CardService>();
-builder.Services.AddScoped<CardFactory>();
+builder.Services.AddScoped<ICardService, CardService>(); builder.Services.AddScoped<CardFactory>();
 builder.Services.AddScoped<GameSessionService>();
 
 // 🌐 CORS for frontend

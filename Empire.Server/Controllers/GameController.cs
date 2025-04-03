@@ -2,6 +2,7 @@
 using Empire.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 using Empire.Shared.DTOs;
+using Empire.Shared.Interfaces;
 
 namespace Empire.Server.Controllers
 {
@@ -9,15 +10,46 @@ namespace Empire.Server.Controllers
     [Route("api/[controller]")]
     public class GameController : ControllerBase
     {
+        private readonly ICardService _cardService;
         private readonly GameSessionService _sessionService;
         private readonly CardFactory _cardFactory;
         private readonly DeckLoaderService _deckLoader;
+        [HttpGet("api/game/cards/{gameId}/{playerId}")]
+        public async Task<ActionResult<List<Card>>> GetPlayerCards(string gameId, string playerId)
+        {
+            var game = await _sessionService.GetGameState(gameId);
+            if (game == null) return NotFound();
 
-        public GameController(GameSessionService sessionService, CardFactory cardFactory, DeckLoaderService deckLoader)
+            var cardIds = new HashSet<int>();
+
+            if (game.PlayerHands.TryGetValue(playerId, out var hand))
+                cardIds.UnionWith(hand);
+
+            if (game.PlayerBoard.TryGetValue(playerId, out var board))
+                cardIds.UnionWith(board.Select(bc => bc.CardId));
+
+            if (game.PlayerDecks.TryGetValue(playerId, out var deck))
+            {
+                cardIds.UnionWith(deck.CivicDeck);
+                cardIds.UnionWith(deck.MilitaryDeck);
+            }
+
+            // Optional: cardIds.UnionWith(game.PlayerDiscard[playerId]) if you track discards
+
+            var cards = await _cardService.GetDeckCards(cardIds.ToList());
+            return Ok(cards);
+        }
+
+        public GameController(
+            GameSessionService sessionService,
+            CardFactory cardFactory,
+            DeckLoaderService deckLoader,
+            ICardService cardService) // <-- Add this!
         {
             _sessionService = sessionService;
             _cardFactory = cardFactory;
-            _deckLoader = deckLoader; //
+            _deckLoader = deckLoader;
+            _cardService = cardService; // <-- And assign it here!
         }
         [HttpGet("open")]
         public async Task<ActionResult<List<GamePreview>>> GetOpenGames()

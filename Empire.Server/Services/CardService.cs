@@ -1,32 +1,74 @@
 ﻿using Empire.Server.Interfaces;
 using Empire.Shared.Models;
+using Microsoft.Extensions.Logging;
 
 namespace Empire.Server.Services
 {
     public class CardService : ICardService
     {
+        private readonly ICardDatabaseService _cardDb;
         private readonly Deck _deck;
+
         private readonly List<Card> _hand = new();
         private readonly List<Card> _board = new();
         private readonly List<Card> _graveyard = new();
         private readonly List<Card> _sealedAway = new();
 
-        public CardService(IEnumerable<Card> initialDeck)
-        {
-            if (initialDeck == null || !initialDeck.Any())
-                throw new ArgumentException("Initial deck must contain cards.", nameof(initialDeck));
+        private readonly ILogger<CardService> _logger;
 
-            _deck = new Deck(initialDeck);
+        public CardService(
+            IEnumerable<int> initialDeckIds,
+            ICardDatabaseService cardDb,
+            ILogger<CardService> logger)
+        {
+            _cardDb = cardDb;
+            _logger = logger;
+
+            var cardData = cardDb.GetAllCards().Where(cd => initialDeckIds.Contains(cd.CardID));
+            var fullDeck = cardData.Select(cd => new Card
+            {
+                CardId = cd.CardID,
+                Name = cd.Name,
+                CardText = cd.CardText,
+                Faction = cd.Faction,
+                Type = cd.CardType,
+                ImagePath = cd.ImageFileName ?? "images/Cards/placeholder.jpg"
+            }).ToList();
+
+            if (!fullDeck.Any())
+                throw new ArgumentException("Initial deck must contain valid cards.", nameof(initialDeckIds));
+
+            _deck = new Deck(fullDeck);
         }
 
-        // Core Getters
+        // ✅ Core Getters
         public IReadOnlyList<Card> GetDeckCards() => _deck.GetAllCards();
         public IReadOnlyList<Card> GetHand() => _hand.AsReadOnly();
         public IReadOnlyList<Card> GetBoard() => _board.AsReadOnly();
         public IReadOnlyList<Card> GetGraveyard() => _graveyard.AsReadOnly();
         public IReadOnlyList<Card> GetSealedAway() => _sealedAway.AsReadOnly();
 
-        // Actions
+        // ✅ Load Cards by ID
+        public async Task<List<Card>> GetDeckCards(List<int> cardIds)
+        {
+            var cards = _cardDb.GetAllCards()
+                .Where(cd => cardIds.Contains(cd.CardID))
+                .Select(cd => new Card
+                {
+                    CardId = cd.CardID,
+                    Name = cd.Name,
+                    CardText = cd.CardText,
+                    Faction = cd.Faction,
+                    Type = cd.CardType,
+                    ImagePath = cd.ImageFileName ?? "images/Cards/placeholder.jpg"
+                })
+                .ToList();
+
+            _logger.LogInformation("Loaded {Count} cards by ID.", cards.Count);
+            return await Task.FromResult(cards); // mimic async
+        }
+
+        // ✅ Actions
         public Card? DrawCard()
         {
             if (_deck.Count == 0) return null;
@@ -67,26 +109,13 @@ namespace Empire.Server.Services
             return false;
         }
 
-        public void ShuffleDeck()
-        {
-            _deck.Shuffle();
-        }
+        public void ShuffleDeck() => _deck.Shuffle();
 
-        // Optional: Peek methods for UI or abilities
+        // ✅ Utility
         public IReadOnlyList<Card> PeekTopOfDeck(int count, bool draw = false)
-        {
-            return _deck.PeekTop(count, draw);
-        }
+            => _deck.PeekTop(count, draw);
 
-        // Optional: Move card back to deck
-        public void PutOnTopOfDeck(Card card)
-        {
-            _deck.PutOnTop(card);
-        }
-
-        public void PutOnBottomOfDeck(Card card)
-        {
-            _deck.PutOnBottom(card);
-        }
+        public void PutOnTopOfDeck(Card card) => _deck.PutOnTop(card);
+        public void PutOnBottomOfDeck(Card card) => _deck.PutOnBottom(card);
     }
 }

@@ -2,7 +2,8 @@
 
 public interface ICardService
 {
-    IReadOnlyList<Card> GetDeckCards();
+
+    Task<List<Card>> GetDeckCards(List<int> cardIds);
     IReadOnlyList<Card> GetHand();
     IReadOnlyList<Card> GetBoard();
     IReadOnlyList<Card> GetGraveyard();
