@@ -113,12 +113,7 @@ namespace Empire.Server.Controllers
             try
             {
                 if (deckCsv == null || deckCsv.Length == 0)
-                {
-                    Console.WriteLine("Deck file is missing or empty.");
                     return BadRequest("CSV is required.");
-                }
-
-                Console.WriteLine($"Received file: {deckCsv.FileName}, from player: {playerId}");
 
                 var tempPath = Path.GetTempFileName();
                 using (var stream = System.IO.File.Create(tempPath))
@@ -126,23 +121,21 @@ namespace Empire.Server.Controllers
                     await deckCsv.CopyToAsync(stream);
                 }
 
-                var playerDeck = _deckLoader.LoadDeckFromSingleCSV(tempPath);
+                Console.WriteLine($"[CreateGame] CSV saved to: {tempPath}");
 
-                if (!playerDeck.CivicDeck.Any() && !playerDeck.MilitaryDeck.Any())
-                {
-                    Console.WriteLine("Deck parsing returned empty lists.");
-                    return BadRequest("Deck is invalid or empty.");
-                }
+                var playerDeck = _deckLoader.LoadDeckFromSingleCSV(tempPath);
+                Console.WriteLine($"[CreateGame] Deck loaded: Civic={playerDeck.CivicDeck.Count}, Military={playerDeck.MilitaryDeck.Count}");
 
                 var gameId = await _sessionService.CreateGameSession(playerId, playerDeck.CivicDeck, playerDeck.MilitaryDeck);
-                Console.WriteLine($"Game created: {gameId}");
+                Console.WriteLine($"[CreateGame] Game created with ID: {gameId}");
 
                 return Ok(gameId);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error in CreateGame: {ex.Message}");
-                return StatusCode(500, "Server error: " + ex.Message);
+                Console.WriteLine($"[CreateGame] ❌ ERROR: {ex.Message}");
+                Console.WriteLine(ex.StackTrace);
+                return StatusCode(500, $"Failed to create game: {ex.Message}");
             }
         }
 
