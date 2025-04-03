@@ -118,7 +118,10 @@ else
     private async Task CreateGame()
     {
         if (string.IsNullOrWhiteSpace(createName) || createDeck is null)
+        {
+            Console.WriteLine("Missing name or deck.");
             return;
+        }
 
         using var content = new MultipartFormDataContent();
         var stream = createDeck.OpenReadStream(1024 * 1024);
@@ -134,5 +137,11 @@ else
             var gameId = await response.Content.ReadAsStringAsync();
             Nav.NavigateTo($"/game/{gameId}/{createName}");
         }
+        else
+        {
+            var msg = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"Failed to create game: {msg}");
+        }
     }
+}
 }

@@ -48,7 +48,6 @@ namespace Empire.Server.Services
             };
 
             await _gameCollection.InsertOneAsync(gameState);
-
             return gameState.GameId;
         }
 
