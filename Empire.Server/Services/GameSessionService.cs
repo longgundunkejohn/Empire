@@ -150,11 +150,24 @@ namespace Empire.Server.Services
 
         public async Task<List<GameState>> ListOpenGames()
         {
-            var filter = Builders<GameState>.Filter.Where(gs =>
-                !string.IsNullOrEmpty(gs.Player1) && string.IsNullOrEmpty(gs.Player2));
+            try
+            {
+                var filter = Builders<GameState>.Filter.Where(gs =>
+                    !string.IsNullOrEmpty(gs.Player1) && string.IsNullOrEmpty(gs.Player2));
 
-            return await _gameCollection.Find(filter).ToListAsync();
+                var results = await _gameCollection.Find(filter).ToListAsync();
+
+                Console.WriteLine($"[ListOpenGames] Found {results.Count} open games.");
+
+                return results;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ListOpenGames] Error: {ex.Message}");
+                return new List<GameState>();
+            }
         }
+
 
         public async Task<bool> JoinGame(string gameId, string player2Id, List<int> civicDeck, List<int> militaryDeck)
         {

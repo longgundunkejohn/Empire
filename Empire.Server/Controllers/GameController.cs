@@ -61,6 +61,14 @@ namespace Empire.Server.Controllers
         {
             var openGames = await _sessionService.ListOpenGames();
 
+            Console.WriteLine($"[GetOpenGames] Found {openGames?.Count ?? 0} open games.");
+
+            if (openGames == null)
+            {
+                Console.WriteLine("[GetOpenGames] openGames is null");
+                return Problem("Failed to retrieve open games.");
+            }
+
             var previews = openGames.Select(g => new GamePreview
             {
                 GameId = g.GameId,
@@ -70,6 +78,7 @@ namespace Empire.Server.Controllers
 
             return Ok(previews);
         }
+
 
         [HttpGet("deck/{gameId}/{playerId}")]
         public async Task<ActionResult<List<Card>>> GetPlayerDeck(string gameId, string playerId)
