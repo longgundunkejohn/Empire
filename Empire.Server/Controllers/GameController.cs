@@ -106,10 +106,21 @@ namespace Empire.Server.Controllers
         public async Task<ActionResult<GameState>> GetGameState(string gameId, string playerId)
         {
             var state = await _sessionService.GetGameState(gameId);
-            if (state == null) return NotFound();
+            if (state == null)
+            {
+                Console.WriteLine($"[GameApi] Game not found: {gameId}");
+                return NotFound();
+            }
+
+            if (!state.PlayerDecks.ContainsKey(playerId))
+            {
+                Console.WriteLine($"[GameApi] Player {playerId} not found in game {gameId}");
+                return BadRequest($"Player {playerId} is not part of the game.");
+            }
 
             return Ok(state);
         }
+
         [HttpPost("move")]
         public async Task<IActionResult> SubmitMove([FromBody] GameMove move, [FromQuery] string gameId)
         {
