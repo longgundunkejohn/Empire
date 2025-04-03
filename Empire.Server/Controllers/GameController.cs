@@ -10,15 +10,31 @@ namespace Empire.Server.Controllers
     [Route("api/[controller]")]
     public class GameController : ControllerBase
     {
+        private readonly ICardDatabaseService _cardDatabase;
         private readonly ICardService _cardService;
         private readonly GameSessionService _sessionService;
         private readonly CardFactory _cardFactory;
         private readonly DeckLoaderService _deckLoader;
-        [HttpGet("api/game/cards/{gameId}/{playerId}")]
+
+        public GameController(
+            GameSessionService sessionService,
+            CardFactory cardFactory,
+            DeckLoaderService deckLoader,
+            ICardService cardService,
+            ICardDatabaseService cardDatabase)
+        {
+            _sessionService = sessionService;
+            _cardFactory = cardFactory;
+            _deckLoader = deckLoader;
+            _cardService = cardService;
+            _cardDatabase = cardDatabase;
+        }
+
+        [HttpGet("cards/{gameId}/{playerId}")]
         public async Task<ActionResult<List<Card>>> GetPlayerCards(string gameId, string playerId)
         {
             var game = await _sessionService.GetGameState(gameId);
-            if (game == null) return NotFound();
+            if (game == null) return NotFound("Game not found.");
 
             var cardIds = new HashSet<int>();
 
@@ -34,23 +50,10 @@ namespace Empire.Server.Controllers
                 cardIds.UnionWith(deck.MilitaryDeck);
             }
 
-            // Optional: cardIds.UnionWith(game.PlayerDiscard[playerId]) if you track discards
-
             var cards = await _cardService.GetDeckCards(cardIds.ToList());
             return Ok(cards);
         }
 
-        public GameController(
-            GameSessionService sessionService,
-            CardFactory cardFactory,
-            DeckLoaderService deckLoader,
-            ICardService cardService) // <-- Add this!
-        {
-            _sessionService = sessionService;
-            _cardFactory = cardFactory;
-            _deckLoader = deckLoader;
-            _cardService = cardService; // <-- And assign it here!
-        }
         [HttpGet("open")]
         public async Task<ActionResult<List<GamePreview>>> GetOpenGames()
         {
@@ -82,25 +85,6 @@ namespace Empire.Server.Controllers
             var fullDeck = await _cardFactory.CreateDeckAsync(deckList);
             return Ok(fullDeck);
         }
-        [HttpPost("create")]
-        public async Task<ActionResult<string>> CreateGame([FromForm] IFormFile deckCsv, [FromForm] string playerId)
-        {
-            if (deckCsv == null || deckCsv.Length == 0)
-                return BadRequest("CSV is required.");
-
-            var tempPath = Path.GetTempFileName();
-            using (var stream = System.IO.File.Create(tempPath))
-            {
-                await deckCsv.CopyToAsync(stream);
-            }
-
-            var playerDeck = _deckLoader.LoadDeckFromSingleCSV(tempPath);
-
-            // Create game session with player1's deck
-            var gameId = await _sessionService.CreateGameSession(playerId, playerDeck.CivicDeck, playerDeck.MilitaryDeck);
-
-            return Ok(gameId);
-        }
 
         [HttpGet("state/{gameId}/{playerId}")]
         public async Task<ActionResult<GameState>> GetGameState(string gameId, string playerId)
@@ -121,28 +105,48 @@ namespace Empire.Server.Controllers
             return Ok(state);
         }
 
+        [HttpPost("create")]
+        public async Task<ActionResult<string>> CreateGame([FromForm] IFormFile deckCsv, [FromForm] string playerId)
+        {
+            try
+            {
+                if (deckCsv == null || deckCsv.Length == 0)
+                    return BadRequest("CSV is required.");
+
+                var tempPath = Path.GetTempFileName();
+                using (var stream = System.IO.File.Create(tempPath))
+                {
+                    await deckCsv.CopyToAsync(stream);
+                }
+
+                var playerDeck = _deckLoader.LoadDeckFromSingleCSV(tempPath);
+                var gameId = await _sessionService.CreateGameSession(playerId, playerDeck.CivicDeck, playerDeck.MilitaryDeck);
+
+                return Ok(gameId);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GameApi] Failed to create game: {ex.Message}");
+                return StatusCode(500, $"Failed to create game: {ex.Message}");
+            }
+        }
+
         [HttpPost("move")]
         public async Task<IActionResult> SubmitMove([FromBody] GameMove move, [FromQuery] string gameId)
         {
             var result = await _sessionService.ApplyMove(gameId, move);
             return result ? Ok() : BadRequest("Invalid move");
         }
+
         [HttpPost("join/{gameId}/{playerId}")]
-        public async Task<IActionResult> JoinGame(
-            [FromRoute] string gameId,
-            [FromRoute] string playerId,
-            [FromBody] PlayerDeck playerDeck)
+        public async Task<IActionResult> JoinGame(string gameId, string playerId, [FromBody] PlayerDeck playerDeck)
         {
-            // Use the existing _sessionService, not _gameSessionService
             var gameState = await _sessionService.GetGameState(gameId);
 
-            if (gameState == null) return NotFound("Game not found.");
+            if (gameState == null)
+                return NotFound("Game not found.");
 
-            // Assign the player's decks
             gameState.PlayerDecks[playerId] = playerDeck;
-
-            // Add any other logic for updating the game state
-
             await _sessionService.ApplyMove(gameId, new GameMove
             {
                 PlayerId = playerId,
@@ -151,29 +155,23 @@ namespace Empire.Server.Controllers
 
             return Ok(gameId);
         }
+
         [HttpPost("uploadDeck/{gameId}")]
-                public async Task<IActionResult> UploadDeck(
-            [FromRoute] string gameId,
-            [FromForm] IFormFile deckCsv,
-            [FromForm] string playerName)
-                {
-                    if (deckCsv == null || deckCsv.Length == 0)
-                        return BadRequest("Deck file is missing");
+        public async Task<IActionResult> UploadDeck(string gameId, [FromForm] IFormFile deckCsv, [FromForm] string playerName)
+        {
+            if (deckCsv == null || deckCsv.Length == 0)
+                return BadRequest("Deck file is missing");
 
-                    var tempPath = Path.GetTempFileName();
-                    using (var stream = System.IO.File.Create(tempPath))
-                    {
-                        await deckCsv.CopyToAsync(stream);
-                    }
+            var tempPath = Path.GetTempFileName();
+            using (var stream = System.IO.File.Create(tempPath))
+            {
+                await deckCsv.CopyToAsync(stream);
+            }
 
-                    var playerDeck = _deckLoader.LoadDeckFromSingleCSV(tempPath);
+            var playerDeck = _deckLoader.LoadDeckFromSingleCSV(tempPath);
+            var success = await _sessionService.JoinGame(gameId, playerName, playerDeck.CivicDeck, playerDeck.MilitaryDeck);
 
-                    var success = await _sessionService.JoinGame(gameId, playerName, playerDeck.CivicDeck, playerDeck.MilitaryDeck);
-                    return success ? Ok() : BadRequest("Could not join game");
-                }
-
-
-
-
+            return success ? Ok() : BadRequest("Could not join game");
+        }
     }
 }
