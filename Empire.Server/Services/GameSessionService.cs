@@ -47,7 +47,7 @@ namespace Empire.Server.Services
                 MoveHistory = new List<GameMove>()
             };
 
-            Console.WriteLine($"[CreateGame] Received name: '{player1Id}', deck: civic={civicDeck.Count}, mil={militaryDeck.Count}");
+            Console.WriteLine($"[CreateGame] Received name: '{playerId}', deck: civic={civicDeck.Count}, mil={militaryDeck.Count}");
             Console.WriteLine($"[CreateGame] CivicDeck sample: {string.Join(", ", civicDeck.Take(3))}");
             Console.WriteLine($"[CreateGame] MilitaryDeck sample: {string.Join(", ", militaryDeck.Take(3))}");
 
