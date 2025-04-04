@@ -34,21 +34,29 @@ public class GameController : ControllerBase
     public async Task<IActionResult> UploadDeck(string gameId, [FromForm] IFormFile deckCsv, [FromForm] string playerName)
     {
         if (deckCsv == null || string.IsNullOrWhiteSpace(playerName))
-            return BadRequest("Missing deck or playerName.");
+            return BadRequest("Missing file or playerName.");
 
         using var reader = new StreamReader(deckCsv.OpenReadStream());
         using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
 
-        var records = csv.GetRecords<DeckCsvEntry>().ToList();
+        var records = csv.GetRecords<DeckCsvEntry>().ToList(); // ← likely fails here
 
-        var civic = records.Where(r => r.DeckType.Equals("Civic", StringComparison.OrdinalIgnoreCase)).Select(r => r.CardId).ToList();
-        var military = records.Where(r => r.DeckType.Equals("Military", StringComparison.OrdinalIgnoreCase)).Select(r => r.CardId).ToList();
+        // Example structure:
+        var civic = records
+            .Where(r => r.DeckType.Equals("Civic", StringComparison.OrdinalIgnoreCase))
+            .Select(r => r.CardId)
+            .ToList();
+
+        var military = records
+            .Where(r => r.DeckType.Equals("Military", StringComparison.OrdinalIgnoreCase))
+            .Select(r => r.CardId)
+            .ToList();
 
         var playerDeck = new PlayerDeck(civic, military);
 
-        // Save deck to your game state storage (e.g. MongoDB, memory, etc)
-        _logger.LogInformation("Deck uploaded for game {GameId} by {PlayerName}", gameId, playerName);
+        // TODO: Store this in your game state store (DB/memory/whatever)
 
         return Ok();
     }
+
 }
