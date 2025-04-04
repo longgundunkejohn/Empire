@@ -123,25 +123,38 @@ else
             return;
         }
 
+        // ✅ Step 1: Create game with JSON
+        var gameStart = new GameStartRequest { Player1 = createName };
+        var createResponse = await Http.PostAsJsonAsync("api/game/create", gameStart);
+
+        if (!createResponse.IsSuccessStatusCode)
+        {
+            var error = await createResponse.Content.ReadAsStringAsync();
+            Console.WriteLine($"Game creation failed: {error}");
+            return;
+        }
+
+        var gameId = await createResponse.Content.ReadAsStringAsync();
+
+        // ✅ Step 2: Upload deck
         using var content = new MultipartFormDataContent();
         var stream = createDeck.OpenReadStream(1024 * 1024);
         var fileContent = new StreamContent(stream);
         fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");
 
         content.Add(fileContent, "deckCsv", createDeck.Name);
-        content.Add(new StringContent(createName), "playerId");
+        content.Add(new StringContent(createName), "playerName");
 
-        var response = await Http.PostAsync("api/game/create", content);
-        if (response.IsSuccessStatusCode)
+        var uploadResponse = await Http.PostAsync($"api/game/uploadDeck/{gameId}", content);
+        if (!uploadResponse.IsSuccessStatusCode)
         {
-            var gameId = await response.Content.ReadAsStringAsync();
-            Nav.NavigateTo($"/game/{gameId}/{createName}");
+            Console.WriteLine("Deck upload failed.");
+            return;
         }
-        else
-        {
-            var msg = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"Failed to create game: {msg}");
-        }
+
+        // ✅ Step 3: Enter the game
+        Nav.NavigateTo($"/game/{gameId}/{createName}");
     }
+
 }
 }
