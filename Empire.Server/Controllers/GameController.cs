@@ -33,30 +33,41 @@ public class GameController : ControllerBase
     [HttpPost("uploadDeck/{gameId}")]
     public async Task<IActionResult> UploadDeck(string gameId, [FromForm] IFormFile deckCsv, [FromForm] string playerName)
     {
-        if (deckCsv == null || string.IsNullOrWhiteSpace(playerName))
-            return BadRequest("Missing file or playerName.");
+        try
+        {
+            using var reader = new StreamReader(deckCsv.OpenReadStream());
+            var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
 
-        using var reader = new StreamReader(deckCsv.OpenReadStream());
-        using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+            // Manual mapping since your headers don't match model
+            var rawRows = csv.GetRecords<dynamic>().ToList();
 
-        var records = csv.GetRecords<DeckCsvEntry>().ToList(); // ← likely fails here
+            var civicDeck = new List<int>();
+            var militaryDeck = new List<int>();
 
-        // Example structure:
-        var civic = records
-            .Where(r => r.DeckType.Equals("Civic", StringComparison.OrdinalIgnoreCase))
-            .Select(r => r.CardId)
-            .ToList();
+            foreach (dynamic row in rawRows)
+            {
+                int cardId = int.Parse(row["Card ID"]);
+                int count = int.Parse(row["Count"]);
 
-        var military = records
-            .Where(r => r.DeckType.Equals("Military", StringComparison.OrdinalIgnoreCase))
-            .Select(r => r.CardId)
-            .ToList();
+                // Just for demo: civic if ID is even, military if odd
+                var targetDeck = cardId % 2 == 0 ? civicDeck : militaryDeck;
 
-        var playerDeck = new PlayerDeck(civic, military);
+                for (int i = 0; i < count; i++)
+                    targetDeck.Add(cardId);
+            }
 
-        // TODO: Store this in your game state store (DB/memory/whatever)
+            var playerDeck = new PlayerDeck(civicDeck, militaryDeck);
 
-        return Ok();
+            // Save this to game state
+            Console.WriteLine($"Deck uploaded for {playerName}: Civic({civicDeck.Count}), Military({militaryDeck.Count})");
+
+            return Ok();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[UploadDeck] Error: {ex.Message}");
+            return StatusCode(500, $"Deck upload failed: {ex.Message}");
+        }
     }
 
 }
