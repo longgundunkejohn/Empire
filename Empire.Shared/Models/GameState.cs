@@ -12,9 +12,9 @@ namespace Empire.Shared.Models
         public string GameId { get; set; } = Guid.NewGuid().ToString();
 
         public string Player1 { get; set; }
-        public string Player2 { get; set; }
-        public string InitiativeHolder { get; set; }
-        public string PriorityPlayer { get; set; }
+        public string? Player2 { get; set; }
+        public string? InitiativeHolder { get; set; }
+        public string? PriorityPlayer { get; set; }
 
         public GamePhase CurrentPhase { get; set; }
 
