@@ -119,36 +119,35 @@ namespace Empire.Server.Controllers
         }
 
         [HttpPost("create")]
-        public async Task<ActionResult<string>> CreateGame([FromForm] IFormFile deckCsv, [FromForm] string playerId)
+        public async Task<ActionResult<string>> CreateGame([FromBody] GameStartRequest request)
         {
             try
             {
-                if (deckCsv == null || deckCsv.Length == 0)
-                    return BadRequest("CSV is required.");
-
-                var tempPath = Path.GetTempFileName();
-                using (var stream = System.IO.File.Create(tempPath))
+                if (string.IsNullOrWhiteSpace(request.Player1))
                 {
-                    await deckCsv.CopyToAsync(stream);
+                    Console.WriteLine("[CreateGame] ❌ Player1 is null or empty.");
+                    return BadRequest("Player1 is required.");
                 }
 
-                Console.WriteLine($"[CreateGame] CSV saved to: {tempPath}");
+                Console.WriteLine($"[CreateGame] Creating game for Player1: {request.Player1}");
 
-                var playerDeck = _deckLoader.LoadDeckFromSingleCSV(tempPath);
-                Console.WriteLine($"[CreateGame] Deck loaded: Civic={playerDeck.CivicDeck.Count}, Military={playerDeck.MilitaryDeck.Count}");
+                // Start with empty decks; deck is uploaded later via /uploadDeck
+                var emptyCivic = new List<int>();
+                var emptyMilitary = new List<int>();
 
-                var gameId = await _sessionService.CreateGameSession(playerId, playerDeck.CivicDeck, playerDeck.MilitaryDeck);
-                Console.WriteLine($"[CreateGame] Game created with ID: {gameId}");
+                var gameId = await _sessionService.CreateGameSession(request.Player1, emptyCivic, emptyMilitary);
+
+                Console.WriteLine($"[CreateGame] ✅ Game created with ID: {gameId}");
 
                 return Ok(gameId);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[CreateGame] ❌ ERROR: {ex.Message}");
-                Console.WriteLine(ex.StackTrace);
-                return StatusCode(500, $"Failed to create game: {ex.Message}");
+                return StatusCode(500, "Game creation failed: " + ex.Message);
             }
         }
+
 
         [HttpPost("move")]
         public async Task<IActionResult> SubmitMove([FromBody] GameMove move, [FromQuery] string gameId)
