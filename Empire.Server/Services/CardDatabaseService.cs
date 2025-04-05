@@ -2,6 +2,7 @@
 using Empire.Server.Interfaces;
 using MongoDB.Driver;
 using Microsoft.Extensions.Logging;
+using MongoDB.Bson;
 
 public class CardDatabaseService : ICardDatabaseService
 {
@@ -59,13 +60,65 @@ public class CardDatabaseService : ICardDatabaseService
 
             foreach (var card in cards)
             {
+                bool isValid = true;
+
+                // COST: Allow "Villager"/"Settlement" to mean 0
+                if (card.Cost < 0)
+                {
+                    // Handle potential string field sneak-ins (legacy data)
+                    var rawDoc = _cardCollection.Find(c => c.CardID == card.CardID).FirstOrDefault();
+                    if (rawDoc != null)
+                    {
+                        var rawCost = rawDoc.ToBsonDocument().GetValue("Cost", BsonNull.Value);
+                        if (rawCost.IsString)
+                        {
+                            string val = rawCost.AsString.Trim().ToLower();
+                            if (val == "villager" || val == "settlement")
+                            {
+                                card.Cost = 0;
+                            }
+                            else
+                            {
+                                card.Cost = -1;
+                                isValid = false;
+                            }
+                        }
+                    }
+                }
+
+                // GENERIC FIELD VALIDATIONS
+                if (string.IsNullOrWhiteSpace(card.Name) || card.Name.Length > 100)
+                {
+                    card.Name = $"bugtemplatename_{card.CardID}";
+                }
+
+                if (string.IsNullOrWhiteSpace(card.CardText)) card.CardText = "-blank- -nonfunctional-";
+                if (string.IsNullOrWhiteSpace(card.CardType)) card.CardType = "-blank- -nonfunctional-";
+                if (string.IsNullOrWhiteSpace(card.Tier)) card.Tier = "-blank- -nonfunctional-";
+
+                if (card.Cost < 0 || card.Attack < 0 || card.Defence < 0)
+                    isValid = false;
+
+                if (!IsValidYesNo(card.Unique) || !IsValidYesNo(card.Faction))
+                    isValid = false;
+
+                // Image fallback
                 card.ImageFileName = _cardImagePaths.TryGetValue(card.CardID, out var path)
                     ? path
                     : "images/Cards/placeholder.jpg";
+
+                if (isValid)
+                {
+                    _cardDictionary[card.CardID.ToString()] = card;
+                }
+                else
+                {
+                    _logger.LogWarning("Card {CardID} is invalid and will be removed.", card.CardID);
+                    _cardCollection.DeleteOne(c => c.Id == card.Id);
+                }
             }
 
-            _cardDictionary = cards.ToDictionary(c => c.CardID.ToString(), c => c);
-            _logger.LogInformation("Loaded {CardCount} cards into dictionary.", _cardDictionary.Count);
+            _logger.LogInformation("Loaded {CardCount} valid cards into dictionary.", _cardDictionary.Count);
         }
         catch (Exception ex)
         {
@@ -74,17 +127,9 @@ public class CardDatabaseService : ICardDatabaseService
         }
     }
 
-    public IEnumerable<CardData> GetAllCards() => _cardDictionary.Values;
-
-    public CardData? GetCardById(string id)
+    private bool IsValidYesNo(string? value)
     {
-        if (_cardDictionary.TryGetValue(id, out var card))
-        {
-            _logger.LogDebug("Retrieved card {CardId}: {CardName}", id, card.Name);
-            return card;
-        }
-
-        _logger.LogWarning("Card with ID {CardId} not found.", id);
-        return null;
+        return value is "Yes" or "No";
     }
+
 }
