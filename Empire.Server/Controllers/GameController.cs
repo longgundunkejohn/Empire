@@ -173,6 +173,14 @@ namespace Empire.Server.Controllers
 
             return Ok(gameId);
         }
+        [HttpPost("debugjson")]
+        public async Task<IActionResult> DebugRaw()
+        {
+            using var reader = new StreamReader(Request.Body);
+            var rawBody = await reader.ReadToEndAsync();
+            Console.WriteLine($"[DEBUG JSON BODY] {rawBody}");
+            return Ok("Got it");
+        }
 
         [HttpPost("uploadDeck/{gameId}")]
         public async Task<IActionResult> UploadDeck(string gameId, [FromForm] IFormFile deckCsv, [FromForm] string playerName)
