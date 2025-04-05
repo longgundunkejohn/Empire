@@ -1,15 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using CsvHelper;
+using Empire.Server.Interfaces;
+using Empire.Server.Parsing;
+using Empire.Shared.Models;
+using Empire.Shared.Models.DTOs;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Empire.Shared.Models;
 using MongoDB.Driver;
-using Empire.Server.Interfaces;
-using System.Formats.Asn1;
-using System.Globalization;
-using CsvHelper;
 
 namespace Empire.Server.Services
 {
@@ -41,6 +42,41 @@ namespace Empire.Server.Services
 
             _logger.LogInformation("DeckLoaderService loaded {Count} mappings", CardDictionary.Count);
         }
+
+        private bool IsCivicCard(int cardId)
+        {
+            int lastTwoDigits = cardId % 100;
+            return lastTwoDigits is >= 80 and <= 99;
+        }
+
+        public (List<int> CivicDeck, List<int> MilitaryDeck) ParseDeckFromCsv(Stream csvStream)
+        {
+            using var reader = new StreamReader(csvStream);
+            using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+
+            csv.Context.RegisterClassMap<RawDeckEntryMap>();
+            var entries = csv.GetRecords<RawDeckEntry>().ToList();
+
+            var civic = new List<int>();
+            var military = new List<int>();
+
+            foreach (var entry in entries)
+            {
+                var target = IsCivicCard(entry.CardId) ? civic : military;
+
+                for (int i = 0; i < entry.Count; i++)
+                    target.Add(entry.CardId);
+            }
+
+            return (civic, military);
+        }
+
+        public void UpdateMappings()
+        {
+            GenerateCardMappings();
+            SaveToCSV();
+        }
+
         private void LoadCardMappings()
         {
             if (File.Exists(_csvFile))
@@ -90,12 +126,6 @@ namespace Empire.Server.Services
             File.WriteAllLines(_csvFile, CardDictionary.Select(kv => $"{kv.Key},{kv.Value}"));
         }
 
-        public void UpdateMappings()
-        {
-            GenerateCardMappings();
-            SaveToCSV();
-        }
-
         public string GetImagePath(int cardId)
         {
             return CardDictionary.TryGetValue(cardId, out var path) ? path : "images/Cards/placeholder.jpg";
@@ -107,51 +137,5 @@ namespace Empire.Server.Services
                 ? Path.GetFileNameWithoutExtension(fileName).Split(" ", 2).Last()
                 : "Unknown Card";
         }
-
-        public PlayerDeck LoadDeckFromSingleCSV(string filePath)
-        {
-            var civicDeck = new List<int>();
-            var militaryDeck = new List<int>();
-
-            var lines = File.ReadAllLines(filePath);
-            foreach (var line in lines.Skip(1)) // Skip header
-            {
-                if (string.IsNullOrWhiteSpace(line)) continue;
-
-                var parts = line.Split(',');
-                if (parts.Length < 3) continue;
-
-                if (!int.TryParse(parts[0], out var cardId)) continue;
-                if (!int.TryParse(parts[2], out var count)) continue;
-
-                var cardData = _cardDatabase.GetCardById(cardId.ToString());
-                if (cardData == null)
-                {
-                    Console.WriteLine($"[DeckLoader] Card ID {cardId} not found in database.");
-                    continue;
-                }
-
-                var destination = cardData.Faction.ToLower() switch
-                {
-                    "civic" => civicDeck,
-                    "military" => militaryDeck,
-                    _ => null
-                };
-
-                if (destination == null)
-                {
-                    Console.WriteLine($"[DeckLoader] Unknown faction '{cardData.Faction}' for card ID {cardId}");
-                    continue;
-                }
-
-                for (int i = 0; i < count; i++)
-                    destination.Add(cardId);
-            }
-
-            return new PlayerDeck(civicDeck, militaryDeck);
-        }
-
-
-
     }
 }

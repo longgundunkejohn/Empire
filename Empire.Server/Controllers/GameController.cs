@@ -179,44 +179,33 @@ namespace Empire.Server.Controllers
         {
             try
             {
-                if (deckCsv == null || string.IsNullOrWhiteSpace(playerName))
-                    return BadRequest("Missing file or playerName.");
-
-                using var reader = new StreamReader(deckCsv.OpenReadStream());
-                using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
-
-                // Ensure CsvHelper doesn't try to map to a model automatically
-                csv.Context.RegisterClassMap<RawDeckEntryMap>();
-                var entries = csv.GetRecords<RawDeckEntry>().ToList();
-
-                var civic = new List<int>();
-                var military = new List<int>();
-
-                foreach (var entry in entries)
-                {
-                    // TEMPORARY logic: assume even Card ID = Civic, odd = Military
-                    var targetDeck = entry.CardId % 2 == 0 ? civic : military;
-
-                    for (int i = 0; i < entry.Count; i++)
-                    {
-                        targetDeck.Add(entry.CardId);
-                    }
-                }
+                using var stream = deckCsv.OpenReadStream();
+                var (civic, military) = _deckLoader.ParseDeckFromCsv(stream);
 
                 var playerDeck = new PlayerDeck(civic, military);
 
-                // TODO: Store playerDeck in your game state using gameId + playerName
+                var game = await _sessionService.GetGameState(gameId);
+                if (game == null)
+                    return NotFound("Game not found.");
 
-                Console.WriteLine($"Uploaded deck for {playerName}: {civic.Count} civic, {military.Count} military");
+                game.PlayerDecks[playerName] = playerDeck;
+
+                await _sessionService.ApplyMove(gameId, new GameMove
+                {
+                    PlayerId = playerName,
+                    MoveType = "JoinGame"
+                });
 
                 return Ok();
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[UploadDeck] ERROR: {ex.Message}");
+                Console.WriteLine($"[UploadDeck] ❌ ERROR: {ex.Message}");
                 return StatusCode(500, "Deck upload failed: " + ex.Message);
             }
         }
+
+
 
     }
 }
