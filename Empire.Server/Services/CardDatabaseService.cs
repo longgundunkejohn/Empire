@@ -1,25 +1,25 @@
 ﻿using Empire.Shared.Models;
 using Empire.Server.Interfaces;
 using MongoDB.Driver;
-using Empire.Server.Services;
 using Microsoft.Extensions.Logging;
 
 public class CardDatabaseService : ICardDatabaseService
 {
     private readonly IMongoCollection<CardData> _cardCollection;
-    private readonly DeckLoaderService _deckLoader;
     private readonly ILogger<CardDatabaseService> _logger;
     private Dictionary<string, CardData> _cardDictionary = new();
+    private readonly Dictionary<int, string> _cardImagePaths;
 
-    public CardDatabaseService(IMongoDbService mongo, DeckLoaderService deckLoader, ILogger<CardDatabaseService> logger)
+    public CardDatabaseService(IMongoDbService mongo, ILogger<CardDatabaseService> logger)
     {
         _logger = logger;
-        _deckLoader = deckLoader;
 
         try
         {
             var db = mongo.GetDatabase();
             _cardCollection = db.GetCollection<CardData>("Cards");
+
+            _cardImagePaths = LoadImageMappings(); // 👈 New helper
             _logger.LogInformation("CardDatabaseService connected to MongoDB collection.");
             LoadCards();
         }
@@ -28,6 +28,26 @@ public class CardDatabaseService : ICardDatabaseService
             _logger.LogError(ex, "Failed to initialize CardDatabaseService.");
             throw;
         }
+    }
+
+    private Dictionary<int, string> LoadImageMappings()
+    {
+        var result = new Dictionary<int, string>();
+        var imagePath = Path.Combine(AppContext.BaseDirectory, "wwwroot", "images");
+
+        if (!Directory.Exists(imagePath))
+            return result;
+
+        foreach (var file in Directory.GetFiles(imagePath, "*.jpg"))
+        {
+            string fileName = Path.GetFileNameWithoutExtension(file);
+            if (int.TryParse(fileName.Split(' ')[0], out int cardId))
+            {
+                result[cardId] = $"images/{fileName}.jpg";
+            }
+        }
+
+        return result;
     }
 
     private void LoadCards()
@@ -39,7 +59,9 @@ public class CardDatabaseService : ICardDatabaseService
 
             foreach (var card in cards)
             {
-                card.ImageFileName = _deckLoader.GetImagePath(card.CardID);
+                card.ImageFileName = _cardImagePaths.TryGetValue(card.CardID, out var path)
+                    ? path
+                    : "images/Cards/placeholder.jpg";
             }
 
             _cardDictionary = cards.ToDictionary(c => c.CardID.ToString(), c => c);
