@@ -3,6 +3,7 @@ using Empire.Server.Interfaces;
 using MongoDB.Driver;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
+using System.IO;
 
 public class CardDatabaseService : ICardDatabaseService
 {
@@ -20,7 +21,7 @@ public class CardDatabaseService : ICardDatabaseService
             var db = mongo.GetDatabase();
             _cardCollection = db.GetCollection<CardData>("Cards");
 
-            _cardImagePaths = LoadImageMappings(); // 👈 New helper
+            _cardImagePaths = LoadImageMappings();
             _logger.LogInformation("CardDatabaseService connected to MongoDB collection.");
             LoadCards();
         }
@@ -62,10 +63,9 @@ public class CardDatabaseService : ICardDatabaseService
             {
                 bool isValid = true;
 
-                // COST: Allow "Villager"/"Settlement" to mean 0
+                // Handle legacy string values in Cost field
                 if (card.Cost < 0)
                 {
-                    // Handle potential string field sneak-ins (legacy data)
                     var rawDoc = _cardCollection.Find(c => c.CardID == card.CardID).FirstOrDefault();
                     if (rawDoc != null)
                     {
@@ -86,15 +86,11 @@ public class CardDatabaseService : ICardDatabaseService
                     }
                 }
 
-                // GENERIC FIELD VALIDATIONS
-                if (string.IsNullOrWhiteSpace(card.Name) || card.Name.Length > 100)
-                {
-                    card.Name = $"bugtemplatename_{card.CardID}";
-                }
-
-                if (string.IsNullOrWhiteSpace(card.CardText)) card.CardText = "-blank- -nonfunctional-";
-                if (string.IsNullOrWhiteSpace(card.CardType)) card.CardType = "-blank- -nonfunctional-";
-                if (string.IsNullOrWhiteSpace(card.Tier)) card.Tier = "-blank- -nonfunctional-";
+                // Sanitize fields
+                card.Name = SanitizeString(card.Name, $"bugtemplatename_{card.CardID}");
+                card.CardText = SanitizeString(card.CardText);
+                card.CardType = SanitizeString(card.CardType);
+                card.Tier = SanitizeString(card.Tier);
 
                 if (card.Cost < 0 || card.Attack < 0 || card.Defence < 0)
                     isValid = false;
@@ -102,7 +98,7 @@ public class CardDatabaseService : ICardDatabaseService
                 if (!IsValidYesNo(card.Unique) || !IsValidYesNo(card.Faction))
                     isValid = false;
 
-                // Image fallback
+                // Set image path or fallback
                 card.ImageFileName = _cardImagePaths.TryGetValue(card.CardID, out var path)
                     ? path
                     : "images/Cards/placeholder.jpg";
@@ -127,9 +123,29 @@ public class CardDatabaseService : ICardDatabaseService
         }
     }
 
+    private string SanitizeString(string? input, string fallback = "-blank- -nonfunctional-", int maxLength = 100)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return fallback;
+        return input.Length > maxLength ? input.Substring(0, maxLength) : input;
+    }
+
     private bool IsValidYesNo(string? value)
     {
         return value is "Yes" or "No";
     }
 
+    // ✅ Interface Implementation
+    public IEnumerable<CardData> GetAllCards() => _cardDictionary.Values;
+
+    public CardData? GetCardById(string id)
+    {
+        if (_cardDictionary.TryGetValue(id, out var card))
+        {
+            _logger.LogDebug("Retrieved card {CardId}: {CardName}", id, card.Name);
+            return card;
+        }
+
+        _logger.LogWarning("Card with ID {CardId} not found.", id);
+        return null;
+    }
 }
