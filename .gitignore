@@ -27,3 +27,4 @@ wwwroot/service-worker-assets.js
 Thumbs.db
 
 /certbot/conf/live
+.env
