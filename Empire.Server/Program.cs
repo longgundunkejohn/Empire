@@ -22,7 +22,7 @@ builder.Services.AddSingleton(sp =>
 // 💼 Application services
 builder.Services.AddSingleton<IMongoDbService, MongoDbService>();
 builder.Services.AddSingleton<DeckLoaderService>();
-builder.Services.AddScoped<ICardDatabaseService, CardDatabaseService>();
+builder.Services.AddScoped<ICardDatabaseService, CardGameDatabaseService>();
 builder.Services.AddScoped<ICardService, CardService>();
 builder.Services.AddScoped<CardFactory>();
 builder.Services.AddScoped<GameSessionService>();
@@ -31,13 +31,14 @@ builder.Services.AddSingleton<CardSanitizerService>();
 // 🧼 Check if we’re running the sanitizer only
 if (args.Contains("--sanitize"))
 {
-    var app = builder.Build();
-    using var scope = app.Services.CreateScope();
+    var builtApp = builder.Build(); // ✅ fix variable conflict
+    using var scope = builtApp.Services.CreateScope();
     var sanitizer = scope.ServiceProvider.GetRequiredService<CardSanitizerService>();
     await sanitizer.RunAsync();
     Console.WriteLine("✔ Sanitization complete.");
     return;
 }
+
 
 // 🌐 CORS for frontend
 builder.Services.AddCors(options =>

@@ -1,4 +1,5 @@
 ﻿using Empire.Shared.Models;
+using Empire.Server.Interfaces; // ✅ needed
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using MongoDB.Driver;
@@ -62,7 +63,9 @@ public class CardSanitizerService
             return null;
 
         card.CardID = doc["CardID"].AsInt32;
-        card.Id = doc.GetValue("_id", ObjectId.GenerateNewId());
+
+        // ✅ Fix: proper conversion
+        card.Id = doc.GetValue("_id", ObjectId.GenerateNewId()).AsObjectId;
 
         card.Cost = TryParseCost(doc.GetValue("Cost", BsonNull.Value), ref isValid);
         card.Attack = TryParseInt(doc, "Attack", ref isValid);
@@ -113,8 +116,14 @@ public class CardSanitizerService
         return val switch
         {
             "Yes" or "No" => val,
-            _ => isValid = false; "No"
+            _ => SetInvalid(ref isValid, "No")
         };
+    }
+
+    private static string SetInvalid(ref bool flag, string fallback)
+    {
+        flag = false;
+        return fallback;
     }
 
     private string FindImage(int cardId)
