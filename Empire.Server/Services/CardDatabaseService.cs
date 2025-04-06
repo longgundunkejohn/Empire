@@ -7,10 +7,11 @@ using System.IO;
 
 public class CardDatabaseService : ICardDatabaseService
 {
-    private readonly IMongoCollection<CardData> _cardCollection;
     private readonly ILogger<CardDatabaseService> _logger;
-    private Dictionary<string, CardData> _cardDictionary = new();
     private readonly Dictionary<int, string> _cardImagePaths;
+    private Dictionary<string, CardData> _cardDictionary = new();
+
+    private readonly IMongoCollection<BsonDocument> _rawCollection;
 
     public CardDatabaseService(IMongoDbService mongo, ILogger<CardDatabaseService> logger)
     {
@@ -19,7 +20,7 @@ public class CardDatabaseService : ICardDatabaseService
         try
         {
             var db = mongo.GetDatabase();
-            _cardCollection = db.GetCollection<CardData>("Cards");
+            _rawCollection = db.GetCollection<BsonDocument>("Cards");
 
             _cardImagePaths = LoadImageMappings();
             _logger.LogInformation("CardDatabaseService connected to MongoDB collection.");
@@ -57,60 +58,74 @@ public class CardDatabaseService : ICardDatabaseService
         try
         {
             _logger.LogInformation("Loading cards from MongoDB...");
-            var cards = _cardCollection.Find(_ => true).ToList();
+            var documents = _rawCollection.Find(_ => true).ToList();
 
-            foreach (var card in cards)
+            foreach (var doc in documents)
             {
                 bool isValid = true;
+                var card = new CardData();
 
-                // Handle legacy string values in Cost field
-                if (card.Cost < 0)
+                try
                 {
-                    var rawDoc = _cardCollection.Find(c => c.CardID == card.CardID).FirstOrDefault();
-                    if (rawDoc != null)
+                    card.Id = doc.GetValue("_id", ObjectId.Empty).AsObjectId;
+                    card.CardID = doc.GetValue("CardID", -1).ToInt32();
+
+                    var costValue = doc.GetValue("Cost", BsonNull.Value);
+                    if (costValue.IsInt32)
                     {
-                        var rawCost = rawDoc.ToBsonDocument().GetValue("Cost", BsonNull.Value);
-                        if (rawCost.IsString)
+                        card.Cost = costValue.AsInt32;
+                    }
+                    else if (costValue.IsString)
+                    {
+                        var costStr = costValue.AsString.Trim().ToLower();
+                        if (costStr == "villager" || costStr == "settlement")
+                            card.Cost = 0;
+                        else
                         {
-                            string val = rawCost.AsString.Trim().ToLower();
-                            if (val == "villager" || val == "settlement")
-                            {
-                                card.Cost = 0;
-                            }
-                            else
-                            {
-                                card.Cost = -1;
-                                isValid = false;
-                            }
+                            card.Cost = -1;
+                            isValid = false;
                         }
                     }
+                    else
+                    {
+                        card.Cost = -1;
+                        isValid = false;
+                    }
+
+                    card.Attack = doc.GetValue("Attack", -1).ToInt32();
+                    card.Defence = doc.GetValue("Defence", -1).ToInt32();
+
+                    card.Name = SanitizeString(doc.GetValue("Name", "").ToString(), $"bugtemplatename_{card.CardID}");
+                    card.CardText = SanitizeString(doc.GetValue("CardText", "").ToString());
+                    card.CardType = SanitizeString(doc.GetValue("CardType", "").ToString());
+                    card.Tier = SanitizeString(doc.GetValue("Tier", "").ToString());
+
+                    card.Unique = doc.GetValue("Unique", "No").ToString();
+                    card.Faction = doc.GetValue("Faction", "No").ToString();
+
+                    if (card.Cost < 0 || card.Attack < 0 || card.Defence < 0)
+                        isValid = false;
+
+                    if (!IsValidYesNo(card.Unique) || !IsValidYesNo(card.Faction))
+                        isValid = false;
+
+                    card.ImageFileName = _cardImagePaths.TryGetValue(card.CardID, out var path)
+                        ? path
+                        : "images/Cards/placeholder.jpg";
+
+                    if (isValid)
+                    {
+                        _cardDictionary[card.CardID.ToString()] = card;
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Card {CardID} is invalid and will be removed.", card.CardID);
+                        _rawCollection.DeleteOne(Builders<BsonDocument>.Filter.Eq("_id", card.Id));
+                    }
                 }
-
-                // Sanitize fields
-                card.Name = SanitizeString(card.Name, $"bugtemplatename_{card.CardID}");
-                card.CardText = SanitizeString(card.CardText);
-                card.CardType = SanitizeString(card.CardType);
-                card.Tier = SanitizeString(card.Tier);
-
-                if (card.Cost < 0 || card.Attack < 0 || card.Defence < 0)
-                    isValid = false;
-
-                if (!IsValidYesNo(card.Unique) || !IsValidYesNo(card.Faction))
-                    isValid = false;
-
-                // Set image path or fallback
-                card.ImageFileName = _cardImagePaths.TryGetValue(card.CardID, out var path)
-                    ? path
-                    : "images/Cards/placeholder.jpg";
-
-                if (isValid)
+                catch (Exception ex)
                 {
-                    _cardDictionary[card.CardID.ToString()] = card;
-                }
-                else
-                {
-                    _logger.LogWarning("Card {CardID} is invalid and will be removed.", card.CardID);
-                    _cardCollection.DeleteOne(c => c.Id == card.Id);
+                    _logger.LogError(ex, "Error while processing a card. It will be skipped.");
                 }
             }
 
@@ -134,7 +149,6 @@ public class CardDatabaseService : ICardDatabaseService
         return value is "Yes" or "No";
     }
 
-    // ✅ Interface Implementation
     public IEnumerable<CardData> GetAllCards() => _cardDictionary.Values;
 
     public CardData? GetCardById(string id)
