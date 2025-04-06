@@ -67,9 +67,17 @@ public class CardDatabaseService : ICardDatabaseService
 
                 try
                 {
-                    card.Id = doc.GetValue("_id", ObjectId.Empty).AsObjectId;
-                    card.CardID = doc.GetValue("CardID", -1).ToInt32();
+                    // Validate and assign CardID early
+                    if (!doc.Contains("CardID") || !doc["CardID"].IsInt32)
+                    {
+                        _logger.LogWarning("Card document missing valid CardID. Skipping.");
+                        continue;
+                    }
 
+                    card.Id = doc.GetValue("_id", ObjectId.Empty).AsObjectId;
+                    card.CardID = doc["CardID"].AsInt32;
+
+                    // Handle cost conversion
                     var costValue = doc.GetValue("Cost", BsonNull.Value);
                     if (costValue.IsInt32)
                     {
@@ -78,13 +86,8 @@ public class CardDatabaseService : ICardDatabaseService
                     else if (costValue.IsString)
                     {
                         var costStr = costValue.AsString.Trim().ToLower();
-                        if (costStr == "villager" || costStr == "settlement")
-                            card.Cost = 0;
-                        else
-                        {
-                            card.Cost = -1;
-                            isValid = false;
-                        }
+                        card.Cost = (costStr == "villager" || costStr == "settlement") ? 0 : -1;
+                        if (card.Cost == -1) isValid = false;
                     }
                     else
                     {
@@ -92,23 +95,24 @@ public class CardDatabaseService : ICardDatabaseService
                         isValid = false;
                     }
 
-                    card.Attack = doc.GetValue("Attack", -1).ToInt32();
-                    card.Defence = doc.GetValue("Defence", -1).ToInt32();
+                    // Safe integer parsing
+                    card.Attack = TryGetInt(doc, "Attack", ref isValid);
+                    card.Defence = TryGetInt(doc, "Defence", ref isValid);
 
+                    // Sanitize and assign text fields
                     card.Name = SanitizeString(doc.GetValue("Name", "").ToString(), $"bugtemplatename_{card.CardID}");
                     card.CardText = SanitizeString(doc.GetValue("CardText", "").ToString());
                     card.CardType = SanitizeString(doc.GetValue("CardType", "").ToString());
                     card.Tier = SanitizeString(doc.GetValue("Tier", "").ToString());
 
+                    // Booleans as Yes/No flags
                     card.Unique = doc.GetValue("Unique", "No").ToString();
                     card.Faction = doc.GetValue("Faction", "No").ToString();
-
-                    if (card.Cost < 0 || card.Attack < 0 || card.Defence < 0)
-                        isValid = false;
 
                     if (!IsValidYesNo(card.Unique) || !IsValidYesNo(card.Faction))
                         isValid = false;
 
+                    // Image fallback
                     card.ImageFileName = _cardImagePaths.TryGetValue(card.CardID, out var path)
                         ? path
                         : "images/Cards/placeholder.jpg";
@@ -137,6 +141,15 @@ public class CardDatabaseService : ICardDatabaseService
             throw;
         }
     }
+
+    private int TryGetInt(BsonDocument doc, string field, ref bool isValid)
+    {
+        var val = doc.GetValue(field, BsonNull.Value);
+        if (val.IsInt32) return val.AsInt32;
+        isValid = false;
+        return -1;
+    }
+
 
     private string SanitizeString(string? input, string fallback = "-blank- -nonfunctional-", int maxLength = 100)
     {
