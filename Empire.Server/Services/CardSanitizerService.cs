@@ -54,56 +54,56 @@ public class CardSanitizerService
         return inserted;
     }
 
-    private CardData? Sanitize(BsonDocument doc)
+    private CardData Sanitize(BsonDocument doc)
     {
-        var isValid = true;
         var card = new CardData();
 
-        if (!doc.Contains("CardID") || !doc["CardID"].IsInt32)
-            return null;
+        // Required ID
+        card.CardID = doc.Contains("CardID") && doc["CardID"].IsInt32
+            ? doc["CardID"].AsInt32
+            : -1;
 
-        card.CardID = doc["CardID"].AsInt32;
+        card.Id = doc.GetValue("_id", ObjectId.GenerateNewId()).IsObjectId
+            ? doc["_id"].AsObjectId
+            : ObjectId.GenerateNewId();
 
-        // ✅ Fix: proper conversion
-        card.Id = doc.GetValue("_id", ObjectId.GenerateNewId()).AsObjectId;
+        // Safe parsing with fallbacks
+        card.Cost = TryParseCost(doc.GetValue("Cost", BsonNull.Value));
+        card.Attack = TryParseInt(doc, "Attack");
+        card.Defence = TryParseInt(doc, "Defence");
 
-        card.Cost = TryParseCost(doc.GetValue("Cost", BsonNull.Value), ref isValid);
-        card.Attack = TryParseInt(doc, "Attack", ref isValid);
-        card.Defence = TryParseInt(doc, "Defence", ref isValid);
+        card.Name = SanitizeString(doc.GetValue("Name", null)?.ToString(), $"Bug_{card.CardID}");
+        card.CardText = SanitizeMultiline(doc.GetValue("CardText", "").ToString());
+        card.CardType = SanitizeString(doc.GetValue("CardType", "Unknown").ToString());
+        card.Tier = SanitizeString(doc.GetValue("Tier", "-").ToString());
 
-        card.Name = SanitizeString(doc.GetValue("Name", "").ToString(), $"BugTemplate_{card.CardID}");
-        card.CardText = SanitizeString(doc.GetValue("CardText", "").ToString());
-        card.CardType = SanitizeString(doc.GetValue("CardType", "").ToString());
-        card.Tier = SanitizeString(doc.GetValue("Tier", "").ToString());
-
-        card.Unique = ValidateYesNo(doc.GetValue("Unique", "No").ToString(), ref isValid);
-        card.Faction = ValidateYesNo(doc.GetValue("Faction", "No").ToString(), ref isValid);
+        card.Unique = CoerceYesNo(doc.GetValue("Unique", "No").ToString());
+        card.Faction = CoerceYesNo(doc.GetValue("Faction", "No").ToString());
 
         card.ImageFileName = FindImage(card.CardID);
 
-        return isValid ? card : null;
+        return card;
     }
 
-    private int TryParseCost(BsonValue val, ref bool isValid)
+
+    private int TryParseCost(BsonValue val)
     {
         if (val.IsInt32) return val.AsInt32;
         if (val.IsString)
         {
             var str = val.AsString.ToLower();
             if (str == "villager" || str == "settlement") return 0;
+            if (int.TryParse(str, out var parsed)) return parsed;
         }
-
-        isValid = false;
-        return -1;
+        return 0;
     }
 
-    private int TryParseInt(BsonDocument doc, string field, ref bool isValid)
+    private int TryParseInt(BsonDocument doc, string field)
     {
         var val = doc.GetValue(field, BsonNull.Value);
-        if (val.IsInt32) return val.AsInt32;
-        isValid = false;
-        return -1;
+        return val.IsInt32 ? val.AsInt32 : 1;
     }
+
 
     private string SanitizeString(string? input, string fallback = "-invalid-", int maxLen = 100)
     {
@@ -135,4 +135,19 @@ public class CardSanitizerService
             ? $"images/{Path.GetFileName(match)}"
             : "images/Cards/placeholder.jpg";
     }
+    private string CoerceYesNo(string? input)
+    {
+        return input?.Trim().ToLower() switch
+        {
+            "yes" => "Yes",
+            "no" => "No",
+            _ => "No"
+        };
+    }
+
+    private string SanitizeMultiline(string input)
+    {
+        return string.Join(" ", input.Split('\n', '\r')).Trim();
+    }
+
 }
