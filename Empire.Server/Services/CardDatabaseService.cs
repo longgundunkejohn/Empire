@@ -1,178 +1,25 @@
 ﻿using Empire.Shared.Models;
 using Empire.Server.Interfaces;
 using MongoDB.Driver;
-using Microsoft.Extensions.Logging;
-using MongoDB.Bson;
-using System.IO;
 
-public class CardDatabaseService : ICardDatabaseService
+public class CardGameDatabaseService : ICardDatabaseService
 {
-    private readonly ILogger<CardDatabaseService> _logger;
-    private readonly Dictionary<int, string> _cardImagePaths;
-    private Dictionary<string, CardData> _cardDictionary = new();
+    private readonly IMongoCollection<CardData> _cards;
 
-    private readonly IMongoCollection<BsonDocument> _rawCollection;
-
-    public CardDatabaseService(IMongoDbService mongo, ILogger<CardDatabaseService> logger)
+    public CardGameDatabaseService(IMongoDbService mongo)
     {
-        _logger = logger;
-
-        try
-        {
-            var db = mongo.GetDatabase();
-            _rawCollection = db.GetCollection<BsonDocument>("Cards");
-
-            _cardImagePaths = LoadImageMappings();
-            _logger.LogInformation("CardDatabaseService connected to MongoDB collection.");
-            LoadCards();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to initialize CardDatabaseService.");
-            throw;
-        }
+        var db = mongo.GetDatabase();
+        _cards = db.GetCollection<CardData>("CardsForGame");
     }
 
-    private Dictionary<int, string> LoadImageMappings()
+    public IEnumerable<CardData> GetAllCards()
     {
-        var result = new Dictionary<int, string>();
-        var imagePath = Path.Combine(AppContext.BaseDirectory, "wwwroot", "images");
-
-        if (!Directory.Exists(imagePath))
-            return result;
-
-        foreach (var file in Directory.GetFiles(imagePath, "*.jpg"))
-        {
-            string fileName = Path.GetFileNameWithoutExtension(file);
-            if (int.TryParse(fileName.Split(' ')[0], out int cardId))
-            {
-                result[cardId] = $"images/{fileName}.jpg";
-            }
-        }
-
-        return result;
+        return _cards.Find(_ => true).ToList();
     }
-
-    private void LoadCards()
-    {
-        try
-        {
-            _logger.LogInformation("Loading cards from MongoDB...");
-            var documents = _rawCollection.Find(_ => true).ToList();
-
-            foreach (var doc in documents)
-            {
-                bool isValid = true;
-                var card = new CardData();
-
-                try
-                {
-                    // Validate and assign CardID early
-                    if (!doc.Contains("CardID") || !doc["CardID"].IsInt32)
-                    {
-                        _logger.LogWarning("Card document missing valid CardID. Skipping.");
-                        continue;
-                    }
-
-                    card.Id = doc.GetValue("_id", ObjectId.Empty).AsObjectId;
-                    card.CardID = doc["CardID"].AsInt32;
-
-                    // Handle cost conversion
-                    var costValue = doc.GetValue("Cost", BsonNull.Value);
-                    if (costValue.IsInt32)
-                    {
-                        card.Cost = costValue.AsInt32;
-                    }
-                    else if (costValue.IsString)
-                    {
-                        var costStr = costValue.AsString.Trim().ToLower();
-                        card.Cost = (costStr == "villager" || costStr == "settlement") ? 0 : -1;
-                        if (card.Cost == -1) isValid = false;
-                    }
-                    else
-                    {
-                        card.Cost = -1;
-                        isValid = false;
-                    }
-
-                    // Safe integer parsing
-                    card.Attack = TryGetInt(doc, "Attack", ref isValid);
-                    card.Defence = TryGetInt(doc, "Defence", ref isValid);
-
-                    // Sanitize and assign text fields
-                    card.Name = SanitizeString(doc.GetValue("Name", "").ToString(), $"bugtemplatename_{card.CardID}");
-                    card.CardText = SanitizeString(doc.GetValue("CardText", "").ToString());
-                    card.CardType = SanitizeString(doc.GetValue("CardType", "").ToString());
-                    card.Tier = SanitizeString(doc.GetValue("Tier", "").ToString());
-
-                    // Booleans as Yes/No flags
-                    card.Unique = doc.GetValue("Unique", "No").ToString();
-                    card.Faction = doc.GetValue("Faction", "No").ToString();
-
-                    if (!IsValidYesNo(card.Unique) || !IsValidYesNo(card.Faction))
-                        isValid = false;
-
-                    // Image fallback
-                    card.ImageFileName = _cardImagePaths.TryGetValue(card.CardID, out var path)
-                        ? path
-                        : "images/Cards/placeholder.jpg";
-
-                    if (isValid)
-                    {
-                        _cardDictionary[card.CardID.ToString()] = card;
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Card {CardID} is invalid and will be removed.", card.CardID);
-                        _rawCollection.DeleteOne(Builders<BsonDocument>.Filter.Eq("_id", card.Id));
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error while processing a card. It will be skipped.");
-                }
-            }
-
-            _logger.LogInformation("Loaded {CardCount} valid cards into dictionary.", _cardDictionary.Count);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error while loading cards from MongoDB.");
-            throw;
-        }
-    }
-
-    private int TryGetInt(BsonDocument doc, string field, ref bool isValid)
-    {
-        var val = doc.GetValue(field, BsonNull.Value);
-        if (val.IsInt32) return val.AsInt32;
-        isValid = false;
-        return -1;
-    }
-
-
-    private string SanitizeString(string? input, string fallback = "-blank- -nonfunctional-", int maxLength = 100)
-    {
-        if (string.IsNullOrWhiteSpace(input)) return fallback;
-        return input.Length > maxLength ? input.Substring(0, maxLength) : input;
-    }
-
-    private bool IsValidYesNo(string? value)
-    {
-        return value is "Yes" or "No";
-    }
-
-    public IEnumerable<CardData> GetAllCards() => _cardDictionary.Values;
 
     public CardData? GetCardById(string id)
     {
-        if (_cardDictionary.TryGetValue(id, out var card))
-        {
-            _logger.LogDebug("Retrieved card {CardId}: {CardName}", id, card.Name);
-            return card;
-        }
-
-        _logger.LogWarning("Card with ID {CardId} not found.", id);
-        return null;
+        if (!int.TryParse(id, out var parsedId)) return null;
+        return _cards.Find(c => c.CardID == parsedId).FirstOrDefault();
     }
 }

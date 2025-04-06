@@ -23,8 +23,21 @@ builder.Services.AddSingleton(sp =>
 builder.Services.AddSingleton<IMongoDbService, MongoDbService>();
 builder.Services.AddSingleton<DeckLoaderService>();
 builder.Services.AddScoped<ICardDatabaseService, CardDatabaseService>();
-builder.Services.AddScoped<ICardService, CardService>(); builder.Services.AddScoped<CardFactory>();
+builder.Services.AddScoped<ICardService, CardService>();
+builder.Services.AddScoped<CardFactory>();
 builder.Services.AddScoped<GameSessionService>();
+builder.Services.AddSingleton<CardSanitizerService>();
+
+// 🧼 Check if we’re running the sanitizer only
+if (args.Contains("--sanitize"))
+{
+    var app = builder.Build();
+    using var scope = app.Services.CreateScope();
+    var sanitizer = scope.ServiceProvider.GetRequiredService<CardSanitizerService>();
+    await sanitizer.RunAsync();
+    Console.WriteLine("✔ Sanitization complete.");
+    return;
+}
 
 // 🌐 CORS for frontend
 builder.Services.AddCors(options =>
@@ -51,16 +64,17 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
-    // (Optional) app.UseWebAssemblyDebugging();
 }
 else
 {
-    app.UseHsts(); // Production security
+    app.UseHsts();
 }
+
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 });
+
 app.Use((context, next) =>
 {
     context.Request.Host = new HostString("empirecardgame.com");
@@ -76,4 +90,3 @@ app.MapControllers();
 app.MapFallbackToFile("index.html");
 
 app.Run();
-
