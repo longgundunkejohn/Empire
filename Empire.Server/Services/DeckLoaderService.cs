@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using CsvHelper;
 using CsvHelper.Configuration;
+using CsvHelper.TypeConversion;
 using Empire.Server.Interfaces;
 using Empire.Shared.Models;
 using Empire.Shared.Models.DTOs;
@@ -47,17 +48,40 @@ namespace Empire.Server.Services
                 TrimOptions = TrimOptions.Trim,
             });
 
-            var records = csv.GetRecords<RawDeckEntry>().ToList();
-
-            foreach (var record in records)
+            //  Instead of directly mapping to RawDeckEntry, read rows dynamically
+            while (csv.Read())
             {
-                var target = IsCivicCard(record.CardId) ? civic : military;
-                for (int i = 0; i < record.Count; i++)
+                //  Error handling: Ensure we have at least 3 columns
+                if (csv.Context.Record.Length < 3)
                 {
-                    target.Add(record.CardId);
+                    _logger.LogError("Invalid CSV row: Not enough columns.");
+                    continue; // Skip this row
                 }
 
-                _logger.LogInformation("Parsed card {CardId} x{Count}", record.CardId, record.Count);
+                //  Parse CardId and Count (these are assumed to be safe)
+                if (!int.TryParse(csv[0], out int cardId))
+                {
+                    _logger.LogError("Invalid CardId: {CardId}", csv[0]);
+                    continue;
+                }
+
+                if (!int.TryParse(csv[csv.Context.Record.Length - 1], out int count))
+                {
+                    _logger.LogError("Invalid Count: {Count}", csv[csv.Context.Record.Length - 1]);
+                    continue;
+                }
+
+                //  Reconstruct CardName (handles the variable columns in between)
+                var cardName = string.Join(",", csv.Context.Record.Skip(1).Take(csv.Context.Record.Length - 2)).Trim();
+
+
+                var target = IsCivicCard(cardId) ? civic : military;
+                for (int i = 0; i < count; i++)
+                {
+                    target.Add(cardId);
+                }
+
+                _logger.LogInformation("Parsed card {CardId} ({CardName}) x{Count}", cardId, cardName, count);
             }
 
             _logger.LogInformation("Final CivicDeck: {CivicDeck}", string.Join(", ", civic));
