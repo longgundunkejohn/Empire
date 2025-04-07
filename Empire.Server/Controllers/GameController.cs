@@ -189,9 +189,20 @@ namespace Empire.Server.Controllers
             {
                 using var stream = deckCsv.OpenReadStream();
                 var (civic, military) = _deckLoader.ParseDeckFromCsv(stream);
-
                 var playerDeck = new PlayerDeck(civic, military);
 
+                // 🧼 Validation step: ensure all card IDs are valid
+                var validIds = _cardDatabase.GetAllCards().Select(c => c.CardID).ToHashSet();
+                var allDeckIds = civic.Concat(military);
+
+                var invalid = allDeckIds.Where(id => !validIds.Contains(id)).Distinct().ToList();
+                if (invalid.Any())
+                {
+                    Console.WriteLine($"[UploadDeck] ❌ Deck contains invalid card IDs: {string.Join(", ", invalid)}");
+                    return BadRequest("Deck contains unknown or invalid cards.");
+                }
+
+                // ✅ Proceed if everything checks out
                 var game = await _sessionService.GetGameState(gameId);
                 if (game == null)
                     return NotFound("Game not found.");
@@ -204,14 +215,16 @@ namespace Empire.Server.Controllers
                     MoveType = "JoinGame"
                 });
 
+                Console.WriteLine($"[UploadDeck] ✅ Deck uploaded for {playerName} in game {gameId}");
                 return Ok();
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[UploadDeck] ❌ ERROR: {ex.Message}");
+                Console.WriteLine($"[UploadDeck] ❌ ERROR: {ex.Message}\n{ex.StackTrace}");
                 return StatusCode(500, "Deck upload failed: " + ex.Message);
             }
         }
+
 
 
 
