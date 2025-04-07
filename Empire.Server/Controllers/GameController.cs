@@ -168,6 +168,7 @@ namespace Empire.Server.Controllers
                     return NotFound("Game not found.");
 
                 game.PlayerDecks[playerName] = playerDeck;
+                Console.WriteLine($"Uploaded Deck for {playerName}: CivicDeck: {string.Join(", ", civic)}, MilitaryDeck: {string.Join(", ", military)}");
 
                 await _sessionService.ApplyMove(gameId, new JoinGameMove
                 {
