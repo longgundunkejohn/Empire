@@ -1,24 +1,27 @@
 ﻿using Empire.Server.Interfaces;
+using Microsoft.Extensions.Configuration;
 using MongoDB.Driver;
 
-public class MongoDbService : IMongoDbService
+namespace Empire.Server.Services
 {
-    private readonly IMongoDatabase _database;
-
-    public MongoDbService(IConfiguration configuration)
+    public class MongoDbService : IMongoDbService
     {
-        var connectionString = configuration.GetSection("MongoDB:ConnectionString").Value;
-        var databaseName = configuration.GetSection("MongoDB:DatabaseName").Value;
+        public IMongoDatabase GameDatabase { get; }
+        public IMongoDatabase CardDatabase { get; }
 
-        if (string.IsNullOrEmpty(connectionString))
-            throw new ArgumentNullException(nameof(connectionString), "MongoDB connection string is missing.");
+        public MongoDbService(IConfiguration config)
+        {
+            var localConn = config.GetSection("MongoDB:ConnectionString").Value;
+            var localDbName = config.GetSection("MongoDB:DatabaseName").Value;
 
-        var client = new MongoClient(connectionString);
-        _database = client.GetDatabase(databaseName);
+            var atlasConn = config.GetSection("CardDB:ConnectionString").Value;
+            var atlasDbName = config.GetSection("CardDB:DatabaseName").Value;
+
+            var localClient = new MongoClient(localConn);
+            var atlasClient = new MongoClient(atlasConn);
+
+            GameDatabase = localClient.GetDatabase(localDbName);
+            CardDatabase = atlasClient.GetDatabase(atlasDbName);
+        }
     }
-    public IMongoDatabase GetDatabase()
-    {
-        return _database;
-    }
-
 }

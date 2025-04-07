@@ -2,10 +2,9 @@
 
 namespace Empire.Server.Interfaces
 {
-
     public interface IMongoDbService
     {
-        IMongoDatabase GetDatabase();
+        MongoDB.Driver.IMongoDatabase GameDatabase { get; }
+        MongoDB.Driver.IMongoDatabase CardDatabase { get; }
     }
-
 }

@@ -15,9 +15,8 @@ public class CardSanitizerServiceV2
 
     public CardSanitizerServiceV2(IMongoDbService mongo, ILogger<CardSanitizerServiceV2> logger, IWebHostEnvironment env)
     {
-        var db = mongo.GetDatabase();
-        _source = db.GetCollection<BsonDocument>("Cards"); // read-only
-        _target = db.GetCollection<CardData>("CardsForGame"); // clean insert
+        _source = mongo.CardDatabase.GetCollection<BsonDocument>("Cards");
+        _target = mongo.CardDatabase.GetCollection<CardData>("CardsForGame");
         _logger = logger;
         _imagePath = Path.Combine(env.WebRootPath, "images");
     }

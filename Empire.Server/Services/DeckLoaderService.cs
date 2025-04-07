@@ -36,7 +36,7 @@ namespace Empire.Server.Services
             _imagePath = Path.Combine(env.ContentRootPath, "wwwroot", "images");
             _csvFile = Path.Combine(env.ContentRootPath, "wwwroot", "cards.csv");
 
-            _cardCollection = mongo.GetDatabase().GetCollection<CardData>("Cards");
+            _cardCollection = mongo.CardDatabase.GetCollection<CardData>("Cards");
 
             LoadCardMappings();
 

@@ -8,14 +8,11 @@ public class CardGameDatabaseService : ICardDatabaseService
 
     public CardGameDatabaseService(IMongoDbService mongo)
     {
-        var db = mongo.GetDatabase();
-        _cards = db.GetCollection<CardData>("CardsForGame");
+        _cards = mongo.CardDatabase.GetCollection<CardData>("CardsForGame");
     }
 
-    public IEnumerable<CardData> GetAllCards()
-    {
-        return _cards.Find(_ => true).ToList();
-    }
+    public IEnumerable<CardData> GetAllCards() =>
+        _cards.Find(_ => true).ToList();
 
     public CardData? GetCardById(string id)
     {
@@ -23,3 +20,5 @@ public class CardGameDatabaseService : ICardDatabaseService
         return _cards.Find(c => c.CardID == parsedId).FirstOrDefault();
     }
 }
+
+
