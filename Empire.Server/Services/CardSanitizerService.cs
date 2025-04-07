@@ -32,32 +32,46 @@ public class CardSanitizerServiceV2
 
         var rawCards = await _source.Find(FilterDefinition<BsonDocument>.Empty).ToListAsync();
         int inserted = 0;
-        var seen = new HashSet<int>(); // Track CardIDs we've already handled
+        int skipped = 0;
+        var seenCardIds = new HashSet<int>();
 
         foreach (var raw in rawCards)
         {
             try
             {
                 var card = Sanitize(raw);
-                if (card is not null && seen.Add(card.CardID))
+                if (card == null)
                 {
-                    await _target.InsertOneAsync(card);
-                    inserted++;
+                    skipped++;
+                    continue;
                 }
-                else if (card != null)
+
+                if (!seenCardIds.Add(card.CardID))
                 {
                     _logger.LogWarning("⚠️ Duplicate CardID found in source: {CardID}. Skipping.", card.CardID);
+                    skipped++;
+                    continue;
                 }
+
+                await _target.InsertOneAsync(card);
+                inserted++;
+            }
+            catch (MongoWriteException mwx) when (mwx.WriteError.Category == ServerErrorCategory.DuplicateKey)
+            {
+                _logger.LogWarning("🚫 Duplicate key on insert: {Message}", mwx.Message);
+                skipped++;
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "🚫 Failed to sanitize card. Skipping.");
+                skipped++;
             }
         }
 
-        _logger.LogInformation("✅ Sanitization complete. Inserted {Count} cards into CardsForGame.", inserted);
+        _logger.LogInformation("✅ Sanitization complete. Inserted {Inserted} cards, Skipped {Skipped}.", inserted, skipped);
         return inserted;
     }
+
 
     private CardData Sanitize(BsonDocument doc)
     {
