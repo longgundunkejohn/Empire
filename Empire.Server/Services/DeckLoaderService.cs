@@ -77,12 +77,20 @@ namespace Empire.Server.Services
 
                 var target = IsCivicCard(cardId) ? civic : military;
 
+                // Log the card ID and count to see if it's being added correctly
+                Console.WriteLine($"Parsed card {cardId} x{count}");
+
                 for (int i = 0; i < count; i++)
                     target.Add(cardId);
             }
 
+            // Log the final contents of the decks
+            Console.WriteLine($"Final CivicDeck: {string.Join(", ", civic)}");
+            Console.WriteLine($"Final MilitaryDeck: {string.Join(", ", military)}");
+
             return (civic, military);
         }
+
 
 
         public void UpdateMappings()
