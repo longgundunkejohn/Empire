@@ -36,9 +36,12 @@ namespace Empire.Server.Services
             }).ToList();
 
             if (!fullDeck.Any())
-                throw new ArgumentException("Initial deck must contain valid cards.", nameof(initialDeckIds));
+            {
+                _logger.LogWarning("CardService initialized with an empty deck.");
+                _deck = new Deck(new List<Card>()); // allow empty deck
+                return;
+            }
 
-            _deck = new Deck(fullDeck);
         }
 
         // ✅ Core Getters
