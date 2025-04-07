@@ -6,6 +6,12 @@ using System.Text.Json;
 public class GameApi
 {
     private readonly HttpClient _http;
+    private readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true
+    };
 
     public GameApi(HttpClient http)
     {
@@ -20,45 +26,54 @@ public class GameApi
             var content = await response.Content.ReadAsStringAsync();
 
             Console.WriteLine("[GameApi] Raw response:");
-            Console.WriteLine(content);
+            Console.WriteLine(string.IsNullOrWhiteSpace(content) ? "<empty>" : content);
 
-            var result = JsonSerializer.Deserialize<List<GamePreview>>(content, new JsonSerializerOptions
+            if (!response.IsSuccessStatusCode)
             {
-                PropertyNameCaseInsensitive = true
-            });
+                Console.WriteLine($"[GameApi] ❌ Failed to get open games: {response.StatusCode}");
+                return new();
+            }
 
+            var result = JsonSerializer.Deserialize<List<GamePreview>>(content, _jsonOptions);
             return result ?? new();
+        }
+        catch (JsonException je)
+        {
+            Console.WriteLine($"[GameApi] 🧨 JSON parse error: {je.Message}");
+            return new();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[GameApi] GetOpenGames() error: {ex.Message}");
+            Console.WriteLine($"[GameApi] ❌ Unexpected error in GetOpenGames: {ex.Message}");
             return new();
         }
     }
-
 
     public async Task<List<Card>> GetDeck(string gameId, string playerId)
     {
         try
         {
             var response = await _http.GetAsync($"api/game/deck/{gameId}/{playerId}");
+            var content = await response.Content.ReadAsStringAsync();
+
             if (!response.IsSuccessStatusCode)
             {
-                Console.WriteLine($"[GameApi] GetDeck failed: {response.StatusCode}");
+                Console.WriteLine($"[GameApi] ❌ GetDeck failed: {response.StatusCode}");
+                Console.WriteLine(content);
                 return new();
             }
 
-            var content = await response.Content.ReadAsStringAsync();
-            var result = JsonSerializer.Deserialize<List<Card>>(content, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
-
+            var result = JsonSerializer.Deserialize<List<Card>>(content, _jsonOptions);
             return result ?? new();
+        }
+        catch (JsonException je)
+        {
+            Console.WriteLine($"[GameApi] 🧨 JSON parse error in GetDeck: {je.Message}");
+            return new();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[GameApi] GetDeck() error: {ex.Message}");
+            Console.WriteLine($"[GameApi] ❌ Unexpected error in GetDeck: {ex.Message}");
             return new();
         }
     }
@@ -67,11 +82,11 @@ public class GameApi
     {
         try
         {
-            return await _http.GetFromJsonAsync<GameState>($"api/game/state/{gameId}/{playerId}");
+            return await _http.GetFromJsonAsync<GameState>($"api/game/state/{gameId}/{playerId}", _jsonOptions);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[GameApi] GetGameState() error: {ex.Message}");
+            Console.WriteLine($"[GameApi] ❌ GetGameState() error: {ex.Message}");
             return null;
         }
     }
@@ -87,11 +102,17 @@ public class GameApi
             };
 
             var response = await _http.PostAsJsonAsync($"api/game/join/{gameId}/{playerId}", deck);
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"[GameApi] ❌ JoinGame failed: {response.StatusCode} - {error}");
+            }
+
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[GameApi] JoinGame() error: {ex.Message}");
+            Console.WriteLine($"[GameApi] ❌ JoinGame() error: {ex.Message}");
             return false;
         }
     }
@@ -101,11 +122,17 @@ public class GameApi
         try
         {
             var response = await _http.PostAsJsonAsync($"api/game/move?gameId={gameId}", move);
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"[GameApi] ❌ SubmitMove failed: {response.StatusCode} - {error}");
+            }
+
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[GameApi] SubmitMove() error: {ex.Message}");
+            Console.WriteLine($"[GameApi] ❌ SubmitMove() error: {ex.Message}");
             return false;
         }
     }
