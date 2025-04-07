@@ -6,6 +6,7 @@ using Empire.Shared.Models.DTOs;
 using CsvHelper;
 using System.Globalization;
 using Empire.Server.Parsing;
+
 namespace Empire.Server.Controllers
 {
     [ApiController]
@@ -23,14 +24,12 @@ namespace Empire.Server.Controllers
             CardFactory cardFactory,
             DeckLoaderService deckLoader,
             ICardService cardService,
-            ICardDatabaseService cardDatabase) // 🔥 add this
+            ICardDatabaseService cardDatabase)
         {
             _sessionService = sessionService;
             _cardFactory = cardFactory;
             _deckLoader = deckLoader;
             _cardService = cardService;
-
-            // if you also need to store/use _cardDatabase later
             _cardDatabase = cardDatabase;
         }
 
@@ -46,7 +45,7 @@ namespace Empire.Server.Controllers
                 cardIds.UnionWith(hand);
 
             if (game.PlayerBoard.TryGetValue(playerId, out var board))
-                cardIds.UnionWith(board.Select(bc => bc.CardId));
+                cardIds.UnionWith(board.Select(b => b.CardId));
 
             if (game.PlayerDecks.TryGetValue(playerId, out var deck))
             {
@@ -62,14 +61,7 @@ namespace Empire.Server.Controllers
         public async Task<ActionResult<List<GamePreview>>> GetOpenGames()
         {
             var openGames = await _sessionService.ListOpenGames();
-
-            Console.WriteLine($"[GetOpenGames] Found {openGames?.Count ?? 0} open games.");
-
-            if (openGames == null)
-            {
-                Console.WriteLine("[GetOpenGames] openGames is null");
-                return Problem("Failed to retrieve open games.");
-            }
+            if (openGames == null) return Problem("Failed to retrieve open games.");
 
             var previews = openGames.Select(g => new GamePreview
             {
@@ -81,13 +73,12 @@ namespace Empire.Server.Controllers
             return Ok(previews);
         }
 
-
         [HttpGet("deck/{gameId}/{playerId}")]
         public async Task<ActionResult<List<Card>>> GetPlayerDeck(string gameId, string playerId)
         {
             var state = await _sessionService.GetGameState(gameId);
-            if (state == null) return NotFound("Game not found.");
-            if (!state.PlayerDecks.ContainsKey(playerId)) return NotFound("Player not found in game.");
+            if (state == null || !state.PlayerDecks.ContainsKey(playerId))
+                return NotFound("Game or player not found.");
 
             var deckList = state.PlayerDecks[playerId].CivicDeck
                 .Concat(state.PlayerDecks[playerId].MilitaryDeck)
@@ -104,16 +95,10 @@ namespace Empire.Server.Controllers
         {
             var state = await _sessionService.GetGameState(gameId);
             if (state == null)
-            {
-                Console.WriteLine($"[GameApi] Game not found: {gameId}");
                 return NotFound();
-            }
 
             if (!state.PlayerDecks.ContainsKey(playerId))
-            {
-                Console.WriteLine($"[GameApi] Player {playerId} not found in game {gameId}");
                 return BadRequest($"Player {playerId} is not part of the game.");
-            }
 
             return Ok(state);
         }
@@ -121,33 +106,12 @@ namespace Empire.Server.Controllers
         [HttpPost("create")]
         public async Task<ActionResult<string>> CreateGame([FromBody] GameStartRequest request)
         {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(request.Player1))
-                {
-                    Console.WriteLine("[CreateGame] ❌ Player1 is null or empty.");
-                    return BadRequest("Player1 is required.");
-                }
+            if (string.IsNullOrWhiteSpace(request.Player1))
+                return BadRequest("Player1 is required.");
 
-                Console.WriteLine($"[CreateGame] Creating game for Player1: {request.Player1}");
-
-                // Start with empty decks; deck is uploaded later via /uploadDeck
-                var emptyCivic = new List<int>();
-                var emptyMilitary = new List<int>();
-
-                var gameId = await _sessionService.CreateGameSession(request.Player1, emptyCivic, emptyMilitary);
-
-                Console.WriteLine($"[CreateGame] ✅ Game created with ID: {gameId}");
-
-                return Ok(gameId);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[CreateGame] ❌ ERROR: {ex.Message}");
-                return StatusCode(500, "Game creation failed: " + ex.Message);
-            }
+            var gameId = await _sessionService.CreateGameSession(request.Player1, new List<int>(), new List<int>());
+            return Ok(gameId);
         }
-
 
         [HttpPost("move")]
         public async Task<IActionResult> SubmitMove([FromBody] GameMove move, [FromQuery] string gameId)
@@ -160,7 +124,6 @@ namespace Empire.Server.Controllers
         public async Task<IActionResult> JoinGame(string gameId, string playerId, [FromBody] PlayerDeck playerDeck)
         {
             var gameState = await _sessionService.GetGameState(gameId);
-
             if (gameState == null)
                 return NotFound("Game not found.");
 
@@ -173,6 +136,7 @@ namespace Empire.Server.Controllers
 
             return Ok(gameId);
         }
+
         [HttpPost("debugjson")]
         public async Task<IActionResult> DebugRaw()
         {
@@ -188,31 +152,19 @@ namespace Empire.Server.Controllers
             try
             {
                 using var stream = deckCsv.OpenReadStream();
-
-                Console.WriteLine($"[UploadDeck] 🔍 Starting CSV parse for player: {playerName}");
                 var (civic, military) = _deckLoader.ParseDeckFromCsv(stream);
 
-                Console.WriteLine($"[UploadDeck] Parsed {civic.Count} civic, {military.Count} military cards");
-
                 var playerDeck = new PlayerDeck(civic, military);
-
                 var validIds = _cardDatabase.GetAllCards().Select(c => c.CardID).ToHashSet();
                 var allDeckIds = civic.Concat(military);
 
                 var invalid = allDeckIds.Where(id => !validIds.Contains(id)).Distinct().ToList();
-
                 if (invalid.Any())
-                {
-                    Console.WriteLine($"[UploadDeck] ❌ Invalid card IDs detected: {string.Join(", ", invalid)}");
                     return BadRequest($"Deck contains invalid card IDs: {string.Join(", ", invalid)}");
-                }
 
                 var game = await _sessionService.GetGameState(gameId);
                 if (game == null)
-                {
-                    Console.WriteLine($"[UploadDeck] ❌ Game not found: {gameId}");
                     return NotFound("Game not found.");
-                }
 
                 game.PlayerDecks[playerName] = playerDeck;
 
@@ -222,19 +174,13 @@ namespace Empire.Server.Controllers
                     MoveType = "JoinGame"
                 });
 
-                Console.WriteLine($"[UploadDeck] ✅ Deck uploaded successfully for {playerName} in game {gameId}");
                 return Ok();
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[UploadDeck] ❌ ERROR: {ex.Message}\n{ex.StackTrace}");
+                Console.WriteLine($"[UploadDeck] ERROR: {ex.Message}\n{ex.StackTrace}");
                 return StatusCode(500, "Deck upload failed: " + ex.Message);
             }
         }
-
-
-
-
-
     }
 }
