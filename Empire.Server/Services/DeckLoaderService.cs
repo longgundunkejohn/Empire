@@ -48,31 +48,27 @@ namespace Empire.Server.Services
                 TrimOptions = TrimOptions.Trim,
             });
 
-            //  Instead of directly mapping to RawDeckEntry, read rows dynamically
+            csv.Read(); // Read the header row
+            csv.ReadHeader();
+
             while (csv.Read())
             {
-                //  Error handling: Ensure we have at least 3 columns
-                if (csv.Context.Record.Length < 3)
-                {
-                    _logger.LogError("Invalid CSV row: Not enough columns.");
-                    continue; // Skip this row
-                }
+                string cardIdString = csv.GetField("Card ID");
+                string countString = csv.GetField("Count");
 
-                //  Parse CardId and Count (these are assumed to be safe)
-                if (!int.TryParse(csv[0], out int cardId))
+                if (!int.TryParse(cardIdString, out int cardId))
                 {
-                    _logger.LogError("Invalid CardId: {CardId}", csv[0]);
+                    _logger.LogError("Invalid CardId: {CardId}", cardIdString);
                     continue;
                 }
 
-                if (!int.TryParse(csv[csv.Context.Record.Length - 1], out int count))
+                if (!int.TryParse(countString, out int count))
                 {
-                    _logger.LogError("Invalid Count: {Count}", csv[csv.Context.Record.Length - 1]);
+                    _logger.LogError("Invalid Count: {Count}", countString);
                     continue;
                 }
 
-                //  Reconstruct CardName (handles the variable columns in between)
-                var cardName = string.Join(",", csv.Context.Record.Skip(1).Take(csv.Context.Record.Length - 2)).Trim();
+                var cardName = csv.GetField("Card Name");
 
 
                 var target = IsCivicCard(cardId) ? civic : military;
