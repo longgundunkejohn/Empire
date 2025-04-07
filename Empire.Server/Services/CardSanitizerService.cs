@@ -24,17 +24,6 @@ public class CardSanitizerServiceV2
 
     public async Task<int> RunAsync(bool clearBeforeInsert = true)
     {
-        // Optional: Check if the collection is already populated and skip if not clearing
-        if (!clearBeforeInsert)
-        {
-            var existing = await _target.CountDocumentsAsync(FilterDefinition<CardData>.Empty);
-            if (existing > 0)
-            {
-                _logger.LogWarning("⚠️ Skipping sanitization: CardsForGame already contains {Count} cards.", existing);
-                return 0;
-            }
-        }
-
         if (clearBeforeInsert)
         {
             await _target.DeleteManyAsync(_ => true);
@@ -43,16 +32,21 @@ public class CardSanitizerServiceV2
 
         var rawCards = await _source.Find(FilterDefinition<BsonDocument>.Empty).ToListAsync();
         int inserted = 0;
+        var seen = new HashSet<int>(); // Track CardIDs we've already handled
 
         foreach (var raw in rawCards)
         {
             try
             {
                 var card = Sanitize(raw);
-                if (card is not null)
+                if (card is not null && seen.Add(card.CardID))
                 {
                     await _target.InsertOneAsync(card);
                     inserted++;
+                }
+                else if (card != null)
+                {
+                    _logger.LogWarning("⚠️ Duplicate CardID found in source: {CardID}. Skipping.", card.CardID);
                 }
             }
             catch (Exception ex)
@@ -64,6 +58,7 @@ public class CardSanitizerServiceV2
         _logger.LogInformation("✅ Sanitization complete. Inserted {Count} cards into CardsForGame.", inserted);
         return inserted;
     }
+
     private CardData Sanitize(BsonDocument doc)
     {
         var card = new CardData
