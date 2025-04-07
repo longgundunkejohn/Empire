@@ -5,7 +5,6 @@ using System.IO;
 using System.Linq;
 using CsvHelper;
 using CsvHelper.Configuration;
-using CsvHelper.TypeConversion;
 using Empire.Server.Interfaces;
 using Empire.Shared.Models;
 using Empire.Shared.Models.DTOs;
@@ -55,6 +54,9 @@ namespace Empire.Server.Services
             {
                 string cardIdString = csv.GetField("Card ID");
                 string countString = csv.GetField("Count");
+
+                // Trim the countString to remove leading/trailing whitespace
+                countString = countString.Trim();
 
                 if (!int.TryParse(cardIdString, out int cardId))
                 {
