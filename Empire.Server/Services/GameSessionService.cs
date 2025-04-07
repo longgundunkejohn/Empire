@@ -88,6 +88,20 @@ namespace Empire.Server.Services
 
             switch (move.MoveType)
             {
+                case "JoinGame":
+                    var joinMove = move as JoinGameMove;
+                    if (joinMove == null) return;
+
+                    if (!gameState.PlayerDecks.ContainsKey(player))
+                    {
+                        gameState.PlayerDecks[player] = joinMove.PlayerDeck;
+                        gameState.PlayerHands[player] = new List<int>();
+                        gameState.PlayerBoard[player] = new List<BoardCard>();
+                        gameState.PlayerGraveyards[player] = new List<int>();
+                        gameState.PlayerLifeTotals[player] = 25;
+                    }
+                    break;
+
                 case "DrawCivicCard":
                     if (gameState.PlayerDecks[player].CivicDeck.Any())
                     {

@@ -127,12 +127,13 @@ namespace Empire.Server.Controllers
             if (gameState == null)
                 return NotFound("Game not found.");
 
-            gameState.PlayerDecks[playerId] = playerDeck;
-            await _sessionService.ApplyMove(gameId, new GameMove
+            await _sessionService.ApplyMove(gameId, new JoinGameMove
             {
                 PlayerId = playerId,
-                MoveType = "JoinGame"
+                MoveType = "JoinGame",
+                PlayerDeck = playerDeck
             });
+
 
             return Ok(gameId);
         }
@@ -168,11 +169,13 @@ namespace Empire.Server.Controllers
 
                 game.PlayerDecks[playerName] = playerDeck;
 
-                await _sessionService.ApplyMove(gameId, new GameMove
+                await _sessionService.ApplyMove(gameId, new JoinGameMove
                 {
                     PlayerId = playerName,
-                    MoveType = "JoinGame"
+                    MoveType = "JoinGame",
+                    PlayerDeck = playerDeck
                 });
+
 
                 return Ok();
             }
