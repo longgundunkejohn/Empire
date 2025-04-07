@@ -188,24 +188,31 @@ namespace Empire.Server.Controllers
             try
             {
                 using var stream = deckCsv.OpenReadStream();
+
+                Console.WriteLine($"[UploadDeck] 🔍 Starting CSV parse for player: {playerName}");
                 var (civic, military) = _deckLoader.ParseDeckFromCsv(stream);
+
+                Console.WriteLine($"[UploadDeck] Parsed {civic.Count} civic, {military.Count} military cards");
+
                 var playerDeck = new PlayerDeck(civic, military);
 
-                // 🧼 Validation step: ensure all card IDs are valid
                 var validIds = _cardDatabase.GetAllCards().Select(c => c.CardID).ToHashSet();
                 var allDeckIds = civic.Concat(military);
 
                 var invalid = allDeckIds.Where(id => !validIds.Contains(id)).Distinct().ToList();
+
                 if (invalid.Any())
                 {
-                    Console.WriteLine($"[UploadDeck] ❌ Deck contains invalid card IDs: {string.Join(", ", invalid)}");
-                    return BadRequest("Deck contains unknown or invalid cards.");
+                    Console.WriteLine($"[UploadDeck] ❌ Invalid card IDs detected: {string.Join(", ", invalid)}");
+                    return BadRequest($"Deck contains invalid card IDs: {string.Join(", ", invalid)}");
                 }
 
-                // ✅ Proceed if everything checks out
                 var game = await _sessionService.GetGameState(gameId);
                 if (game == null)
+                {
+                    Console.WriteLine($"[UploadDeck] ❌ Game not found: {gameId}");
                     return NotFound("Game not found.");
+                }
 
                 game.PlayerDecks[playerName] = playerDeck;
 
@@ -215,7 +222,7 @@ namespace Empire.Server.Controllers
                     MoveType = "JoinGame"
                 });
 
-                Console.WriteLine($"[UploadDeck] ✅ Deck uploaded for {playerName} in game {gameId}");
+                Console.WriteLine($"[UploadDeck] ✅ Deck uploaded successfully for {playerName} in game {gameId}");
                 return Ok();
             }
             catch (Exception ex)
@@ -224,6 +231,7 @@ namespace Empire.Server.Controllers
                 return StatusCode(500, "Deck upload failed: " + ex.Message);
             }
         }
+
 
 
 
