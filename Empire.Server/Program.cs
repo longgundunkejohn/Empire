@@ -27,14 +27,14 @@ builder.Services.AddScoped<ICardDatabaseService, CardGameDatabaseService>();
 builder.Services.AddScoped<ICardService, CardService>();
 builder.Services.AddScoped<CardFactory>();
 builder.Services.AddScoped<GameSessionService>();
-builder.Services.AddSingleton<CardSanitizerService>();
+
 
 // 🧼 Check if we’re running the sanitizer only
 if (args.Contains("--sanitize"))
 {
     var builtApp = builder.Build(); // ✅ fix variable conflict
     using var scope = builtApp.Services.CreateScope();
-    var sanitizer = scope.ServiceProvider.GetRequiredService<CardSanitizerService>();
+    var sanitizer = scope.ServiceProvider.GetRequiredService<CardSanitizerServiceV2>();
     await sanitizer.RunAsync();
     Console.WriteLine("✔ Sanitization complete.");
     return;
