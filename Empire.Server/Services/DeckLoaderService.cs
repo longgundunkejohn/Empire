@@ -51,8 +51,17 @@ namespace Empire.Server.Services
 
         public (List<int> CivicDeck, List<int> MilitaryDeck) ParseDeckFromCsv(Stream csvStream)
         {
+            var config = new CsvHelper.Configuration.CsvConfiguration(CultureInfo.InvariantCulture)
+            {
+                IgnoreQuotes = false,
+                BadDataFound = null,
+                MissingFieldFound = null,
+                HeaderValidated = null,
+                Delimiter = ","
+            };
+
             using var reader = new StreamReader(csvStream);
-            using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+            using var csv = new CsvReader(reader, config);
 
             csv.Context.RegisterClassMap<RawDeckEntryMap>();
             var entries = csv.GetRecords<RawDeckEntry>().ToList();
@@ -70,6 +79,7 @@ namespace Empire.Server.Services
 
             return (civic, military);
         }
+
 
         public void UpdateMappings()
         {
