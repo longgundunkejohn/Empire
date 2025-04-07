@@ -1,23 +1,23 @@
 ﻿using Empire.Shared.Models;
-using Empire.Server.Interfaces; // ✅ needed
+using Empire.Server.Interfaces;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
 namespace Empire.Server.Services;
 
-public class CardSanitizerService
+public class CardSanitizerServiceV2
 {
-    private readonly IMongoCollection<BsonDocument> _rawCards;
-    private readonly IMongoCollection<CardData> _cleanCards;
-    private readonly ILogger<CardSanitizerService> _logger;
+    private readonly IMongoCollection<BsonDocument> _source;
+    private readonly IMongoCollection<CardData> _target;
+    private readonly ILogger<CardSanitizerServiceV2> _logger;
     private readonly string _imagePath;
 
-    public CardSanitizerService(IMongoDbService mongo, ILogger<CardSanitizerService> logger, IWebHostEnvironment env)
+    public CardSanitizerServiceV2(IMongoDbService mongo, ILogger<CardSanitizerServiceV2> logger, IWebHostEnvironment env)
     {
         var db = mongo.GetDatabase();
-        _rawCards = db.GetCollection<BsonDocument>("Cards");
-        _cleanCards = db.GetCollection<CardData>("CardsForGame");
+        _source = db.GetCollection<BsonDocument>("Cards"); // read-only
+        _target = db.GetCollection<CardData>("CardsForGame"); // clean insert
         _logger = logger;
         _imagePath = Path.Combine(env.WebRootPath, "images");
     }
@@ -26,49 +26,44 @@ public class CardSanitizerService
     {
         if (clearBeforeInsert)
         {
-            await _cleanCards.DeleteManyAsync(_ => true);
-            _logger.LogInformation("Cleared CardsForGame before sanitization.");
+            await _target.DeleteManyAsync(_ => true);
+            _logger.LogInformation("🧼 Cleared CardsForGame collection.");
         }
 
-        var raw = await _rawCards.Find(FilterDefinition<BsonDocument>.Empty).ToListAsync();
+        var rawCards = await _source.Find(FilterDefinition<BsonDocument>.Empty).ToListAsync();
         int inserted = 0;
 
-        foreach (var doc in raw)
+        foreach (var raw in rawCards)
         {
             try
             {
-                var card = Sanitize(doc);
-                if (card != null)
+                var card = Sanitize(raw);
+                if (card is not null)
                 {
-                    await _cleanCards.InsertOneAsync(card);
+                    await _target.InsertOneAsync(card);
                     inserted++;
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Skipping card due to error.");
+                _logger.LogWarning(ex, "🚫 Failed to sanitize card. Skipping.");
             }
         }
 
-        _logger.LogInformation("Sanitization complete. Inserted {Count} cards into CardsForGame.", inserted);
+        _logger.LogInformation("✅ Sanitization complete. Inserted {Count} cards into CardsForGame.", inserted);
         return inserted;
     }
 
     private CardData Sanitize(BsonDocument doc)
     {
-        var card = new CardData();
-
-        // Required ID
+        var card = new CardData
+        {
+            Id = ObjectId.GenerateNewId() // ✅ this guarantees no duplicate _id
+        };
         card.CardID = doc.Contains("CardID") && doc["CardID"].IsInt32
             ? doc["CardID"].AsInt32
             : -1;
 
-        card.Id = doc.GetValue("_id", ObjectId.GenerateNewId()).IsObjectId
-            ? doc["_id"].AsObjectId
-            : ObjectId.GenerateNewId();
-
-
-        // Safe parsing with fallbacks
         card.Cost = TryParseCost(doc.GetValue("Cost", BsonNull.Value));
         card.Attack = TryParseInt(doc, "Attack");
         card.Defence = TryParseInt(doc, "Defence");
@@ -85,7 +80,6 @@ public class CardSanitizerService
 
         return card;
     }
-
 
     private int TryParseCost(BsonValue val)
     {
@@ -105,26 +99,26 @@ public class CardSanitizerService
         return val.IsInt32 ? val.AsInt32 : 1;
     }
 
-
-    private string SanitizeString(string? input, string fallback = "-invalid-", int maxLen = 100)
+    private string SanitizeString(string? input, string fallback = "Unknown", int maxLen = 100)
     {
         if (string.IsNullOrWhiteSpace(input)) return fallback;
-        return input.Length > maxLen ? input.Substring(0, maxLen) : input;
+        var cleaned = input.Trim();
+        return cleaned.Length > maxLen ? cleaned.Substring(0, maxLen) : cleaned;
     }
 
-    private string ValidateYesNo(string val, ref bool isValid)
+    private string SanitizeMultiline(string input)
     {
-        return val switch
+        return string.Join(" ", input.Split('\n', '\r')).Trim();
+    }
+
+    private string CoerceYesNo(string? input)
+    {
+        return input?.Trim().ToLower() switch
         {
-            "Yes" or "No" => val,
-            _ => SetInvalid(ref isValid, "No")
+            "yes" => "Yes",
+            "no" => "No",
+            _ => "No"
         };
-    }
-
-    private static string SetInvalid(ref bool flag, string fallback)
-    {
-        flag = false;
-        return fallback;
     }
 
     private string FindImage(int cardId)
@@ -136,19 +130,4 @@ public class CardSanitizerService
             ? $"images/{Path.GetFileName(match)}"
             : "images/Cards/placeholder.jpg";
     }
-    private string CoerceYesNo(string? input)
-    {
-        return input?.Trim().ToLower() switch
-        {
-            "yes" => "Yes",
-            "no" => "No",
-            _ => "No"
-        };
-    }
-
-    private string SanitizeMultiline(string input)
-    {
-        return string.Join(" ", input.Split('\n', '\r')).Trim();
-    }
-
 }

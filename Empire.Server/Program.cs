@@ -20,6 +20,7 @@ builder.Services.AddSingleton(sp =>
         .GetDatabase(builder.Configuration["MongoDB:DatabaseName"]));
 
 // 💼 Application services
+builder.Services.AddSingleton<CardSanitizerServiceV2>();
 builder.Services.AddSingleton<IMongoDbService, MongoDbService>();
 builder.Services.AddSingleton<DeckLoaderService>();
 builder.Services.AddScoped<ICardDatabaseService, CardGameDatabaseService>();
