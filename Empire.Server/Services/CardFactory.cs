@@ -1,5 +1,6 @@
 ﻿using Empire.Server.Interfaces;
 using Empire.Shared.Models;
+using Microsoft.Extensions.Logging;
 
 namespace Empire.Server.Services
 {
@@ -20,12 +21,18 @@ namespace Empire.Server.Services
 
         public Task<List<Card>> CreateDeckAsync(List<(int CardId, int Count)> deckList)
         {
-            var allCards = _cardDb.GetAllCards().ToDictionary(c => c.CardID);
+            var cardDataList = _cardDb.GetAllCards();
+
+            // Group by CardID and take the first for each to avoid duplicate key issues
+            var cardLookup = cardDataList
+                .GroupBy(c => c.CardID)
+                .ToDictionary(g => g.Key, g => g.First());
+
             var result = new List<Card>();
 
             foreach (var (id, count) in deckList)
             {
-                if (allCards.TryGetValue(id, out var data))
+                if (cardLookup.TryGetValue(id, out var data))
                 {
                     for (int i = 0; i < count; i++)
                         result.Add(new Card(data));
