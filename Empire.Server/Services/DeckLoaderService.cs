@@ -4,8 +4,8 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using CsvHelper;
+using CsvHelper.Configuration;
 using Empire.Server.Interfaces;
-using Empire.Server.Parsing;
 using Empire.Shared.Models;
 using Empire.Shared.Models.DTOs;
 using Microsoft.Extensions.Hosting;
@@ -17,30 +17,14 @@ namespace Empire.Server.Services
     public class DeckLoaderService
     {
         private readonly ILogger<DeckLoaderService> _logger;
-        private readonly ICardDatabaseService _cardDatabase;
         private readonly string _imagePath;
-        private readonly string _csvFile;
-        private readonly IMongoCollection<CardData> _cardCollection;
-
-        public Dictionary<int, string> CardDictionary { get; private set; } = new();
 
         public DeckLoaderService(
             IHostEnvironment env,
-            IMongoDbService mongo,
-            ILogger<DeckLoaderService> logger,
-            ICardDatabaseService cardDatabase)
+            ILogger<DeckLoaderService> logger)
         {
             _logger = logger;
-            _cardDatabase = cardDatabase;
-
-            _imagePath = Path.Combine(env.ContentRootPath, "wwwroot", "images");
-            _csvFile = Path.Combine(env.ContentRootPath, "wwwroot", "cards.csv");
-
-            _cardCollection = mongo.CardDatabase.GetCollection<CardData>("Cards");
-
-            LoadCardMappings();
-
-            _logger.LogInformation("DeckLoaderService loaded {Count} mappings", CardDictionary.Count);
+            _imagePath = Path.Combine(env.ContentRootPath, "wwwroot", "images", "Cards");
         }
 
         private bool IsCivicCard(int cardId)
@@ -55,109 +39,39 @@ namespace Empire.Server.Services
             var military = new List<int>();
 
             using var reader = new StreamReader(csvStream);
-            var isHeader = true;
-
-            while (!reader.EndOfStream)
+            using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
             {
-                var line = reader.ReadLine();
-                if (string.IsNullOrWhiteSpace(line)) continue;
-                if (isHeader)
+                HasHeaderRecord = true,
+                MissingFieldFound = null,
+                HeaderValidated = null,
+                TrimOptions = TrimOptions.Trim,
+            });
+
+            var records = csv.GetRecords<RawDeckEntry>().ToList();
+
+            foreach (var record in records)
+            {
+                var target = IsCivicCard(record.CardId) ? civic : military;
+                for (int i = 0; i < record.Count; i++)
                 {
-                    isHeader = false;
-                    continue; // skip header
+                    target.Add(record.CardId);
                 }
 
-                var parts = line.Split(',');
-
-                // Handle lines with extra commas (e.g., names like "Aissata, Night's Vanguard")
-                if (parts.Length < 3) continue;
-
-                if (!int.TryParse(parts[0], out int cardId)) continue;
-                if (!int.TryParse(parts[^1], out int count)) continue;
-
-                var target = IsCivicCard(cardId) ? civic : military;
-
-                // Log the card ID and count to see if it's being added correctly
-                Console.WriteLine($"Parsed card {cardId} x{count}");
-
-                for (int i = 0; i < count; i++)
-                    target.Add(cardId);
+                _logger.LogInformation("Parsed card {CardId} x{Count}", record.CardId, record.Count);
             }
 
-            // Log the final contents of the decks
-            Console.WriteLine($"Final CivicDeck: {string.Join(", ", civic)}");
-            Console.WriteLine($"Final MilitaryDeck: {string.Join(", ", military)}");
+            _logger.LogInformation("Final CivicDeck: {CivicDeck}", string.Join(", ", civic));
+            _logger.LogInformation("Final MilitaryDeck: {MilitaryDeck}", string.Join(", ", military));
 
             return (civic, military);
         }
 
-
-
-        public void UpdateMappings()
-        {
-            GenerateCardMappings();
-            SaveToCSV();
-        }
-
-        private void LoadCardMappings()
-        {
-            if (File.Exists(_csvFile))
-            {
-                LoadFromCSV();
-            }
-            else
-            {
-                GenerateCardMappings();
-                SaveToCSV();
-            }
-        }
-
-        private void LoadFromCSV()
-        {
-            foreach (var line in File.ReadAllLines(_csvFile))
-            {
-                var parts = line.Split(',', 2);
-                if (int.TryParse(parts[0], out int cardId))
-                {
-                    CardDictionary[cardId] = parts[1];
-                }
-            }
-        }
-
-        private void GenerateCardMappings()
-        {
-            CardDictionary.Clear();
-
-            if (!Directory.Exists(_imagePath))
-                return;
-
-            foreach (var file in Directory.GetFiles(_imagePath, "*.jpg"))
-            {
-                string fileName = Path.GetFileNameWithoutExtension(file);
-                string[] parts = fileName.Split(' ', 2);
-                if (parts.Length > 0 && int.TryParse(parts[0], out int cardId))
-                {
-                    CardDictionary[cardId] = $"images/{fileName}.jpg";
-                }
-            }
-        }
-
-        private void SaveToCSV()
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(_csvFile)!);
-            File.WriteAllLines(_csvFile, CardDictionary.Select(kv => $"{kv.Key},{kv.Value}"));
-        }
-
         public string GetImagePath(int cardId)
         {
-            return CardDictionary.TryGetValue(cardId, out var path) ? path : "images/Cards/placeholder.jpg";
-        }
-
-        public string GetCardDisplayName(int cardId)
-        {
-            return CardDictionary.TryGetValue(cardId, out var fileName)
-                ? Path.GetFileNameWithoutExtension(fileName).Split(" ", 2).Last()
-                : "Unknown Card";
+            var filePath = Path.Combine(_imagePath, $"{cardId}.jpg");
+            return File.Exists(filePath)
+                ? $"images/Cards/{cardId}.jpg"
+                : "images/Cards/placeholder.jpg";
         }
     }
 }
