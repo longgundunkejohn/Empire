@@ -51,30 +51,34 @@ namespace Empire.Server.Services
 
         public (List<int> CivicDeck, List<int> MilitaryDeck) ParseDeckFromCsv(Stream csvStream)
         {
-            var config = new CsvHelper.Configuration.CsvConfiguration(CultureInfo.InvariantCulture)
-            {
-                IgnoreQuotes = false,
-                BadDataFound = null,
-                MissingFieldFound = null,
-                HeaderValidated = null,
-                Delimiter = ","
-            };
-
-            using var reader = new StreamReader(csvStream);
-            using var csv = new CsvReader(reader, config);
-
-            csv.Context.RegisterClassMap<RawDeckEntryMap>();
-            var entries = csv.GetRecords<RawDeckEntry>().ToList();
-
             var civic = new List<int>();
             var military = new List<int>();
 
-            foreach (var entry in entries)
-            {
-                var target = IsCivicCard(entry.CardId) ? civic : military;
+            using var reader = new StreamReader(csvStream);
+            var isHeader = true;
 
-                for (int i = 0; i < entry.Count; i++)
-                    target.Add(entry.CardId);
+            while (!reader.EndOfStream)
+            {
+                var line = reader.ReadLine();
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                if (isHeader)
+                {
+                    isHeader = false;
+                    continue; // skip header
+                }
+
+                var parts = line.Split(',');
+
+                // Handle lines with extra commas (e.g., names like "Aissata, Night's Vanguard")
+                if (parts.Length < 3) continue;
+
+                if (!int.TryParse(parts[0], out int cardId)) continue;
+                if (!int.TryParse(parts[^1], out int count)) continue;
+
+                var target = IsCivicCard(cardId) ? civic : military;
+
+                for (int i = 0; i < count; i++)
+                    target.Add(cardId);
             }
 
             return (civic, military);
