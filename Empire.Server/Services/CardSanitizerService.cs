@@ -67,6 +67,7 @@ public class CardSanitizerService
             ? doc["_id"].AsObjectId
             : ObjectId.GenerateNewId();
 
+
         // Safe parsing with fallbacks
         card.Cost = TryParseCost(doc.GetValue("Cost", BsonNull.Value));
         card.Attack = TryParseInt(doc, "Attack");
