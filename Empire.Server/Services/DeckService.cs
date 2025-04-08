@@ -7,6 +7,7 @@
     using System.Linq;
     using System.Threading.Tasks;
     using Empire.Server.Interfaces;
+    using MongoDB.Bson;
 
     public class DeckService
     {
@@ -24,6 +25,11 @@
         // Save final deck for the player
         public async Task SaveDeckAsync(PlayerDeck deck)
         {
+            if (string.IsNullOrEmpty(deck.Id)) // Check if Id is missing
+            {
+                deck.Id = ObjectId.GenerateNewId().ToString(); // Generate a new ObjectId
+            }
+
             var filter = Builders<PlayerDeck>.Filter.Eq(d => d.PlayerName, deck.PlayerName);
             await _deckCollection.ReplaceOneAsync(filter, deck, new ReplaceOptions { IsUpsert = true });
 
