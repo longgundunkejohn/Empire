@@ -39,29 +39,20 @@ namespace Empire.Server.Controllers
         }
 
         [HttpPost("create")]
-        [HttpPost("create")]
         public async Task<ActionResult<string>> CreateGame([FromBody] GameStartRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.Player1))
                 return BadRequest("Player1 is required.");
 
-            var deck = await _deckService.GetDeckAsync(request.Player1);
+            var deckLoader = HttpContext.RequestServices.GetRequiredService<DeckLoaderService>();
+            var playerDeck = deckLoader.LoadDeck(request.DeckOwner);
 
-            if (deck == null || deck.Count == 0)
-            {
-                Console.WriteLine($"🛑 No deck found for player: {request.Player1}");
-                return BadRequest("No deck found for this player.");
-            }
+            _gameStateService.InitializeGame(request.Player1, playerDeck.CivicDeck, playerDeck.MilitaryDeck);
 
-            var gameId = await _sessionService.CreateGameSession(request.Player1, deck);
-
-            _gameStateService.InitializeGame(
-                request.Player1,
-                deck.Where(d => d.DeckType == "Civic").Select(d => d.CardId).ToList(),
-                deck.Where(d => d.DeckType == "Military").Select(d => d.CardId).ToList());
-
+            var gameId = await _sessionService.CreateGameSession(request.Player1, new List<RawDeckEntry>());
             return Ok(gameId);
         }
+
 
 
         [HttpPost("join/{gameId}/{playerId}")]

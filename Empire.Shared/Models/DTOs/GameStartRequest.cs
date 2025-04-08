@@ -1,10 +1,8 @@
-﻿using System.Collections.Generic;
-
-namespace Empire.Shared.Models.DTOs
+﻿namespace Empire.Shared.DTOs
 {
     public class GameStartRequest
     {
-        public string Player1 { get; set; }
-        public List<RawDeckEntry> Player1Deck { get; set; } // Changed
+        public string Player1 { get; set; } = string.Empty;
+        public string DeckOwner { get; set; } = string.Empty;
     }
 }
