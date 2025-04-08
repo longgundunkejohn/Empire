@@ -2,6 +2,7 @@
 using Empire.Shared.DTOs;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Empire.Shared.Models.DTOs;
 
 public class GameApi
 {
@@ -134,6 +135,35 @@ public class GameApi
         {
             Console.WriteLine($"[GameApi] ❌ SubmitMove() error: {ex.Message}");
             return false;
+        }
+    }
+
+    public async Task<string?> CreateGame(string player1, List<RawDeckEntry> player1Deck)
+    {
+        try
+        {
+            var request = new GameStartRequest
+            {
+                Player1 = player1,
+                Player1Deck = player1Deck
+            };
+
+            var response = await _http.PostAsJsonAsync("api/game/create", request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"[GameApi] ❌ CreateGame failed: {response.StatusCode} - {error}");
+                return null; // Or throw an exception if you prefer
+            }
+
+            var gameId = await response.Content.ReadAsStringAsync();
+            return gameId;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[GameApi] ❌ CreateGame() error: {ex.Message}");
+            return null; // Or throw an exception
         }
     }
 }
