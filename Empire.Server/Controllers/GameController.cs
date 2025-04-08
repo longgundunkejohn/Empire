@@ -64,7 +64,11 @@ namespace Empire.Server.Controllers
             var fullCivicDeck = await _cardService.GetDeckCards(playerDeck.CivicDeck);
             var fullMilitaryDeck = await _cardService.GetDeckCards(playerDeck.MilitaryDeck);
 
-            _gameStateService.InitializeGame(request.Player1, fullCivicDeck, fullMilitaryDeck);
+            // Extract card IDs instead of passing full Card objects
+            var civicCardIds = fullCivicDeck.Select(card => card.CardId).ToList();
+            var militaryCardIds = fullMilitaryDeck.Select(card => card.CardId).ToList();
+
+            _gameStateService.InitializeGame(request.Player1, civicCardIds, militaryCardIds);
 
             // 🔥 Creates an empty deck in Mongo representation but initializes the game logic
             var gameId = await _sessionService.CreateGameSession(request.Player1, new List<RawDeckEntry>());
@@ -95,9 +99,14 @@ namespace Empire.Server.Controllers
             var combinedDeck = fullCivicDeck.Concat(fullMilitaryDeck).ToList();
 
             // ✅ Initialize game state with raw IDs
-            _gameStateService.InitializeGame(playerId, fullCivicDeck, fullMilitaryDeck);
+            var civicCardIds = fullCivicDeck.Select(card => card.CardId).ToList();
+            var militaryCardIds = fullMilitaryDeck.Select(card => card.CardId).ToList();
+            _gameStateService.InitializeGame(playerId, civicCardIds, militaryCardIds);
 
             // ✅ Join game session
+            //  The JoinGame method expects a List<int> but we are passing a List<Card>
+            //  We need to extract the card IDs from the combinedDeck
+            // var combinedCardIds = combinedDeck.Select(card => card.CardId).ToList();
             await _sessionService.JoinGame(gameId, playerId, combinedDeck);
 
             return Ok(gameId);
