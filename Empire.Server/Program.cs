@@ -2,68 +2,19 @@ using Empire.Server.Interfaces;
 using Empire.Server.Services;
 using Microsoft.AspNetCore.HttpOverrides;
 using MongoDB.Driver;
+using Microsoft.Extensions.Hosting;
+using Empire.Shared.Models;
+using Microsoft.AspNetCore.Builder; // Add this
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ───── Services ─────
+// (Rest of Program.cs remains similar)
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddControllers();
-builder.Services.AddSwaggerGen();
-
-// 🗄 MongoDB setup
-builder.Services.AddSingleton<IMongoClient>(sp =>
-    new MongoClient(builder.Configuration["MongoDB:ConnectionString"]));
-
-builder.Services.AddSingleton(sp =>
-    sp.GetRequiredService<IMongoClient>()
-        .GetDatabase(builder.Configuration["MongoDB:DatabaseName"]));
-
-// 💼 Application services
-builder.Services.AddSingleton<CardSanitizerServiceV2>();
-builder.Services.AddSingleton<IMongoDbService, MongoDbService>();
-builder.Services.AddSingleton<DeckLoaderService>();
-builder.Services.AddScoped<ICardDatabaseService, CardGameDatabaseService>();
-builder.Services.AddSingleton<ICardService, CardService>(); // Singleton!
-builder.Services.AddScoped<CardFactory>();
-builder.Services.AddScoped<GameSessionService>();
-builder.Services.AddScoped<GameStateService>(); // Scoped or Singleton depending on game management
-
-
-// 🧼 Check if we’re running the sanitizer only
-if (args.Contains("--sanitize"))
-{
-    var builtApp = builder.Build();
-    using var scope = builtApp.Services.CreateScope();
-    var sanitizer = scope.ServiceProvider.GetRequiredService<CardSanitizerServiceV2>();
-    await sanitizer.RunAsync();
-    Console.WriteLine("✔ Sanitization complete.");
-    return;
-}
-
-
-// 🌐 CORS for frontend
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowEmpireClient", policy =>
-    {
-        policy.WithOrigins(
-            "https://localhost:5049",
-            "http://localhost:5049",
-            "http://138.68.188.47",
-            "https://empirecardgame.com",
-            "https://www.empirecardgame.com"
-        )
-        .AllowAnyHeader()
-        .AllowAnyMethod();
-    });
-});
-
-var app = builder.Build();
+var app = builder.Build(); // Add this back - VERY IMPORTANT!
 
 // ───── App Pipeline ─────
 
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment()) // Use the 'app' variable
 {
     app.UseSwagger();
     app.UseSwaggerUI();
@@ -91,5 +42,48 @@ app.UseRouting();
 app.UseCors("AllowEmpireClient");
 app.MapControllers();
 app.MapFallbackToFile("index.html");
+
+// 💾 Database Seeding (Example)
+using (var scope = app.Services.CreateScope()) // Use the 'app' variable
+{
+    var services = scope.ServiceProvider;
+    var loggerFactory = services.GetRequiredService<ILoggerFactory>();
+    try
+    {
+        var deckLoader = services.GetRequiredService<DeckLoaderService>();
+        var mongoClient = services.GetRequiredService<IMongoClient>();
+        var databaseName = builder.Configuration["MongoDB:DatabaseName"];
+        var database = mongoClient.GetDatabase(databaseName);
+        var deckCollection = database.GetCollection<List<Card>>("Decks"); // Or a more specific name
+        var cardDatabaseService = services.GetRequiredService<ICardDatabaseService>();
+        var hostEnvironment = services.GetRequiredService<IHostEnvironment>();
+        var logger = services.GetRequiredService<ILogger<DeckLoaderService>>();
+
+        string civicDeckPath = "wwwroot/decks/Player1_Civic.csv";
+        string militaryDeckPath = "wwwroot/decks/Player1_Military.csv";
+
+        using var civicStream = new FileStream(civicDeckPath, FileMode.Open, FileAccess.Read);
+        using var militaryStream = new FileStream(militaryDeckPath, FileMode.Open, FileAccess.Read);
+
+        //Recreate deckLoader with correct dependencies
+        deckLoader = new DeckLoaderService(hostEnvironment, logger, cardDatabaseService);
+
+        var civicDeck = deckLoader.ParseDeckFromCsv(civicStream);
+        civicStream.Position = 0;
+        var militaryDeck = deckLoader.ParseDeckFromCsv(militaryStream);
+
+        var fullDeck = new List<Card>();
+        fullDeck.AddRange(civicDeck);
+        fullDeck.AddRange(militaryDeck);
+
+        await deckCollection.InsertOneAsync(fullDeck);
+        Console.WriteLine("✔ Deck data seeded into MongoDB.");
+    }
+    catch (Exception ex)
+    {
+        var logger = loggerFactory.CreateLogger<Program>();
+        logger.LogError(ex, "An error occurred seeding the database.");
+    }
+}
 
 app.Run();

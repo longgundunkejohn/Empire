@@ -46,13 +46,6 @@ namespace Empire.Server.Services
         }
 
         // ✅ Core Getters
-        public IReadOnlyList<Card> GetDeckCards() => _deck.GetAllCards();
-        public IReadOnlyList<Card> GetHand() => _hand.AsReadOnly();
-        public IReadOnlyList<Card> GetBoard() => _board.AsReadOnly();
-        public IReadOnlyList<Card> GetGraveyard() => _graveyard.AsReadOnly();
-        public IReadOnlyList<Card> GetSealedAway() => _sealedAway.AsReadOnly();
-
-        // ✅ Load Cards by ID
         public async Task<List<Card>> GetDeckCards(List<int> cardIds)
         {
             var cards = _cardDb.GetAllCards()
@@ -71,6 +64,10 @@ namespace Empire.Server.Services
             _logger.LogInformation("Loaded {Count} cards by ID.", cards.Count);
             return await Task.FromResult(cards); // mimic async
         }
+        public IReadOnlyList<Card> GetHand() => _hand.AsReadOnly();
+        public IReadOnlyList<Card> GetBoard() => _board.AsReadOnly();
+        public IReadOnlyList<Card> GetGraveyard() => _graveyard.AsReadOnly();
+        public IReadOnlyList<Card> GetSealedAway() => _sealedAway.AsReadOnly();
 
         // ✅ Actions
         public Card? DrawCard()
