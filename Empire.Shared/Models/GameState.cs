@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
-using Empire.Shared.Models.DTOs; // Add this
+using Empire.Shared.Models.DTOs;
 
 namespace Empire.Shared.Models
 {
@@ -30,9 +30,5 @@ namespace Empire.Shared.Models
         public List<GameMove> MoveHistory { get; set; } = new();
 
         public Dictionary<string, int> PlayerLifeTotals { get; set; } = new();
-
-        // New properties to store deck data using RawDeckEntry
-        public List<RawDeckEntry> Player1Deck { get; set; } = new();
-        public List<RawDeckEntry>? Player2Deck { get; set; }
     }
 }

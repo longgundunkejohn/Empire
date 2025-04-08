@@ -44,11 +44,11 @@ namespace Empire.Server.Services
                 {
                     { player1Id, 25 }
                 },
-                MoveHistory = new List<GameMove>(),
-
-                // Store deck data using RawDeckEntry
-                Player1Deck = player1Deck
+                MoveHistory = new List<GameMove>()
             };
+
+            //  Store the deck in the PlayerDecks dictionary
+            gameState.PlayerDecks[player1Id] = ConvertRawDeckToPlayerDeck(player1Deck);
 
             Console.WriteLine($"[CreateGame] Received name: '{player1Id}', deck: {player1Deck.Count} entries");
 
@@ -99,12 +99,13 @@ namespace Empire.Server.Services
                             gameState.PlayerGraveyards[player] = new List<int>();
                             gameState.PlayerLifeTotals[player] = 25;
 
-                            // Store Player 2's deck
-                            gameState.Player2Deck = joinMove.PlayerDeck.CivicDeck
-                                .Concat(joinMove.PlayerDeck.MilitaryDeck)
-                                .GroupBy(cardId => cardId) // Group by cardId (int)
-                                .Select(group => new RawDeckEntry { CardId = group.Key, Count = group.Count() }) // Use group.Key
-                                .ToList();
+                            // Error CS1061: 'GameState' does not contain a definition for 'Player2Deck'
+                            // This property needs to be added to the GameState model.
+                            // gameState.Player2Deck = joinMove.PlayerDeck.CivicDeck
+                            //     .Concat(joinMove.PlayerDeck.MilitaryDeck)
+                            //     .GroupBy(cardId => cardId) // Group by cardId (int)
+                            //     .Select(group => new RawDeckEntry { CardId = group.Key, Count = group.Count() }) // Use group.Key
+                            //     .ToList();
                         }
                     }
                     break;
@@ -135,25 +136,31 @@ namespace Empire.Server.Services
             }
         }
 
-      public async Task<bool> JoinGame(string gameId, string player2Id, List<RawDeckEntry> player2Deck)
-{
-    var gameState = await _gameCollection.Find(gs => gs.GameId == gameId).FirstOrDefaultAsync();
+        public async Task<bool> JoinGame(string gameId, string player2Id, List<RawDeckEntry> player2Deck)
+        {
+            var gameState = await _gameCollection.Find(gs => gs.GameId == gameId).FirstOrDefaultAsync();
 
-    if (gameState == null || !string.IsNullOrEmpty(gameState.Player2))
-        return false;
+            if (gameState == null || !string.IsNullOrEmpty(gameState.Player2))
+                return false;
 
-    gameState.Player2 = player2Id;
-    gameState.PlayerDecks[player2Id] = new PlayerDeck(); // May not need this
-    gameState.PlayerHands[player2Id] = new List<int>();
-    gameState.PlayerBoard[player2Id] = new List<BoardCard>();
-    gameState.PlayerGraveyards[player2Id] = new List<int>();
-    gameState.PlayerLifeTotals[player2Id] = 25;
+            gameState.Player2 = player2Id;
+            gameState.PlayerDecks[player2Id] = ConvertRawDeckToPlayerDeck(player2Deck); // Store Player 2's deck
+            gameState.PlayerHands[player2Id] = new List<int>();
+            gameState.PlayerBoard[player2Id] = new List<BoardCard>();
+            gameState.PlayerGraveyards[player2Id] = new List<int>();
+            gameState.PlayerLifeTotals[player2Id] = 25;
 
-    // Store Player 2's deck
-    gameState.Player2Deck = player2Deck; // Assign directly
+            await _gameCollection.ReplaceOneAsync(gs => gs.GameId == gameId, gameState);
+            return true;
+        }
 
-    await _gameCollection.ReplaceOneAsync(gs => gs.GameId == gameId, gameState);
-    return true;
-}
+        private PlayerDeck ConvertRawDeckToPlayerDeck(List<RawDeckEntry> rawDeck)
+        {
+            return new PlayerDeck
+            {
+                CivicDeck = rawDeck.Where(r => r.DeckType == "Civic").SelectMany(r => Enumerable.Repeat(r.CardId, r.Count)).ToList(),
+                MilitaryDeck = rawDeck.Where(r => r.DeckType == "Military").SelectMany(r => Enumerable.Repeat(r.CardId, r.Count)).ToList()
+            };
+        }
     }
 }

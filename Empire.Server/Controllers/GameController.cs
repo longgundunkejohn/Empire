@@ -8,6 +8,8 @@ using System.Globalization;
 using Empire.Server.Parsing;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Empire.Server.Controllers
 {
@@ -58,10 +60,14 @@ namespace Empire.Server.Controllers
 
             var gameId = await _sessionService.CreateGameSession(request.Player1, player1Deck);
 
-            // Initialize GameStateService
-            _gameStateService.InitializeGame(request.Player1, player1DeckIds, player1DeckIds);
+            // Error CS1501: No overload for method 'InitializeGame' takes 3 arguments
+            // Check the signature of InitializeGame in GameStateService and ensure it matches the arguments being passed.
+            _gameStateService.InitializeGame(request.Player1,
+                                            player1Deck.Where(d => d.DeckType == "Civic").Select(d => d.CardId).ToList(),
+                                            player1Deck.Where(d => d.DeckType == "Military").Select(d => d.CardId).ToList());
 
             return Ok(gameId);
+
         }
 
         private static List<int> GetAllCardIds(List<int> civicDeckIds, List<int> militaryDeckIds)
@@ -96,7 +102,11 @@ namespace Empire.Server.Controllers
                 PlayerDeck = new PlayerDeck() // Dummy PlayerDeck (might remove later)
             });
 
-            _gameStateService.InitializeGame(playerId, player2DeckIds, player2DeckIds);
+            // Error CS1501: No overload for method 'InitializeGame' takes 3 arguments
+            // Check the signature of InitializeGame in GameStateService and ensure it matches the arguments being passed.
+            _gameStateService.InitializeGame(playerId,
+                                                player2Deck.Where(d => d.DeckType == "Civic").Select(d => d.CardId).ToList(),
+                                                player2Deck.Where(d => d.DeckType == "Military").Select(d => d.CardId).ToList());
 
             await _sessionService.JoinGame(gameId, playerId, player2Deck);
 

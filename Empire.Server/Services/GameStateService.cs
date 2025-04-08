@@ -1,43 +1,46 @@
 ﻿using Empire.Shared.Models;
-using Empire.Server.Interfaces; // Add this
+using Empire.Server.Interfaces;
 
 namespace Empire.Server.Services
 {
     public class GameStateService
     {
-        private readonly ICardService _cardService; // Changed
+        private readonly ICardService _cardService;
+        private readonly DeckLoaderService _deckLoaderService;
         private readonly Random _rng = new();
 
         public GameState GameState { get; private set; }
 
-        public GameStateService(ICardService cardService) // Changed
+        public GameStateService(ICardService cardService, DeckLoaderService deckLoaderService)
         {
-            _cardService = cardService; // Changed
+            _cardService = cardService;
+            _deckLoaderService = deckLoaderService;
             GameState = new GameState();
         }
 
-        public void InitializeGame(string player, List<int> civicDeckIds, List<int> militaryDeckIds)
+        public void InitializeGame(string playerId, List<int> civicDeck, List<int> militaryDeck)
         {
-            Console.WriteLine($"Initializing game for {player}...");
+            GameState.PlayerDecks[playerId] = new PlayerDeck(civicDeck, militaryDeck);
+            GameState.PlayerHands[playerId] = new List<int>();
+            GameState.PlayerBoard[playerId] = new List<BoardCard>();
+            GameState.PlayerGraveyards[playerId] = new List<int>();
+            GameState.PlayerLifeTotals[playerId] = 25;
 
-            // The CardService now handles the full card objects
-            // No need to store IDs in GameState anymore, CardService does that
-
-            GameState.PlayerDecks[player] = new PlayerDeck(civicDeckIds, militaryDeckIds); // Store Ids for now
-
-            Console.WriteLine($"Initialized decks for {player}.");
+            Console.WriteLine($"Initialized single-player deck for {playerId}. Civic: {civicDeck.Count}, Military: {militaryDeck.Count}");
         }
+
+
 
         public void DrawCard(string player, bool isCivic)
         {
             Console.WriteLine($"Attempting to draw a card for {player}");
 
             // Delegate drawing to the CardService
-            Card? drawnCard = _cardService.DrawCard(); // Assuming DrawCard returns a Card or null
+            Card? drawnCard = _cardService.DrawCard();
 
             if (drawnCard != null)
             {
-                GameState.PlayerHands[player].Add(drawnCard.CardId); // Store CardId for now
+                GameState.PlayerHands[player].Add(drawnCard.CardId);
                 Console.WriteLine($"{player} drew card {drawnCard.CardId} from {(isCivic ? "Civic" : "Military")} deck.");
             }
             else
@@ -55,18 +58,6 @@ namespace Empire.Server.Services
             {
                 GameState.PlayerBoard[player].Add(new BoardCard(cardId));
             }
-
-        }
-
-
-        private int ExtractCardId(string filename)
-        {
-            string[] parts = filename.Split(' ');
-            if (int.TryParse(parts[0], out int cardId))
-            {
-                return cardId;
-            }
-            throw new Exception($"Invalid card format: {filename}");
         }
     }
 }

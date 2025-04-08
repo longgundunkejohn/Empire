@@ -1,19 +1,25 @@
 using Empire.Server.Interfaces;
 using Empire.Server.Services;
 using Microsoft.AspNetCore.HttpOverrides;
-using MongoDB.Driver;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
+using MongoDB.Driver;
 using Empire.Shared.Models;
-using Microsoft.AspNetCore.Builder; // Add this
+using Empire.Shared.Models.DTOs;
+using System.IO;
+using System;
+using System.Linq;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// ────────────── Services ──────────────
+
 builder.Services.AddSingleton<IMongoClient>(sp =>
 {
-    var configuration = sp.GetRequiredService<IConfiguration>();
-    var connectionString = configuration["MongoDB:ConnectionString"];
-    return new MongoClient(connectionString);
+    var config = sp.GetRequiredService<IConfiguration>();
+    return new MongoClient(config["MongoDB:ConnectionString"]);
 });
 
 builder.Services.AddScoped<IMongoDbService, MongoDbService>();
@@ -23,24 +29,24 @@ builder.Services.AddSingleton<GameSessionService>();
 builder.Services.AddSingleton<GameStateService>();
 builder.Services.AddSingleton<BoardService>();
 builder.Services.AddTransient<DeckLoaderService>();
-builder.Services.AddControllers(); // THIS LINE IS REQUIRED!
+builder.Services.AddControllers();
 builder.Services.AddSwaggerGen();
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowEmpireClient",
-        builder =>
-        {
-            builder.WithOrigins("http://localhost:5173", "https://empirecardgame.com") // Allow your client's origin
-                   .AllowAnyHeader()
-                   .AllowAnyMethod();
-        });
+    options.AddPolicy("AllowEmpireClient", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173", "https://empirecardgame.com")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
 });
 
-var app = builder.Build(); // Add this back - VERY IMPORTANT!
+// ────────────── Build App ──────────────
 
-// ───── App Pipeline ─────
+var app = builder.Build();
 
-if (app.Environment.IsDevelopment()) // Use the 'app' variable
+if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
@@ -69,46 +75,54 @@ app.UseCors("AllowEmpireClient");
 app.MapControllers();
 app.MapFallbackToFile("index.html");
 
-// 💾 Database Seeding (Example)
-using (var scope = app.Services.CreateScope()) // Use the 'app' variable
+
+// ────────────── Database Seeding ──────────────
+
+using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
+    var env = services.GetRequiredService<IHostEnvironment>();
     var loggerFactory = services.GetRequiredService<ILoggerFactory>();
+
     try
     {
-        var deckLoader = services.GetRequiredService<DeckLoaderService>();
-        var mongoClient = services.GetRequiredService<IMongoClient>();
-        var databaseName = builder.Configuration["MongoDB:DatabaseName"];
-        var database = mongoClient.GetDatabase(databaseName);
-        var deckCollection = database.GetCollection<List<Card>>("Decks"); // Or a more specific name
-        var cardDatabaseService = services.GetRequiredService<ICardDatabaseService>();
-        var hostEnvironment = services.GetRequiredService<IHostEnvironment>();
         var logger = services.GetRequiredService<ILogger<DeckLoaderService>>();
+        var cardDb = services.GetRequiredService<ICardDatabaseService>();
+        var mongo = services.GetRequiredService<IMongoDbService>();
 
-        string civicDeckPath = "wwwroot/decks/Player1_Civic.csv";
-        string militaryDeckPath = "wwwroot/decks/Player1_Military.csv";
+        var deckLoader = new DeckLoaderService(env, mongo, logger, cardDb);
+        var deckDb = mongo.DeckDatabase.GetCollection<PlayerDeck>("PlayerDecks");
 
-        using var civicStream = new FileStream(civicDeckPath, FileMode.Open, FileAccess.Read);
-        using var militaryStream = new FileStream(militaryDeckPath, FileMode.Open, FileAccess.Read);
+        string civicDeckPath = Path.Combine(env.ContentRootPath, "wwwroot", "decks", "Player1_Civic.csv");
+        string militaryDeckPath = Path.Combine(env.ContentRootPath, "wwwroot", "decks", "Player1_Military.csv");
 
-        //Recreate deckLoader with correct dependencies
-        deckLoader = new DeckLoaderService(hostEnvironment, logger, cardDatabaseService);
+        if (File.Exists(civicDeckPath) && File.Exists(militaryDeckPath))
+        {
+            using var civicStream = new FileStream(civicDeckPath, FileMode.Open, FileAccess.Read);
+            using var militaryStream = new FileStream(militaryDeckPath, FileMode.Open, FileAccess.Read);
 
-        var civicDeck = deckLoader.ParseDeckFromCsv(civicStream);
-        civicStream.Position = 0;
-        var militaryDeck = deckLoader.ParseDeckFromCsv(militaryStream);
+            var civicRaw = deckLoader.ParseDeckFromCsv(civicStream);
+            var militaryRaw = deckLoader.ParseDeckFromCsv(militaryStream);
 
-        var fullDeck = new List<Card>();
-        fullDeck.AddRange(civicDeck);
-        fullDeck.AddRange(militaryDeck);
+            var combined = civicRaw.Concat(militaryRaw).ToList();
+            var playerDeck = deckLoader.ConvertRawDeckToPlayerDeck(combined);
 
-        await deckCollection.InsertOneAsync(fullDeck);
-        Console.WriteLine("✔ Deck data seeded into MongoDB.");
+            // Remove any existing deck for this player (optional)
+            var filter = Builders<PlayerDeck>.Filter.Empty; // change if you key by player
+            await deckDb.DeleteManyAsync(filter);
+
+            await deckDb.InsertOneAsync(playerDeck);
+            Console.WriteLine("✔ Seeded Player1 deck into MongoDB.");
+        }
+        else
+        {
+            logger.LogError("❌ Deck files not found in wwwroot/decks/");
+        }
     }
     catch (Exception ex)
     {
         var logger = loggerFactory.CreateLogger<Program>();
-        logger.LogError(ex, "An error occurred seeding the database.");
+        logger.LogError(ex, "❌ Error occurred while seeding deck.");
     }
 }
 
