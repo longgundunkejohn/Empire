@@ -4,6 +4,7 @@ using Empire.Shared.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using System.Linq;
 using System.Collections.Generic;
+using Empire.Shared.Models; // Add this using statement
 
 namespace Empire.Server.Controllers
 {
@@ -65,7 +66,7 @@ namespace Empire.Server.Controllers
             // 🔥 Creates an empty deck in Mongo representation but initializes the game logic
             var gameId = await _sessionService.CreateGameSession(request.Player1, new List<RawDeckEntry>());
 
-            return Ok(gameId);  // Fixed return statement
+            return Ok(gameId);
         }
 
         [HttpPost("join/{gameId}/{playerId}")]
@@ -76,23 +77,20 @@ namespace Empire.Server.Controllers
             if (deck == null || deck.CivicDeck.Count == 0 && deck.MilitaryDeck.Count == 0)
                 return BadRequest("No deck found for this player.");
 
-            var existingState = await _sessionService.GetGameState(gameId);
-            if (existingState == null)
-                return NotFound("Game not found.");
-
             // ✅ Pull the full cards for each half of the deck
             var fullCivicDeck = await _cardService.GetDeckCards(deck.CivicDeck);
             var fullMilitaryDeck = await _cardService.GetDeckCards(deck.MilitaryDeck);
 
-            // ✅ Combine both civic and military decks into the game state
-            deck.CivicDeck.AddRange(fullCivicDeck);
-            deck.MilitaryDeck.AddRange(fullMilitaryDeck);
+            // ✅ Combine both civic and military decks
+            var combinedDeck = new List<Card>();
+            combinedDeck.AddRange(fullCivicDeck);
+            combinedDeck.AddRange(fullMilitaryDeck);
 
-            // ✅ Initialize game state with raw IDs
-            _gameStateService.InitializeGame(playerId, deck.CivicDeck, deck.MilitaryDeck);
+            // ✅ Initialize game state
+            _gameStateService.InitializeGame(playerId, fullCivicDeck, fullMilitaryDeck);
 
-            // ✅ Use correct deck properties (CivicDeck + MilitaryDeck)
-            await _sessionService.JoinGame(gameId, playerId, deck.CivicDeck.Concat(deck.MilitaryDeck).ToList());
+            // ✅ Join game session
+            await _sessionService.JoinGame(gameId, playerId, combinedDeck); // Pass combinedDeck
 
             return Ok(gameId);
         }
