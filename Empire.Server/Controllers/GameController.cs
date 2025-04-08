@@ -1,9 +1,10 @@
 ﻿using Empire.Server.Services;
-using Empire.Shared.DTOs;
+using Empire.Shared.Models.DTOs;
 using Empire.Shared.Models;
 using Empire.Shared.Models.DTOs;
 using Microsoft.AspNetCore.Mvc;
-using System.Text.Json; // Add this for JsonSerializerOptions
+using System.Text.Json;
+using System.Linq; // Import Linq for .Where()
 
 namespace Empire.Server.Controllers
 {
@@ -45,6 +46,7 @@ namespace Empire.Server.Controllers
 
             return Content(json, "application/json");
         }
+
         [HttpPost("create")]
         public async Task<ActionResult<string>> CreateGame([FromBody] GameStartRequest request)
         {
@@ -54,6 +56,7 @@ namespace Empire.Server.Controllers
             var deckLoader = HttpContext.RequestServices.GetRequiredService<DeckLoaderService>();
             var playerDeck = deckLoader.LoadDeck(request.DeckOwner);
 
+            // Initialize the game with Civic and Military decks
             _gameStateService.InitializeGame(request.Player1, playerDeck.CivicDeck, playerDeck.MilitaryDeck);
 
             var gameId = await _sessionService.CreateGameSession(request.Player1, new List<RawDeckEntry>());
@@ -72,10 +75,12 @@ namespace Empire.Server.Controllers
             if (existingState == null)
                 return NotFound("Game not found.");
 
-            _gameStateService.InitializeGame(
-                playerId,
-                deck.Where(d => d.DeckType == "Civic").Select(d => d.CardId).ToList(),
-                deck.Where(d => d.DeckType == "Military").Select(d => d.CardId).ToList());
+            // Here we break the deck into Civic and Military sections
+            var civicDeck = deck.Where(d => d.DeckType == "Civic").Select(d => d.CardId).ToList();
+            var militaryDeck = deck.Where(d => d.DeckType == "Military").Select(d => d.CardId).ToList();
+
+            // Initialize the game with the player's deck
+            _gameStateService.InitializeGame(playerId, civicDeck, militaryDeck);
 
             await _sessionService.JoinGame(gameId, playerId, deck);
 

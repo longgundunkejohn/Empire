@@ -1,9 +1,9 @@
-﻿using MongoDB.Bson;
-using MongoDB.Bson.Serialization.Attributes;
-using System.Collections.Generic;
-
-namespace Empire.Shared.Models
+﻿namespace Empire.Shared.Models
 {
+    using MongoDB.Bson;
+    using MongoDB.Bson.Serialization.Attributes;
+    using System.Collections.Generic;
+
     public class PlayerDeck
     {
         [BsonId]

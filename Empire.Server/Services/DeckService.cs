@@ -1,50 +1,80 @@
-﻿using Empire.Server.Interfaces;
-using Empire.Shared.Models.DTOs;
-using MongoDB.Driver;
-using Microsoft.Extensions.Logging;
-
-namespace Empire.Server.Services
+﻿namespace Empire.Server.Services
 {
+    using Empire.Shared.Models;
+    using Empire.Shared.Models.DTOs;
+    using MongoDB.Driver;
+    using Microsoft.Extensions.Logging;
+    using System.Linq;
+    using System.Threading.Tasks;
+    using Empire.Server.Interfaces;
+
     public class DeckService
     {
-        private readonly IMongoCollection<RawDeckEntry> _deckCollection;
+        private readonly IMongoCollection<PlayerDeck> _deckCollection;
+        private readonly IMongoCollection<RawDeckEntry> _rawDeckCollection;
         private readonly ILogger<DeckService> _logger;
 
         public DeckService(IMongoDbService mongo, ILogger<DeckService> logger)
         {
-            _deckCollection = mongo.DeckDatabase.GetCollection<RawDeckEntry>("PlayerDecks");
+            _deckCollection = mongo.DeckDatabase.GetCollection<PlayerDeck>("PlayerDecks");
+            _rawDeckCollection = mongo.DeckDatabase.GetCollection<RawDeckEntry>("RawDeckEntries"); // Collection for raw entries
             _logger = logger;
         }
 
-        public async Task SaveDeckAsync(string playerName, List<RawDeckEntry> deck)
+        // Save final deck for the player
+        public async Task SaveDeckAsync(PlayerDeck deck)
         {
-            // Remove old deck if it exists
-            await _deckCollection.DeleteManyAsync(d => d.Player == playerName);
+            var filter = Builders<PlayerDeck>.Filter.Eq(d => d.PlayerName, deck.PlayerName);
+            await _deckCollection.ReplaceOneAsync(filter, deck, new ReplaceOptions { IsUpsert = true });
 
-            foreach (var entry in deck)
-            {
-                entry.Player = playerName;
-            }
-
-            await _deckCollection.InsertManyAsync(deck);
-            _logger.LogInformation("✅ Saved deck for player {Player}.", playerName);
+            _logger.LogInformation("✅ Saved deck for player {PlayerName}.", deck.PlayerName);
         }
 
-        public async Task<List<RawDeckEntry>> GetDeckAsync(string playerName)
+        // Get the final deck for the player
+        public async Task<PlayerDeck> GetDeckAsync(string playerName)
         {
-            return await _deckCollection.Find(d => d.Player == playerName).ToListAsync();
+            return await _deckCollection.Find(d => d.PlayerName == playerName).FirstOrDefaultAsync();
         }
 
+        // Check if the player has a deck
         public async Task<bool> HasDeckAsync(string playerName)
         {
-            var count = await _deckCollection.CountDocumentsAsync(d => d.Player == playerName);
+            var count = await _deckCollection.CountDocumentsAsync(d => d.PlayerName == playerName);
             return count > 0;
         }
 
+        // Delete the deck of a player
         public async Task DeleteDeckAsync(string playerName)
         {
-            await _deckCollection.DeleteManyAsync(d => d.Player == playerName);
+            await _deckCollection.DeleteManyAsync(d => d.PlayerName == playerName);
             _logger.LogInformation("🗑 Deleted deck for player {Player}.", playerName);
+        }
+
+        // Parse RawDeckEntries and save the final PlayerDeck
+        public async Task<PlayerDeck> ParseAndSaveDeckAsync(string playerName)
+        {
+            // Retrieve raw deck entries from MongoDB
+            var rawDeckEntries = await _rawDeckCollection.Find(d => d.Player == playerName).ToListAsync();
+
+            if (!rawDeckEntries.Any())
+            {
+                _logger.LogWarning("No raw deck found for player {Player}.", playerName);
+                return null; // No deck found for the player
+            }
+
+            // Split into Civic and Military Decks
+            var civicDeck = rawDeckEntries.Where(d => d.DeckType == "Civic").SelectMany(d => Enumerable.Repeat(d.CardId, d.Count)).ToList();
+            var militaryDeck = rawDeckEntries.Where(d => d.DeckType == "Military").SelectMany(d => Enumerable.Repeat(d.CardId, d.Count)).ToList();
+
+            // Create final PlayerDeck object
+            var playerDeck = new PlayerDeck(playerName, civicDeck, militaryDeck);
+
+            // Save the PlayerDeck in the PlayerDecks collection
+            await SaveDeckAsync(playerDeck);
+
+            _logger.LogInformation("✅ Deck for player {PlayerName} saved successfully.", playerName);
+
+            return playerDeck;
         }
     }
 }

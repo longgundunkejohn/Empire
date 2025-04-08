@@ -32,18 +32,23 @@ namespace Empire.Server.Controllers
         }
 
         [HttpPost("upload")]
-        public async Task<IActionResult> UploadDeck([FromQuery] string playerName, IFormFile deckCsv)
+        [HttpPost("upload")]
+        public async Task<IActionResult> UploadDeck([FromQuery] string playerName, IFormFile file)
         {
-            if (string.IsNullOrWhiteSpace(playerName) || deckCsv == null || deckCsv.Length == 0)
+            if (string.IsNullOrWhiteSpace(playerName) || file == null || file.Length == 0)
                 return BadRequest("Player name and CSV file are required.");
 
-            using var stream = deckCsv.OpenReadStream();
-            var rawDeck = _deckLoader.ParseDeckFromCsv(stream);
+            using var stream = file.OpenReadStream();
 
-            await _deckService.SaveDeckAsync(playerName, rawDeck);
+            var rawDeck = _deckLoader.ParseDeckFromCsv(stream); // This returns List<RawDeckEntry>
+
+            var playerDeck = _deckLoader.ConvertRawDeckToPlayerDeck(playerName, rawDeck); // Converts it to PlayerDeck
+
+            await _deckService.SaveDeckAsync(playerDeck); // Saves PlayerDeck
 
             return Ok(new { message = "Deck uploaded and saved.", count = rawDeck.Count });
         }
+
 
         [HttpGet("hasdeck/{playerName}")]
         public async Task<IActionResult> HasDeck(string playerName)
