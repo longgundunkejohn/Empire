@@ -18,19 +18,22 @@ namespace Empire.Server.Controllers
         private readonly GameSessionService _sessionService;
         private readonly CardFactory _cardFactory;
         private readonly DeckLoaderService _deckLoader;
+        private readonly GameStateService _gameStateService; // Added
 
         public GameController(
             GameSessionService sessionService,
             CardFactory cardFactory,
             DeckLoaderService deckLoader,
             ICardService cardService,
-            ICardDatabaseService cardDatabase)
+            ICardDatabaseService cardDatabase,
+            GameStateService gameStateService) // Added
         {
             _sessionService = sessionService;
             _cardFactory = cardFactory;
             _deckLoader = deckLoader;
             _cardService = cardService;
             _cardDatabase = cardDatabase;
+            _gameStateService = gameStateService; // Added
         }
 
         [HttpGet("cards/{gameId}/{playerId}")]
@@ -41,6 +44,7 @@ namespace Empire.Server.Controllers
 
             var cardIds = new HashSet<int>();
 
+            // Get card IDs from player's hand, board, and deck
             if (game.PlayerHands.TryGetValue(playerId, out var hand))
                 cardIds.UnionWith(hand);
 
@@ -53,6 +57,7 @@ namespace Empire.Server.Controllers
                 cardIds.UnionWith(deck.MilitaryDeck);
             }
 
+            // Call GetDeckCards with the list of card IDs
             var cards = await _cardService.GetDeckCards(cardIds.ToList());
             return Ok(cards);
         }
@@ -90,6 +95,7 @@ namespace Empire.Server.Controllers
             return Ok(fullDeck);
         }
 
+
         [HttpGet("state/{gameId}/{playerId}")]
         public async Task<ActionResult<GameState>> GetGameState(string gameId, string playerId)
         {
@@ -104,13 +110,41 @@ namespace Empire.Server.Controllers
         }
 
         [HttpPost("create")]
-        public async Task<ActionResult<string>> CreateGame([FromBody] GameStartRequest request)
+        public async Task<ActionResult<string>> CreateGame([FromBody] GameStartRequest request, [FromServices] IServiceProvider serviceProvider)
         {
             if (string.IsNullOrWhiteSpace(request.Player1))
                 return BadRequest("Player1 is required.");
 
-            var gameId = await _sessionService.CreateGameSession(request.Player1, new List<int>(), new List<int>());
+            using var scope = serviceProvider.CreateScope();
+            var deckLoader = scope.ServiceProvider.GetRequiredService<DeckLoaderService>();
+            var cardDatabaseService = scope.ServiceProvider.GetRequiredService<ICardDatabaseService>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<CardService>>();
+
+            string civicDeckPath = "wwwroot/decks/Player1_Civic.csv"; // Make sure these paths are correct!
+            string militaryDeckPath = "wwwroot/decks/Player1_Military.csv";
+
+            using var civicStream = new FileStream(civicDeckPath, FileMode.Open, FileAccess.Read);
+            using var militaryStream = new FileStream(militaryDeckPath, FileMode.Open, FileAccess.Read);
+
+            var (civicDeckIds, militaryDeckIds) = deckLoader.ParseDeckFromCsv(civicStream);
+
+            // Create CardService with the loaded deck IDs and ICardDatabaseService
+            var cardService = new CardService(GetAllCardIds(civicDeckIds, militaryDeckIds), cardDatabaseService, logger);
+
+            var gameId = await _sessionService.CreateGameSession(request.Player1, civicDeckIds, militaryDeckIds);
+
+            // Initialize the game state with the CardService
+            _gameStateService.InitializeGame(request.Player1, civicDeckIds, militaryDeckIds);
+
             return Ok(gameId);
+        }
+
+        private static List<int> GetAllCardIds(List<int> civicDeckIds, List<int> militaryDeckIds)
+        {
+            var allCardIds = new List<int>();
+            allCardIds.AddRange(civicDeckIds);
+            allCardIds.AddRange(militaryDeckIds);
+            return allCardIds;
         }
 
         [HttpPost("move")]
@@ -121,11 +155,27 @@ namespace Empire.Server.Controllers
         }
 
         [HttpPost("join/{gameId}/{playerId}")]
-        public async Task<IActionResult> JoinGame(string gameId, string playerId, [FromBody] PlayerDeck playerDeck)
+        public async Task<IActionResult> JoinGame(string gameId, string playerId, [FromBody] PlayerDeck playerDeck, [FromServices] IServiceProvider serviceProvider)
         {
             var gameState = await _sessionService.GetGameState(gameId);
             if (gameState == null)
                 return NotFound("Game not found.");
+
+            using var scope = serviceProvider.CreateScope();
+            var deckLoader = scope.ServiceProvider.GetRequiredService<DeckLoaderService>();
+            var cardDatabaseService = scope.ServiceProvider.GetRequiredService<ICardDatabaseService>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<CardService>>();
+
+            string civicDeckPath = "wwwroot/decks/Player2_Civic.csv"; // Ensure correct paths
+            string militaryDeckPath = "wwwroot/decks/Player2_Military.csv";
+
+            using var civicStream = new FileStream(civicDeckPath, FileMode.Open, FileAccess.Read);
+            using var militaryStream = new FileStream(militaryDeckPath, FileMode.Open, FileAccess.Read);
+
+            var (civicDeckIds, militaryDeckIds) = deckLoader.ParseDeckFromCsv(civicStream);
+
+            // Create CardService for Player 2
+            var cardService2 = new CardService(GetAllCardIds(civicDeckIds, militaryDeckIds), cardDatabaseService, logger);
 
             await _sessionService.ApplyMove(gameId, new JoinGameMove
             {
@@ -134,6 +184,7 @@ namespace Empire.Server.Controllers
                 PlayerDeck = playerDeck
             });
 
+            _gameStateService.InitializeGame(playerId, civicDeckIds, militaryDeckIds);
 
             return Ok(gameId);
         }

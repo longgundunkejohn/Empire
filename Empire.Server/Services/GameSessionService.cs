@@ -14,7 +14,7 @@ namespace Empire.Server.Services
             _gameCollection = database.GetCollection<GameState>("GameSessions");
         }
 
-        public async Task<string> CreateGameSession(string player1Id, List<int> civicDeck, List<int> militaryDeck)
+        public async Task<string> CreateGameSession(string player1Id, List<int> civicDeckIds, List<int> militaryDeckIds)
         {
             var gameState = new GameState
             {
@@ -25,36 +25,35 @@ namespace Empire.Server.Services
                 PriorityPlayer = player1Id,
                 GameBoardState = new GameBoard(),
                 PlayerDecks = new Dictionary<string, PlayerDeck>
-        {
-            { player1Id, new PlayerDeck(civicDeck, militaryDeck) }
-        },
+                {
+                    { player1Id, new PlayerDeck(civicDeckIds, militaryDeckIds) } // Store Ids here
+                },
                 PlayerHands = new Dictionary<string, List<int>>
-        {
-            { player1Id, new List<int>() }
-        },
+                {
+                    { player1Id, new List<int>() }
+                },
                 PlayerBoard = new Dictionary<string, List<BoardCard>>
-        {
-            { player1Id, new List<BoardCard>() }
-        },
+                {
+                    { player1Id, new List<BoardCard>() }
+                },
                 PlayerGraveyards = new Dictionary<string, List<int>>
-        {
-            { player1Id, new List<int>() }
-        },
+                {
+                    { player1Id, new List<int>() }
+                },
                 PlayerLifeTotals = new Dictionary<string, int>
-        {
-            { player1Id, 25 }
-        },
+                {
+                    { player1Id, 25 }
+                },
                 MoveHistory = new List<GameMove>()
             };
 
-            Console.WriteLine($"[CreateGame] Received name: '{player1Id}', deck: civic={civicDeck.Count}, mil={militaryDeck.Count}");
-            Console.WriteLine($"[CreateGame] CivicDeck sample: {string.Join(", ", civicDeck.Take(3))}");
-            Console.WriteLine($"[CreateGame] MilitaryDeck sample: {string.Join(", ", militaryDeck.Take(3))}");
+            Console.WriteLine($"[CreateGame] Received name: '{player1Id}', deck: civic={civicDeckIds.Count}, mil={militaryDeckIds.Count}");
+            Console.WriteLine($"[CreateGame] CivicDeck sample: {string.Join(", ", civicDeckIds.Take(3))}");
+            Console.WriteLine($"[CreateGame] MilitaryDeck sample: {string.Join(", ", militaryDeckIds.Take(3))}");
 
             await _gameCollection.InsertOneAsync(gameState);
             return gameState.GameId;
         }
-
 
 
         public async Task<GameState?> GetGameState(string gameId)
@@ -185,7 +184,7 @@ namespace Empire.Server.Services
         }
 
 
-        public async Task<bool> JoinGame(string gameId, string player2Id, List<int> civicDeck, List<int> militaryDeck)
+        public async Task<bool> JoinGame(string gameId, string player2Id, List<int> civicDeckIds, List<int> militaryDeckIds)
         {
             var gameState = await _gameCollection.Find(gs => gs.GameId == gameId).FirstOrDefaultAsync();
 
@@ -193,7 +192,7 @@ namespace Empire.Server.Services
                 return false;
 
             gameState.Player2 = player2Id;
-            gameState.PlayerDecks[player2Id] = new PlayerDeck(civicDeck, militaryDeck);
+            gameState.PlayerDecks[player2Id] = new PlayerDeck(civicDeckIds, militaryDeckIds); // Store Ids
             gameState.PlayerHands[player2Id] = new List<int>();
             gameState.PlayerBoard[player2Id] = new List<BoardCard>();
             gameState.PlayerGraveyards[player2Id] = new List<int>();

@@ -24,15 +24,16 @@ builder.Services.AddSingleton<CardSanitizerServiceV2>();
 builder.Services.AddSingleton<IMongoDbService, MongoDbService>();
 builder.Services.AddSingleton<DeckLoaderService>();
 builder.Services.AddScoped<ICardDatabaseService, CardGameDatabaseService>();
-builder.Services.AddScoped<ICardService, CardService>();
+builder.Services.AddSingleton<ICardService, CardService>(); // Singleton!
 builder.Services.AddScoped<CardFactory>();
 builder.Services.AddScoped<GameSessionService>();
+builder.Services.AddScoped<GameStateService>(); // Scoped or Singleton depending on game management
 
 
 // 🧼 Check if we’re running the sanitizer only
 if (args.Contains("--sanitize"))
 {
-    var builtApp = builder.Build(); // ✅ fix variable conflict
+    var builtApp = builder.Build();
     using var scope = builtApp.Services.CreateScope();
     var sanitizer = scope.ServiceProvider.GetRequiredService<CardSanitizerServiceV2>();
     await sanitizer.RunAsync();

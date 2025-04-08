@@ -1,91 +1,63 @@
 ﻿using Empire.Shared.Models;
+using Empire.Server.Interfaces; // Add this
 
 namespace Empire.Server.Services
 {
     public class GameStateService
     {
-        private readonly DeckLoaderService _deckLoader;
+        private readonly ICardService _cardService; // Changed
         private readonly Random _rng = new();
 
         public GameState GameState { get; private set; }
 
-        public GameStateService(DeckLoaderService deckLoader)
+        public GameStateService(ICardService cardService) // Changed
         {
-            _deckLoader = deckLoader;
+            _cardService = cardService; // Changed
             GameState = new GameState();
         }
-        public void LoadTestDecks()
+
+        public void InitializeGame(string player, List<int> civicDeckIds, List<int> militaryDeckIds)
         {
-            string civicDeckPath = "wwwroot/decks/Player1_Civic.csv";
-            string militaryDeckPath = "wwwroot/decks/Player1_Military.csv";
+            Console.WriteLine($"Initializing game for {player}...");
 
-            LoadDecks("Player1", civicDeckPath, militaryDeckPath);
+            // The CardService now handles the full card objects
+            // No need to store IDs in GameState anymore, CardService does that
+
+            GameState.PlayerDecks[player] = new PlayerDeck(civicDeckIds, militaryDeckIds); // Store Ids for now
+
+            Console.WriteLine($"Initialized decks for {player}.");
         }
-
-        public void LoadDecks(string player, string civicDeckPath, string militaryDeckPath)
-        {
-            Console.WriteLine($"Loading decks for {player}...");
-
-            if (!File.Exists(civicDeckPath) || !File.Exists(militaryDeckPath))
-            {
-                Console.WriteLine("ERROR: One or both deck files are missing!");
-                return;
-            }
-
-            var civicDeck = File.ReadAllLines(civicDeckPath)
-                                .Where(line => !string.IsNullOrWhiteSpace(line))
-                                .Select(line => int.Parse(line.Split(',')[0]))
-                                .ToList();
-
-            var militaryDeck = File.ReadAllLines(militaryDeckPath)
-                                   .Where(line => !string.IsNullOrWhiteSpace(line))
-                                   .Select(line => int.Parse(line.Split(',')[0]))
-                                   .ToList();
-
-            GameState.PlayerDecks[player] = new PlayerDeck(civicDeck, militaryDeck);
-
-            Console.WriteLine($"Loaded {civicDeck.Count} Civic cards and {militaryDeck.Count} Military cards for {player}.");
-        }
-
-
 
         public void DrawCard(string player, bool isCivic)
         {
             Console.WriteLine($"Attempting to draw a card for {player}");
 
-            if (!GameState.PlayerDecks.ContainsKey(player))
+            // Delegate drawing to the CardService
+            Card? drawnCard = _cardService.DrawCard(); // Assuming DrawCard returns a Card or null
+
+            if (drawnCard != null)
             {
-                Console.WriteLine($"ERROR: No deck found for {player}.");
-                return;
+                GameState.PlayerHands[player].Add(drawnCard.CardId); // Store CardId for now
+                Console.WriteLine($"{player} drew card {drawnCard.CardId} from {(isCivic ? "Civic" : "Military")} deck.");
             }
-
-            var deck = isCivic ? GameState.PlayerDecks[player].CivicDeck : GameState.PlayerDecks[player].MilitaryDeck;
-
-            if (deck == null || deck.Count == 0)
+            else
             {
                 Console.WriteLine($"WARNING: {player}'s {(isCivic ? "Civic" : "Military")} deck is empty.");
-                return;
             }
-
-            int cardId = deck[_rng.Next(deck.Count)];
-            deck.Remove(cardId);
-            GameState.PlayerHands[player].Add(cardId);
-
-            Console.WriteLine($"{player} drew card {cardId} from {(isCivic ? "Civic" : "Military")} deck.");
         }
-
 
         public void PlayCard(string player, int cardId)
         {
-            if (!GameState.PlayerHands[player].Contains(cardId)) return;
+            // Delegate playing to CardService
+            bool cardPlayed = _cardService.PlayCard(_cardService.GetHand().FirstOrDefault(c => c.CardId == cardId));
 
-            GameState.PlayerHands[player].Remove(cardId);
+            if (cardPlayed)
+            {
+                GameState.PlayerBoard[player].Add(new BoardCard(cardId));
+            }
 
-            if (!GameState.PlayerBoard.ContainsKey(player))
-                GameState.PlayerBoard[player] = new List<BoardCard>(); // ensure it’s initialized
-
-            GameState.PlayerBoard[player].Add(new BoardCard(cardId)); // ✅ FIXED
         }
+
 
         private int ExtractCardId(string filename)
         {
