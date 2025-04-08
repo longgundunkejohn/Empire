@@ -27,7 +27,7 @@ namespace Empire.Server.Services
                 InitiativeHolder = player1Id,
                 PriorityPlayer = player1Id,
                 GameBoardState = new GameBoard(),
-                PlayerDecks = new Dictionary<string, List<Card>>(),
+                PlayerDecks = new Dictionary<string, List<Card>>(), // Changed to List<Card>
                 PlayerHands = new Dictionary<string, List<int>>
                 {
                     { player1Id, new List<int>() }
@@ -47,8 +47,8 @@ namespace Empire.Server.Services
                 MoveHistory = new List<GameMove>()
             };
 
-            //  The PlayerDecks dictionary now stores List<Card> directly
-            gameState.PlayerDecks[player1Id] = ConvertRawDeckToCardList(player1Deck);
+            //  Store the deck in the PlayerDecks dictionary
+            gameState.PlayerDecks[player1Id] = ConvertRawDeckToCardList(player1Deck); // Use the new method
 
             Console.WriteLine($"[CreateGame] Received name: '{player1Id}', deck: {player1Deck.Count} entries");
 
@@ -91,9 +91,12 @@ namespace Empire.Server.Services
                     if (!gameState.PlayerDecks.ContainsKey(player))
                     {
                         var joinMove = move as JoinGameMove;
-                        if (joinMove?.PlayerDeck != null && joinMove.PlayerDeck.Cards != null) // Add null check
+                        if (joinMove?.PlayerDeck != null)
                         {
-                            gameState.PlayerDecks[player] = joinMove.PlayerDeck.Cards; // Directly assign Cards
+                            // gameState.PlayerDecks[player] = joinMove.PlayerDeck;  //  This was incorrect
+                            //  We should be storing List<Card> here
+                            //gameState.PlayerDecks[player] = ConvertRawDeckToCardList(ConvertCardListToRawDeck(joinMove.PlayerDeck.Cards));
+                            gameState.PlayerDecks[player] = ConvertDeckIntsToCards(joinMove.PlayerDeck.CivicDeck, joinMove.PlayerDeck.MilitaryDeck);
                             gameState.PlayerHands[player] = new List<int>();
                             gameState.PlayerBoard[player] = new List<BoardCard>();
                             gameState.PlayerGraveyards[player] = new List<int>();
@@ -159,7 +162,8 @@ namespace Empire.Server.Services
                 return false;
 
             gameState.Player2 = player2Id;
-            gameState.PlayerDecks[player2Id] = player2Deck; // Store Card objects directly
+            //var rawDeck = ConvertCardListToRawDeck(player2Deck);
+            gameState.PlayerDecks[player2Id] = player2Deck; //  Use the new method
             gameState.PlayerHands[player2Id] = new List<int>();
             gameState.PlayerBoard[player2Id] = new List<BoardCard>();
             gameState.PlayerGraveyards[player2Id] = new List<int>();
@@ -168,7 +172,6 @@ namespace Empire.Server.Services
             await _gameCollection.ReplaceOneAsync(gs => gs.GameId == gameId, gameState);
             return true;
         }
-
         private List<Card> ConvertRawDeckToCardList(List<RawDeckEntry> rawDeck)
         {
             var cards = rawDeck
@@ -181,6 +184,21 @@ namespace Empire.Server.Services
                     entry.Count
                 ))
                 .ToList();
+
+            return cards;
+        }
+
+        private List<Card> ConvertDeckIntsToCards(List<int> civicIds, List<int> militaryIds)
+        {
+            var cards = new List<Card>();
+
+            // Fetch card details based on IDs (replace with your actual card retrieval logic)
+            //  This is a placeholder - you'll need to use your CardService or similar
+            var civicCards = civicIds.Select(id => new Card { CardId = id, Type = "Civic" }).ToList();
+            var militaryCards = militaryIds.Select(id => new Card { CardId = id, Type = "Military" }).ToList();
+
+            cards.AddRange(civicCards);
+            cards.AddRange(militaryCards);
 
             return cards;
         }

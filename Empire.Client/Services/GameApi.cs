@@ -102,7 +102,6 @@ public class GameApi
         return names ?? new List<string>();
     }
 
-
     public async Task<bool> JoinGame(string gameId, string playerId, List<int> civicDeck, List<int> militaryDeck)
     {
         try
