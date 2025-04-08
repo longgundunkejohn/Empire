@@ -8,7 +8,33 @@ using Microsoft.AspNetCore.Builder; // Add this
 
 var builder = WebApplication.CreateBuilder(args);
 
-// (Rest of Program.cs remains similar)
+// Add services to the container.
+builder.Services.AddSingleton<IMongoClient>(sp =>
+{
+    var configuration = sp.GetRequiredService<IConfiguration>();
+    var connectionString = configuration["MongoDB:ConnectionString"];
+    return new MongoClient(connectionString);
+});
+
+builder.Services.AddScoped<IMongoDbService, MongoDbService>();
+builder.Services.AddScoped<ICardDatabaseService, CardGameDatabaseService>();
+builder.Services.AddScoped<ICardService, CardService>();
+builder.Services.AddSingleton<GameSessionService>();
+builder.Services.AddSingleton<GameStateService>();
+builder.Services.AddSingleton<BoardService>();
+builder.Services.AddTransient<DeckLoaderService>();
+builder.Services.AddControllers(); // THIS LINE IS REQUIRED!
+builder.Services.AddSwaggerGen();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowEmpireClient",
+        builder =>
+        {
+            builder.WithOrigins("http://localhost:5173", "https://empirecardgame.com") // Allow your client's origin
+                   .AllowAnyHeader()
+                   .AllowAnyMethod();
+        });
+});
 
 var app = builder.Build(); // Add this back - VERY IMPORTANT!
 
