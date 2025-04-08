@@ -87,16 +87,20 @@ else
         var fileContent = new StreamContent(stream);
         fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");
 
-        content.Add(fileContent, "deckCsv", deckFile.Name);
+        content.Add(fileContent, "file", deckFile.Name); // ✅ must match the controller param
         content.Add(new StringContent(uploadName), "playerName");
 
         var response = await Http.PostAsync("api/prelobby/upload?playerName=" + uploadName, content);
         if (response.IsSuccessStatusCode)
         {
-            uploadedDeckOwners.Add(uploadName);
-            uploadName = "";
-            deckFile = null;
-            Console.WriteLine("✅ Deck uploaded.");
+            if (response.IsSuccessStatusCode)
+            {
+                uploadedDeckOwners = await GameApi.GetUploadedDeckNames(); // 🔁 refresh list
+                uploadName = "";
+                deckFile = null;
+                Console.WriteLine("✅ Deck uploaded.");
+            }
+
         }
         else
         {
