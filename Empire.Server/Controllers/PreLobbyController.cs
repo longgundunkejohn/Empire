@@ -41,14 +41,21 @@ namespace Empire.Server.Controllers
 
             var rawDeck = _deckLoader.ParseDeckFromCsv(stream);
 
-            // 🔥 Convert properly
+            // ✅ Convert to PlayerDeck before saving
             var playerDeck = _deckLoader.ConvertRawDeckToPlayerDeck(playerName, rawDeck);
 
-            // 🔥 Actually save the *converted* deck
+            // ✅ Double check something is there
+            if (!playerDeck.CivicDeck.Any() && !playerDeck.MilitaryDeck.Any())
+            {
+                return BadRequest("Parsed deck is empty.");
+            }
+
+            // ✅ Save properly
             await _deckService.SaveDeckAsync(playerDeck);
 
             return Ok(new { message = "Deck uploaded and saved.", count = rawDeck.Count });
         }
+
 
 
 

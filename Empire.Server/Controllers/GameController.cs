@@ -3,6 +3,7 @@ using Empire.Shared.Models.DTOs;
 using Empire.Shared.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace Empire.Server.Controllers
 {
@@ -13,13 +14,13 @@ namespace Empire.Server.Controllers
         private readonly GameSessionService _sessionService;
         private readonly GameStateService _gameStateService;
         private readonly DeckService _deckService;
-        private readonly ICardService _cardService; // ✅ Use the interface
+        private readonly ICardService _cardService;
 
         public GameController(
             GameSessionService sessionService,
             GameStateService gameStateService,
             DeckService deckService,
-            ICardService cardService) // ✅ Use interface for DI compatibility
+            ICardService cardService)
         {
             _sessionService = sessionService;
             _gameStateService = gameStateService;
@@ -33,7 +34,6 @@ namespace Empire.Server.Controllers
             var state = await _sessionService.GetGameState(gameId);
             if (state == null)
                 return NotFound("Game not found.");
-
             return Ok(state);
         }
 
@@ -65,7 +65,7 @@ namespace Empire.Server.Controllers
             // 🔥 Creates an empty deck in Mongo representation but initializes the game logic
             var gameId = await _sessionService.CreateGameSession(request.Player1, new List<RawDeckEntry>());
 
-            return Ok(gameId);
+            return Ok(gameId);  // Fixed return statement
         }
 
         [HttpPost("join/{gameId}/{playerId}")]
@@ -73,7 +73,7 @@ namespace Empire.Server.Controllers
         {
             var deck = await _deckService.GetDeckAsync(playerId);
 
-            if (deck == null || deck.Cards.Count == 0)
+            if (deck == null || deck.CivicDeck.Count == 0 && deck.MilitaryDeck.Count == 0)
                 return BadRequest("No deck found for this player.");
 
             var existingState = await _sessionService.GetGameState(gameId);
@@ -84,16 +84,15 @@ namespace Empire.Server.Controllers
             var fullCivicDeck = await _cardService.GetDeckCards(deck.CivicDeck);
             var fullMilitaryDeck = await _cardService.GetDeckCards(deck.MilitaryDeck);
 
-            // ✅ Use all cards (for now, combined)
-            deck.Cards = fullCivicDeck.Concat(fullMilitaryDeck).ToList();
+            // ✅ Combine both civic and military decks into the game state
+            deck.CivicDeck.AddRange(fullCivicDeck);
+            deck.MilitaryDeck.AddRange(fullMilitaryDeck);
 
-            // ✅ Init game state with raw IDs
+            // ✅ Initialize game state with raw IDs
             _gameStateService.InitializeGame(playerId, deck.CivicDeck, deck.MilitaryDeck);
 
-            // ✅ Here’s your answer:
-            // _sessionService.JoinGame expects a List<Card>
-            // Confirmed in GameSessionService.cs: JoinGame(string, string, List<Card>)
-            await _sessionService.JoinGame(gameId, playerId, deck.Cards);
+            // ✅ Use correct deck properties (CivicDeck + MilitaryDeck)
+            await _sessionService.JoinGame(gameId, playerId, deck.CivicDeck.Concat(deck.MilitaryDeck).ToList());
 
             return Ok(gameId);
         }
