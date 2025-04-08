@@ -9,7 +9,6 @@ using MongoDB.Driver;
 
 namespace Empire.Server.Controllers
 {
-
     [ApiController]
     [Route("api/prelobby")]
     public class PreLobbyController : ControllerBase
@@ -24,20 +23,21 @@ namespace Empire.Server.Controllers
             _deckService = deckService;
             _deckCollection = mongo.DeckDatabase.GetCollection<PlayerDeck>("PlayerDecks");
         }
+
         [HttpGet("decks")]
-public async Task<ActionResult<List<string>>> GetDeckOwners()
-{
-    var decks = await _deckCollection.Find(_ => true).ToListAsync();
-    return Ok(decks.Select(d => d.PlayerName).Distinct().ToList());
-}
+        public async Task<ActionResult<List<string>>> GetDeckOwners()
+        {
+            var decks = await _deckCollection.Find(_ => true).ToListAsync();
+            return Ok(decks.Select(d => d.PlayerName).Distinct().ToList());
+        }
 
         [HttpPost("upload")]
-        public async Task<IActionResult> UploadDeck([FromQuery] string playerName, IFormFile file)
+        public async Task<IActionResult> UploadDeck([FromQuery] string playerName, IFormFile deckCsv)
         {
-            if (string.IsNullOrWhiteSpace(playerName) || file == null || file.Length == 0)
+            if (string.IsNullOrWhiteSpace(playerName) || deckCsv == null || deckCsv.Length == 0)
                 return BadRequest("Player name and CSV file are required.");
 
-            using var stream = file.OpenReadStream();
+            using var stream = deckCsv.OpenReadStream();
             var rawDeck = _deckLoader.ParseDeckFromCsv(stream);
 
             await _deckService.SaveDeckAsync(playerName, rawDeck);

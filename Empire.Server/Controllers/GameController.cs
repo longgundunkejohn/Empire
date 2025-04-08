@@ -3,6 +3,7 @@ using Empire.Shared.DTOs;
 using Empire.Shared.Models;
 using Empire.Shared.Models.DTOs;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json; // Add this for JsonSerializerOptions
 
 namespace Empire.Server.Controllers
 {
@@ -35,7 +36,14 @@ namespace Empire.Server.Controllers
                 IsJoinable = string.IsNullOrEmpty(g.Player2)
             }).ToList();
 
-            return Ok(previews);
+            // Serialize the result to JSON with correct casing
+            var options = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase // Use camelCase
+            };
+            var json = JsonSerializer.Serialize(previews, options);
+
+            return Content(json, "application/json");
         }
 
         [HttpPost("create")]
@@ -52,7 +60,6 @@ namespace Empire.Server.Controllers
             var gameId = await _sessionService.CreateGameSession(request.Player1, new List<RawDeckEntry>());
             return Ok(gameId);
         }
-
 
 
         [HttpPost("join/{gameId}/{playerId}")]
