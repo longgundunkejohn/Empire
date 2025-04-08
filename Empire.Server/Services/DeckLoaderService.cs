@@ -32,14 +32,13 @@ namespace Empire.Server.Services
             _logger = logger;
             _cardDatabase = cardDatabase;
             _imagePath = Path.Combine(env.ContentRootPath, "wwwroot", "images", "Cards");
-
             _deckCollection = mongo.DeckDatabase.GetCollection<RawDeckEntry>("PlayerDecks");
 
             LoadImageMappings();
             _logger.LogInformation("DeckLoaderService initialized with {Count} image mappings.", CardDictionary.Count);
         }
 
-        // 👇 ✅ Called when user uploads a deck CSV (returns parsed deck only)
+        // ✅ Parse uploaded CSV into raw deck entries
         public List<RawDeckEntry> ParseDeckFromCsv(Stream csvStream)
         {
             using var reader = new StreamReader(csvStream);
@@ -52,7 +51,7 @@ namespace Empire.Server.Services
             return entries;
         }
 
-        // 👇 ✅ Converts parsed CSV deck to grouped `PlayerDeck` format
+        // ✅ Convert raw CSV entries into grouped PlayerDeck
         public PlayerDeck ConvertRawDeckToPlayerDeck(string playerName, List<RawDeckEntry> rawDeck)
         {
             var civicDeck = new List<int>();
@@ -60,40 +59,39 @@ namespace Empire.Server.Services
 
             foreach (var entry in rawDeck)
             {
+                var type = entry.DeckType?.Trim().ToLowerInvariant();
                 for (int i = 0; i < entry.Count; i++)
                 {
-                    if (entry.DeckType == "Civic")
+                    if (type == "civic")
                         civicDeck.Add(entry.CardId);
-                    else if (entry.DeckType == "Military")
+                    else if (type == "military")
                         militaryDeck.Add(entry.CardId);
+                    else
+                        _logger.LogWarning("Unknown deck type '{DeckType}' for card ID {CardId}", entry.DeckType, entry.CardId);
                 }
             }
 
+            _logger.LogInformation("Converted deck for {Player} — Civic: {CivicCount}, Military: {MilitaryCount}", playerName, civicDeck.Count, militaryDeck.Count);
             return new PlayerDeck(playerName, civicDeck, militaryDeck);
         }
 
-
-        // 👇 ✅ Optional: Store parsed deck in MongoDB for a player
+        // ✅ Store deck in MongoDB (clears old entries first)
         public void SaveDeckToDatabase(string player, List<RawDeckEntry> rawDeck)
         {
-            // Remove existing
             var filter = Builders<RawDeckEntry>.Filter.Eq("Player", player);
             _deckCollection.DeleteMany(filter);
 
-            // Re-insert with player tag
             foreach (var entry in rawDeck)
-                entry.DeckType = entry.DeckType.Trim(); // safety
-
-            _deckCollection.InsertMany(rawDeck.Select(entry =>
             {
-                entry.GetType().GetProperty("Player")?.SetValue(entry, player); // manually add Player field
-                return entry;
-            }));
+                entry.DeckType = entry.DeckType?.Trim();
+                entry.GetType().GetProperty("Player")?.SetValue(entry, player);
+            }
 
-            _logger.LogInformation("Saved deck for player {Player} with {Count} entries.", player, rawDeck.Count);
+            _deckCollection.InsertMany(rawDeck);
+            _logger.LogInformation("✅ Saved deck for player {Player} with {Count} entries.", player, rawDeck.Count);
         }
 
-        // 👇 ✅ Load deck from MongoDB (used by GameState logic)
+        // ✅ Load deck from MongoDB
         public PlayerDeck LoadDeck(string player)
         {
             var filter = Builders<RawDeckEntry>.Filter.Eq("Player", player);
@@ -101,18 +99,21 @@ namespace Empire.Server.Services
 
             if (!rawDeck.Any())
             {
-                _logger.LogWarning("No deck found in DB for player {Player}.", player);
+                _logger.LogWarning("❌ No deck found in DB for player {Player}.", player);
                 return new PlayerDeck();
             }
 
-            return ConvertRawDeckToPlayerDeck(player, rawDeck); // ✅ Pass both arguments
+            return ConvertRawDeckToPlayerDeck(player, rawDeck);
         }
 
-
-        // 👇 ✅ Image helper
+        // ✅ Load all card images into a dictionary: CardId => image path
         private void LoadImageMappings()
         {
-            if (!Directory.Exists(_imagePath)) return;
+            if (!Directory.Exists(_imagePath))
+            {
+                _logger.LogWarning("Card image folder not found: {Path}", _imagePath);
+                return;
+            }
 
             foreach (var file in Directory.GetFiles(_imagePath, "*.jpg"))
             {
@@ -125,6 +126,7 @@ namespace Empire.Server.Services
             }
         }
 
+        // ✅ Get image path from card ID
         public string GetImagePath(int cardId)
         {
             return CardDictionary.TryGetValue(cardId, out var path)
@@ -132,6 +134,7 @@ namespace Empire.Server.Services
                 : "images/Cards/placeholder.jpg";
         }
 
+        // ✅ Display-friendly name from file
         public string GetCardDisplayName(int cardId)
         {
             return CardDictionary.TryGetValue(cardId, out var fileName)
