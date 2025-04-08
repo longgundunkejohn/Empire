@@ -49,14 +49,8 @@ namespace Empire.Server.Controllers
                 IsJoinable = string.IsNullOrEmpty(g.Player2)
             }).ToList();
 
-            // Serialize the result to JSON with correct casing
-            var options = new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase // Use camelCase
-            };
-            var json = JsonSerializer.Serialize(previews, options);
+            return Ok(previews); // Let ASP.NET handle the JSON serialization
 
-            return Content(json, "application/json");
         }
 
         [HttpPost("create")]
