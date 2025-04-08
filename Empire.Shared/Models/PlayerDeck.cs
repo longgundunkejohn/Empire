@@ -10,7 +10,7 @@ namespace Empire.Shared.Models
     {
         [BsonId]
         [BsonRepresentation(BsonType.ObjectId)]
-        public string Id { get; set; } = string.Empty;
+        public string? Id { get; set; }
 
         [BsonElement("PlayerName")]
         public string PlayerName { get; set; } = string.Empty;
