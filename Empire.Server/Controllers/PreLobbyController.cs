@@ -32,7 +32,6 @@ namespace Empire.Server.Controllers
         }
 
         [HttpPost("upload")]
-        [HttpPost("upload")]
         public async Task<IActionResult> UploadDeck([FromQuery] string playerName, IFormFile file)
         {
             if (string.IsNullOrWhiteSpace(playerName) || file == null || file.Length == 0)

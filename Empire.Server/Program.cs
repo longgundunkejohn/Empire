@@ -29,7 +29,6 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 builder.Services.AddScoped<IMongoDbService, MongoDbService>();
 builder.Services.AddScoped<ICardDatabaseService, CardGameDatabaseService>();
 builder.Services.AddScoped<ICardService, CardService>();
-
 builder.Services.AddSingleton<GameSessionService>();
 builder.Services.AddSingleton<GameStateService>();
 builder.Services.AddSingleton<BoardService>();
