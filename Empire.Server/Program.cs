@@ -74,7 +74,6 @@ app.Use((context, next) =>
 });
 
 app.UseHttpsRedirection();
-app.UseBlazorFrameworkFiles();
 app.UseStaticFiles();
 app.UseRouting();
 app.UseCors("AllowEmpireClient");
