@@ -39,6 +39,7 @@ namespace Empire.Server.Controllers
         }
 
         [HttpPost("create")]
+        [HttpPost("create")]
         public async Task<ActionResult<string>> CreateGame([FromBody] GameStartRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.Player1))
@@ -47,7 +48,10 @@ namespace Empire.Server.Controllers
             var deck = await _deckService.GetDeckAsync(request.Player1);
 
             if (deck == null || deck.Count == 0)
+            {
+                Console.WriteLine($"🛑 No deck found for player: {request.Player1}");
                 return BadRequest("No deck found for this player.");
+            }
 
             var gameId = await _sessionService.CreateGameSession(request.Player1, deck);
 
@@ -58,6 +62,7 @@ namespace Empire.Server.Controllers
 
             return Ok(gameId);
         }
+
 
         [HttpPost("join/{gameId}/{playerId}")]
         public async Task<IActionResult> JoinGame(string gameId, string playerId)

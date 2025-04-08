@@ -1,6 +1,6 @@
 ﻿@page "/lobby"
-@inject NavigationManager Nav
 @inject HttpClient Http
+@inject NavigationManager Nav
 @using Microsoft.AspNetCore.Components.Forms
 @using Empire.Shared.DTOs
 
@@ -8,12 +8,22 @@
 
 <hr />
 <h3>Create Game</h3>
-<div>
-    <input placeholder="Your Name" @bind="createName" />
-    <InputFile OnChange="OnDeckUpload" accept=".csv" />
-    <button @onclick="UploadDeck">Upload Deck</button>
-    <button @onclick="CreateGame" disabled="@(!createUploaded)">Create Game</button>
-</div>
+
+<select @bind="createName">
+    <option disabled value="">-- Select Deck Owner --</option>
+    @foreach (var player in availableDecks)
+    {
+        <option>@player</option>
+    }
+</select>
+
+<button @onclick="CreateGame" disabled="@string.IsNullOrWhiteSpace(createName)">Create Game</button>
+
+<br />
+<br />
+<InputFile OnChange="OnDeckUpload" accept=".csv" />
+<input placeholder="New Deck Name" @bind="uploadName" />
+<button @onclick="UploadDeck">Upload New Deck</button>
 
 <hr />
 <h3>Open Games</h3>
@@ -38,7 +48,14 @@ else
                 {
                     @if (selectedGameId == g.GameId)
                     {
-                        <input placeholder="Your Name" @bind="joinName" />
+                        <select @bind="joinName">
+                            <option disabled value="">-- Pick a Deck --</option>
+                            @foreach (var player in availableDecks)
+                            {
+                                <option>@player</option>
+                            }
+                        </select>
+
                         <button @onclick="() => JoinGame(g.GameId)">Join Game</button>
                         <button @onclick="CancelJoin">Cancel</button>
                     }
@@ -58,49 +75,18 @@ else
 
 @code {
     private List<GamePreview>? games;
-    private IBrowserFile? deckFile;
-    private string createName = "";
-    private bool createUploaded = false;
+    private List<string> availableDecks = new();
+    private IBrowserFile? uploadedDeck;
 
+    private string createName = "";
+    private string uploadName = "";
     private string joinName = "";
     private string selectedGameId = "";
 
     protected override async Task OnInitializedAsync()
     {
         games = await Http.GetFromJsonAsync<List<GamePreview>>("/api/game/open");
-    }
-
-    private void OnDeckUpload(InputFileChangeEventArgs e)
-    {
-        deckFile = e.File;
-        createUploaded = false;
-    }
-
-    private async Task UploadDeck()
-    {
-        if (deckFile == null || string.IsNullOrWhiteSpace(createName)) return;
-
-        var content = new MultipartFormDataContent();
-        var stream = deckFile.OpenReadStream(10_000_000);
-        var fileContent = new StreamContent(stream);
-        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");
-
-        content.Add(fileContent, "file", deckFile.Name);
-
-        var result = await Http.PostAsync($"/api/prelobby/upload?playerName={Uri.EscapeDataString(createName)}", content);
-
-        if (result.IsSuccessStatusCode)
-        {
-            createUploaded = true;
-        }
-    }
-
-    private async Task CreateGame()
-    {
-        var request = new GameStartRequest { Player1 = createName };
-        var response = await Http.PostAsJsonAsync("/api/game/create", request);
-        var gameId = await response.Content.ReadAsStringAsync();
-        Nav.NavigateTo($"/game/{gameId}/{createName}");
+        availableDecks = await Http.GetFromJsonAsync<List<string>>("/api/prelobby/decks");
     }
 
     private void SelectGame(string gameId)
@@ -112,6 +98,42 @@ else
     {
         selectedGameId = "";
         joinName = "";
+    }
+
+    private void OnDeckUpload(InputFileChangeEventArgs e)
+    {
+        uploadedDeck = e.File;
+    }
+
+    private async Task UploadDeck()
+    {
+        if (uploadedDeck == null || string.IsNullOrWhiteSpace(uploadName)) return;
+
+        var content = new MultipartFormDataContent();
+        var stream = uploadedDeck.OpenReadStream(10_000_000);
+        var fileContent = new StreamContent(stream);
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");
+
+        content.Add(fileContent, "file", uploadedDeck.Name);
+
+        var result = await Http.PostAsync($"/api/prelobby/upload?playerName={Uri.EscapeDataString(uploadName)}", content);
+
+        if (result.IsSuccessStatusCode)
+        {
+            availableDecks.Add(uploadName);
+            uploadName = "";
+            uploadedDeck = null;
+        }
+    }
+
+    private async Task CreateGame()
+    {
+        if (string.IsNullOrWhiteSpace(createName)) return;
+
+        var request = new GameStartRequest { Player1 = createName };
+        var response = await Http.PostAsJsonAsync("/api/game/create", request);
+        var gameId = await response.Content.ReadAsStringAsync();
+        Nav.NavigateTo($"/game/{gameId}/{createName}");
     }
 
     private async Task JoinGame(string gameId)

@@ -53,24 +53,25 @@ namespace Empire.Server.Services
         }
 
         // 👇 ✅ Converts parsed CSV deck to grouped `PlayerDeck` format
-        public PlayerDeck ConvertRawDeckToPlayerDeck(List<RawDeckEntry> rawDeck)
+        public PlayerDeck ConvertRawDeckToPlayerDeck(string playerName, List<RawDeckEntry> rawDeck)
         {
-            var civic = new List<int>();
-            var military = new List<int>();
+            var civicDeck = new List<int>();
+            var militaryDeck = new List<int>();
 
             foreach (var entry in rawDeck)
             {
                 for (int i = 0; i < entry.Count; i++)
                 {
                     if (entry.DeckType == "Civic")
-                        civic.Add(entry.CardId);
+                        civicDeck.Add(entry.CardId);
                     else if (entry.DeckType == "Military")
-                        military.Add(entry.CardId);
+                        militaryDeck.Add(entry.CardId);
                 }
             }
 
-            return new PlayerDeck(civic, military);
+            return new PlayerDeck(playerName, civicDeck, militaryDeck);
         }
+
 
         // 👇 ✅ Optional: Store parsed deck in MongoDB for a player
         public void SaveDeckToDatabase(string player, List<RawDeckEntry> rawDeck)
@@ -104,8 +105,9 @@ namespace Empire.Server.Services
                 return new PlayerDeck();
             }
 
-            return ConvertRawDeckToPlayerDeck(rawDeck);
+            return ConvertRawDeckToPlayerDeck(player, rawDeck); // ✅ Pass both arguments
         }
+
 
         // 👇 ✅ Image helper
         private void LoadImageMappings()

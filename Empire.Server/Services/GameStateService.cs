@@ -20,7 +20,7 @@ namespace Empire.Server.Services
 
         public void InitializeGame(string playerId, List<int> civicDeck, List<int> militaryDeck)
         {
-            GameState.PlayerDecks[playerId] = new PlayerDeck(civicDeck, militaryDeck);
+            GameState.PlayerDecks[playerId] = new PlayerDeck(playerId, civicDeck, militaryDeck);
             GameState.PlayerHands[playerId] = new List<int>();
             GameState.PlayerBoard[playerId] = new List<BoardCard>();
             GameState.PlayerGraveyards[playerId] = new List<int>();
@@ -28,6 +28,7 @@ namespace Empire.Server.Services
 
             Console.WriteLine($"Initialized single-player deck for {playerId}. Civic: {civicDeck.Count}, Military: {militaryDeck.Count}");
         }
+
 
 
 
