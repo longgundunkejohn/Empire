@@ -93,7 +93,7 @@ public class GameApi
     }
     public async Task<List<string>> GetUploadedDeckNames()
     {
-        var response = await _http.GetAsync("api/prelobby/list");
+        var response = await _http.GetAsync("api/prelobby/decks");
 
         if (!response.IsSuccessStatusCode)
             return new List<string>();
@@ -101,6 +101,7 @@ public class GameApi
         var names = await response.Content.ReadFromJsonAsync<List<string>>();
         return names ?? new List<string>();
     }
+
 
     public async Task<bool> JoinGame(string gameId, string playerId, List<int> civicDeck, List<int> militaryDeck)
     {
