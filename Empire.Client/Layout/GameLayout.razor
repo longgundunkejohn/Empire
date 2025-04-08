@@ -1,100 +1,86 @@
 ﻿@using Empire.Shared.Models
-@inject GameApi GameApi
+@inject HttpClient Http
 
 <div class="game-layout">
-
-    <!-- Enemy Area -->
     <div class="enemy-zone">
-        <div class="enemy-hand">[Enemy Hand Placeholder]</div>
-        <div class="enemy-deck">[Enemy Deck Placeholder]</div>
+        <div>Enemy Hand</div>
+        <div>Enemy Deck</div>
     </div>
 
-    <!-- Board Area -->
     <div class="board-zone">
-        <h3>Board</h3>
-        <div class="board">
-            @foreach (var boardCard in game?.PlayerBoard.GetValueOrDefault(playerId) ?? new())
-            {
-                var card = allCards.FirstOrDefault(c => c.CardId == boardCard.CardId);
-                if (card != null)
+        <h4>Your Board</h4>
+        @if (GameState?.PlayerBoard.TryGetValue(PlayerId, out var boardCards) == true)
+        {
+            <div class="card-row">
+                @foreach (var boardCard in boardCards)
                 {
-                    <CardComponent Card="card" />
+                    var cardData = GetCardData(boardCard.CardId);
+                    if (cardData != null)
+                    {
+                        <div class="card" @onclick="() => RotateCard(boardCard)">
+                            <img src="@cardData.ImageFileName" alt="@cardData.Name"
+                                 class="card-image @(boardCard.IsExerted ? "exerted" : "")" />
+                            <div class="card-overlay">@cardData.Name</div>
+                        </div>
+                    }
                 }
-            }
-        </div>
+            </div>
+        }
     </div>
 
-    <!-- Player Area -->
     <div class="player-zone">
-        <div class="hand">
-            <HandComponent Hand="@handCards" OnCardSelected="PlayCard" />
-        </div>
+        <h4>Your Hand</h4>
+        @if (GameState?.PlayerHands.TryGetValue(PlayerId, out var handIds) == true)
+        {
+            <div class="card-row">
+                @foreach (var cardId in handIds)
+                {
+                    var cardData = GetCardData(cardId);
+                    if (cardData != null)
+                    {
+                        <div class="card" @onclick="() => PlayCard(cardId)">
+                            <img src="@cardData.ImageFileName" alt="@cardData.Name" class="card-image" />
+                            <div class="card-overlay">@cardData.Name</div>
+                        </div>
+                    }
+                }
+            </div>
+        }
+
         <div class="decks">
-            <DeckComponent DeckCount="@civicCount" OnDraw="DrawCivic" CardBackImage="images/Cards/civicCardback.png" />
-            <DeckComponent DeckCount="@militaryCount" OnDraw="DrawMilitary" CardBackImage="images/Cards/armyCardback.png" />
+            <div>Player Deck</div>
+            <div>Graveyard</div>
         </div>
     </div>
-
 </div>
 
 @code {
-    [Parameter] public string gameId { get; set; } = default!;
-    [Parameter] public string playerId { get; set; } = default!;
+    [Parameter]
+    public string PlayerId { get; set; }
 
-    private GameState? game;
-    private List<Card> handCards = new();
-    private List<Card> allCards = new();
-    private int civicCount;
-    private int militaryCount;
+    [Parameter]
+    public GameState? GameState { get; set; }
+
+    private List<CardData> allCards = new();
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadState();
+        allCards = await Http.GetFromJsonAsync<List<CardData>>("/api/card") ?? new List<CardData>();
     }
 
-    private async Task LoadState()
+    private CardData? GetCardData(int cardId)
     {
-        game = await GameApi.GetGameState(gameId, playerId);
-        if (game == null) return;
-
-        allCards = await GameApi.GetDeck(gameId, playerId);
-
-        foreach (var card in allCards)
-        {
-            string safeName = Sanitize(card.Name);
-            card.ImagePath = $"images/Cards/{card.CardId} - {safeName}.jpg";
-        }
-
-        var handIds = game.PlayerHands.GetValueOrDefault(playerId, new());
-        handCards = allCards.Where(c => handIds.Contains(c.CardId)).ToList();
-
-        civicCount = game.PlayerDecks[playerId].CivicDeck.Count;
-        militaryCount = game.PlayerDecks[playerId].MilitaryDeck.Count;
+        return allCards.FirstOrDefault(c => c.CardID == cardId);
     }
 
-    private string Sanitize(string? input)
+    private void RotateCard(BoardCard card)
     {
-        return System.Text.RegularExpressions.Regex.Replace(input ?? "", "[^a-zA-Z0-9 _-]", "");
+        card.Rotate(); // this toggles IsExerted
+        Console.WriteLine($"[Client] Rotated card {card.CardId} → {card.IsExerted}");
     }
 
-    private async Task DrawCivic()
+    private void PlayCard(int cardId)
     {
-        var move = new GameMove { PlayerId = playerId, MoveType = "DrawCivicCard" };
-        await GameApi.SubmitMove(gameId, move);
-        await LoadState();
-    }
-
-    private async Task DrawMilitary()
-    {
-        var move = new GameMove { PlayerId = playerId, MoveType = "DrawMilitaryCard" };
-        await GameApi.SubmitMove(gameId, move);
-        await LoadState();
-    }
-
-    private async Task PlayCard(Card card)
-    {
-        var move = new GameMove { PlayerId = playerId, MoveType = "PlayCard", CardId = card.CardId };
-        await GameApi.SubmitMove(gameId, move);
-        await LoadState();
+        Console.WriteLine($"[Client] Played card {cardId}");
     }
 }

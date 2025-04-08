@@ -1,0 +1,21 @@
+﻿@using Empire.Shared.Models
+@inject HttpClient Http
+
+<img src="@ImagePath" alt="Card @CardId" class="card-image" />
+
+@code {
+    [Parameter]
+    public int CardId { get; set; }
+
+    private string ImagePath = "images/Cards/placeholder.jpg";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var allCards = await Http.GetFromJsonAsync<List<CardData>>("/api/card"); // This uses your CardController
+        var match = allCards?.FirstOrDefault(c => c.CardID == CardId);
+        if (match != null)
+        {
+            ImagePath = match.ImageFileName ?? "images/Cards/placeholder.jpg";
+        }
+    }
+}

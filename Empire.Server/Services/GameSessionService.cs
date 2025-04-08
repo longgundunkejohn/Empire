@@ -27,7 +27,7 @@ namespace Empire.Server.Services
                 InitiativeHolder = player1Id,
                 PriorityPlayer = player1Id,
                 GameBoardState = new GameBoard(),
-                PlayerDecks = new Dictionary<string, PlayerDeck>(),
+                PlayerDecks = new Dictionary<string, List<Card>>(), // Changed to List<Card>
                 PlayerHands = new Dictionary<string, List<int>>
                 {
                     { player1Id, new List<int>() }
@@ -48,7 +48,7 @@ namespace Empire.Server.Services
             };
 
             //  Store the deck in the PlayerDecks dictionary
-            gameState.PlayerDecks[player1Id] = ConvertRawDeckToPlayerDeck(player1Deck);
+            gameState.PlayerDecks[player1Id] = ConvertRawDeckToCardList(player1Deck); // Use the new method
 
             Console.WriteLine($"[CreateGame] Received name: '{player1Id}', deck: {player1Deck.Count} entries");
 
@@ -93,19 +93,13 @@ namespace Empire.Server.Services
                         var joinMove = move as JoinGameMove;
                         if (joinMove?.PlayerDeck != null)
                         {
-                            gameState.PlayerDecks[player] = joinMove.PlayerDeck;
+                            // gameState.PlayerDecks[player] = joinMove.PlayerDeck;  //  This was incorrect
+                            //  We should be storing List<Card> here
+                            gameState.PlayerDecks[player] = ConvertRawDeckToCardList(ConvertCardListToRawDeck(joinMove.PlayerDeck.Cards));
                             gameState.PlayerHands[player] = new List<int>();
                             gameState.PlayerBoard[player] = new List<BoardCard>();
                             gameState.PlayerGraveyards[player] = new List<int>();
                             gameState.PlayerLifeTotals[player] = 25;
-
-                            // Error CS1061: 'GameState' does not contain a definition for 'Player2Deck'
-                            // This property needs to be added to the GameState model.
-                            // gameState.Player2Deck = joinMove.PlayerDeck.CivicDeck
-                            //     .Concat(joinMove.PlayerDeck.MilitaryDeck)
-                            //     .GroupBy(cardId => cardId) // Group by cardId (int)
-                            //     .Select(group => new RawDeckEntry { CardId = group.Key, Count = group.Count() }) // Use group.Key
-                            //     .ToList();
                         }
                     }
                     break;
@@ -135,6 +129,7 @@ namespace Empire.Server.Services
                 return new List<GameState>();
             }
         }
+
         private List<RawDeckEntry> ConvertCardListToRawDeck(List<Card> cards)
         {
             return cards
@@ -167,7 +162,7 @@ namespace Empire.Server.Services
 
             gameState.Player2 = player2Id;
             var rawDeck = ConvertCardListToRawDeck(player2Deck);
-            gameState.PlayerDecks[player2Id] = ConvertRawDeckToPlayerDeck(rawDeck);
+            gameState.PlayerDecks[player2Id] = ConvertRawDeckToCardList(rawDeck); //  Use the new method
             gameState.PlayerHands[player2Id] = new List<int>();
             gameState.PlayerBoard[player2Id] = new List<BoardCard>();
             gameState.PlayerGraveyards[player2Id] = new List<int>();
@@ -177,13 +172,17 @@ namespace Empire.Server.Services
             return true;
         }
 
-        private PlayerDeck ConvertRawDeckToPlayerDeck(List<RawDeckEntry> rawDeck)
+        private List<Card> ConvertRawDeckToCardList(List<RawDeckEntry> rawDeck)
         {
-            return new PlayerDeck
+            var cards = new List<Card>();
+            foreach (var entry in rawDeck)
             {
-                CivicDeck = rawDeck.Where(r => r.DeckType == "Civic").SelectMany(r => Enumerable.Repeat(r.CardId, r.Count)).ToList(),
-                MilitaryDeck = rawDeck.Where(r => r.DeckType == "Military").SelectMany(r => Enumerable.Repeat(r.CardId, r.Count)).ToList()
-            };
+                for (int i = 0; i < entry.Count; i++)
+                {
+                    cards.Add(new Card { CardId = entry.CardId, Type = entry.DeckType }); //  Only CardId and Type are needed
+                }
+            }
+            return cards;
         }
     }
 }

@@ -1,5 +1,7 @@
 ﻿using Empire.Shared.Models;
 using Empire.Server.Interfaces;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Empire.Server.Services
 {
@@ -20,7 +22,17 @@ namespace Empire.Server.Services
 
         public void InitializeGame(string playerId, List<int> civicDeck, List<int> militaryDeck)
         {
-            GameState.PlayerDecks[playerId] = new PlayerDeck(playerId, civicDeck, militaryDeck);
+            List<Card> cards = new List<Card>();
+            foreach (int cardId in civicDeck)
+            {
+                cards.Add(new Card { CardId = cardId, Type = "Civic" });
+            }
+            foreach (int cardId in militaryDeck)
+            {
+                cards.Add(new Card { CardId = cardId, Type = "Military" });
+            }
+
+            GameState.PlayerDecks[playerId] = cards;
             GameState.PlayerHands[playerId] = new List<int>();
             GameState.PlayerBoard[playerId] = new List<BoardCard>();
             GameState.PlayerGraveyards[playerId] = new List<int>();
@@ -28,9 +40,6 @@ namespace Empire.Server.Services
 
             Console.WriteLine($"Initialized single-player deck for {playerId}. Civic: {civicDeck.Count}, Military: {militaryDeck.Count}");
         }
-
-
-
 
         public void DrawCard(string player, bool isCivic)
         {

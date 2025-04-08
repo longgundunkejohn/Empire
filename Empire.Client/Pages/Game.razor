@@ -1,134 +1,51 @@
-﻿@page "/game/{gameId}/{playerId}"
-@using Empire.Shared.Models
-@inject GameApi GameApi
-@inject ILogger<Game> Logger
+﻿@using Empire.Shared.Models
+@using Empire.Shared.Models.Enums
 
-<div class="game-layout">
-    <h2>Your Life Total: @lifeTotal</h2>
-    <button @onclick="() => ModifyLife(1)">+1</button>
-    <button @onclick="() => ModifyLife(-1)">-1</button>
-    <button @onclick="UnexertAllCards">Unexert All</button>
+<div class="game-container">
+    <h3>@PlayerId's Game View</h3>
 
-    <section>
-        <h3>Your Hand</h3>
-        <HandComponent Hand="@handCards" OnCardSelected="PlayCard" />
-    </section>
-
-    <section>
-        <h3>Your Deck</h3>
-        <div class="decks">
-            <DeckComponent DeckCount="@civicCount" OnDraw="DrawCivic" CardBackImage="images/Cards/civicCardback.png" />
-            <DeckComponent DeckCount="@militaryCount" OnDraw="DrawMilitary" CardBackImage="images/Cards/armyCardback.png" />
-        </div>
-    </section>
-
-    <section>
-        <h3>Your Board</h3>
-        <div class="board">
-            @foreach (var boardCard in game?.PlayerBoard.GetValueOrDefault(playerId) ?? Enumerable.Empty<BoardCard>())
-            {
-                var card = allCards.FirstOrDefault(c => c.CardId == boardCard.CardId);
-                if (card != null)
+    <section class="board-area">
+        <h4>Your Board</h4>
+        @if (PlayerBoard != null && PlayerBoard.Any())
+        {
+            <div class="card-row">
+                @foreach (var card in PlayerBoard)
                 {
-                    <picture>
-                        <source srcset="@($"images/Cards/{Sanitize(card.CardId)}-{Sanitize(card.Name)}.png")" type="image/png" />
-                        <source srcset="@($"images/Cards/{Sanitize(card.CardId)}-{Sanitize(card.Name)}.jpg")" type="image/jpeg" />
-                        <img src="images/Cards/defaultCardback.png" class="card" />
-                    </picture>
+                    <CardImage CardId="@card.CardId" />
                 }
-            }
-        </div>
+            </div>
+        }
+        else
+        {
+            <p>No cards on board.</p>
+        }
+    </section>
+
+    <section class="hand-area">
+        <h4>Your Hand</h4>
+        @if (PlayerHand != null && PlayerHand.Any())
+        {
+            <div class="card-row">
+                @foreach (var card in PlayerHand)
+                {
+                    <CardImage CardId="@card" />
+                }
+            </div>
+        }
+        else
+        {
+            <p>Your hand is empty.</p>
+        }
     </section>
 </div>
 
 @code {
-    [Parameter] public string gameId { get; set; } = default!;
-    [Parameter] public string playerId { get; set; } = default!;
+    [Parameter]
+    public GameState GameState { get; set; }
 
-    private GameState? game;
-    private List<Card> allCards = new();
-    private List<Card> handCards = new();
-    private int civicCount;
-    private int militaryCount;
-    private int lifeTotal = 25;
+    [Parameter]
+    public string PlayerId { get; set; }
 
-    protected override async Task OnInitializedAsync() => await LoadState();
-    protected override async Task OnParametersSetAsync() => await LoadState();
-
-    private async Task LoadState()
-    {
-        Logger.LogInformation("Loading game state for GameId: {GameId}, PlayerId: {PlayerId}", gameId, playerId);
-
-        game = await GameApi.GetGameState(gameId, playerId);
-        if (game == null)
-        {
-            Logger.LogWarning("Game state returned null!");
-            return;
-        }
-        foreach (var card in allCards)
-        {
-            string safeName = Sanitize(card.Name);
-            card.ImagePath = $"images/Cards/{card.CardId}-{safeName}.jpg";
-            Console.WriteLine($"Card: {card.Name}, ImagePath: {card.ImagePath}");
-        }
-
-        allCards = await GameApi.GetDeck(gameId, playerId);
-        Logger.LogInformation("Fetched {CardCount} cards from deck", allCards.Count);
-
-        foreach (var card in allCards)
-        {
-            string safeName = Sanitize(card.Name);
-            card.ImagePath = $"images/Cards/{card.CardId}-{safeName}.jpg";
-        }
-
-        if (game.PlayerLifeTotals.TryGetValue(playerId, out var hp))
-            lifeTotal = hp;
-
-        var handIds = game.PlayerHands.GetValueOrDefault(playerId, new());
-        handCards = allCards.Where(c => handIds.Contains(c.CardId)).ToList();
-        Logger.LogInformation("Hand contains {HandCount} cards", handCards.Count);
-
-        civicCount = game.PlayerDecks[playerId].CivicDeck.Count;
-        militaryCount = game.PlayerDecks[playerId].MilitaryDeck.Count;
-        Logger.LogInformation("Deck counts - Civic: {Civic}, Military: {Military}", civicCount, militaryCount);
-    }
-
-
-    private string Sanitize(object? input)
-    {
-        string raw = input?.ToString() ?? "";
-        return System.Text.RegularExpressions.Regex.Replace(raw, @"[^a-zA-Z0-9_-]", "");
-    }
-
-    private async Task UnexertAllCards()
-    {
-        await SubmitMove("UnexertAll");
-    }
-
-    private async Task ModifyLife(int amount)
-    {
-        await SubmitMove(amount > 0 ? "GainLife" : "LoseLife", Math.Abs(amount));
-    }
-
-    private async Task DrawCivic() => await SubmitMove("DrawCivicCard");
-    private async Task DrawMilitary() => await SubmitMove("DrawMilitaryCard");
-
-    private async Task PlayCard(Card card)
-    {
-        await SubmitMove("PlayCard", cardId: card.CardId);
-    }
-
-    private async Task SubmitMove(string moveType, int value = 0, int cardId = 0)
-    {
-        var move = new GameMove
-        {
-            PlayerId = playerId,
-            MoveType = moveType,
-            Value = value,
-            CardId = cardId
-        };
-
-        await GameApi.SubmitMove(gameId, move);
-        await LoadState();
-    }
+    private List<BoardCard> PlayerBoard => GameState.PlayerBoard.GetValueOrDefault(PlayerId) ?? new();
+    private List<int> PlayerHand => GameState.PlayerHands.GetValueOrDefault(PlayerId) ?? new();
 }

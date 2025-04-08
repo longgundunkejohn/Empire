@@ -24,7 +24,8 @@ namespace Empire.Shared.Models
         public Dictionary<string, List<BoardCard>> PlayerBoard { get; set; } = new();
 
         public Dictionary<string, List<int>> PlayerHands { get; set; } = new();
-        public Dictionary<string, PlayerDeck> PlayerDecks { get; set; } = new();
+        // Change PlayerDecks to store List<Card>
+        public Dictionary<string, List<Card>> PlayerDecks { get; set; } = new();
         public Dictionary<string, List<int>> PlayerGraveyards { get; set; } = new();
 
         public List<GameMove> MoveHistory { get; set; } = new();

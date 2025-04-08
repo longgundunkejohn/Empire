@@ -17,6 +17,7 @@ namespace Empire.Server.Controllers
         private readonly DeckService _deckService;
         private readonly CardService _cardService; // Add CardService
 
+
         public GameController(
             GameSessionService sessionService,
             GameStateService gameStateService,
@@ -27,6 +28,14 @@ namespace Empire.Server.Controllers
             _gameStateService = gameStateService;
             _deckService = deckService;
             _cardService = cardService; // Initialize CardService
+        }
+        [HttpGet("{gameId}/state")]
+        public async Task<IActionResult> GetGameState(string gameId)
+        {
+            var state = await _sessionService.GetGameState(gameId);
+            if (state == null)
+                return NotFound("Game not found.");
+            return Ok(state);
         }
 
         [HttpGet("open")]
@@ -71,7 +80,8 @@ namespace Empire.Server.Controllers
         {
             var deck = await _deckService.GetDeckAsync(playerId);
 
-            if (deck.Count == 0) // ✅ if deck is List<T>
+            //  Corrected line: Use the Count property, not a method call
+            if (deck.Cards.Count == 0)
                 return BadRequest("No deck found for this player.");
 
             var existingState = await _sessionService.GetGameState(gameId);
