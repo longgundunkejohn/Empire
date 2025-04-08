@@ -8,7 +8,6 @@ namespace Empire.Server.Parsing
         public RawDeckEntryMap()
         {
             Map(m => m.CardId).Name("Card ID");
-            Map(m => m.CardName).Name("Card Name");
             Map(m => m.Count).Name("Count");
         }
     }

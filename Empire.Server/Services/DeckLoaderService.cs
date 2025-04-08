@@ -47,7 +47,7 @@ namespace Empire.Server.Services
                 TrimOptions = TrimOptions.Trim,
             });
 
-            csv.Read(); // Read the header row
+            csv.Read();
             csv.ReadHeader();
 
             while (csv.Read())
@@ -55,7 +55,6 @@ namespace Empire.Server.Services
                 string cardIdString = csv.GetField("Card ID");
                 string countString = csv.GetField("Count");
 
-                // Trim the countString to remove leading/trailing whitespace
                 countString = countString.Trim();
 
                 if (!int.TryParse(cardIdString, out int cardId))
@@ -70,8 +69,8 @@ namespace Empire.Server.Services
                     continue;
                 }
 
-                var cardName = csv.GetField("Card Name");
-
+                // Card name is no longer read from CSV
+                // var cardName = csv.GetField("Card Name");
 
                 var target = IsCivicCard(cardId) ? civic : military;
                 for (int i = 0; i < count; i++)
@@ -79,7 +78,7 @@ namespace Empire.Server.Services
                     target.Add(cardId);
                 }
 
-                _logger.LogInformation("Parsed card {CardId} ({CardName}) x{Count}", cardId, cardName, count);
+                _logger.LogInformation("Parsed card {CardId} x{Count}", cardId, count);
             }
 
             _logger.LogInformation("Final CivicDeck: {CivicDeck}", string.Join(", ", civic));

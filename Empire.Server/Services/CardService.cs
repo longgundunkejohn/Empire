@@ -38,10 +38,11 @@ namespace Empire.Server.Services
             if (!fullDeck.Any())
             {
                 _logger.LogWarning("CardService initialized with an empty deck.");
-                _deck = new Deck(new List<Card>()); // allow empty deck
+                _deck = new Deck(new List<Card>());
                 return;
             }
 
+            _deck = new Deck(fullDeck);
         }
 
         // ✅ Core Getters
