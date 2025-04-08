@@ -39,14 +39,17 @@ namespace Empire.Server.Controllers
 
             using var stream = file.OpenReadStream();
 
-            var rawDeck = _deckLoader.ParseDeckFromCsv(stream); // This returns List<RawDeckEntry>
+            var rawDeck = _deckLoader.ParseDeckFromCsv(stream);
 
-            var playerDeck = _deckLoader.ConvertRawDeckToPlayerDeck(playerName, rawDeck); // Converts it to PlayerDeck
+            // 🔥 Convert properly
+            var playerDeck = _deckLoader.ConvertRawDeckToPlayerDeck(playerName, rawDeck);
 
-            await _deckService.SaveDeckAsync(playerDeck); // Saves PlayerDeck
+            // 🔥 Actually save the *converted* deck
+            await _deckService.SaveDeckAsync(playerDeck);
 
             return Ok(new { message = "Deck uploaded and saved.", count = rawDeck.Count });
         }
+
 
 
         [HttpGet("hasdeck/{playerName}")]

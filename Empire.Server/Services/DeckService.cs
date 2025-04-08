@@ -25,16 +25,16 @@
         // Save final deck for the player
         public async Task SaveDeckAsync(PlayerDeck deck)
         {
-            if (string.IsNullOrEmpty(deck.Id)) // Check if Id is missing
-            {
-                deck.Id = ObjectId.GenerateNewId().ToString(); // Generate a new ObjectId
-            }
-
+            // Just upsert based on PlayerName, no need to touch .Id
             var filter = Builders<PlayerDeck>.Filter.Eq(d => d.PlayerName, deck.PlayerName);
             await _deckCollection.ReplaceOneAsync(filter, deck, new ReplaceOptions { IsUpsert = true });
 
-            _logger.LogInformation("✅ Saved deck for player {PlayerName}.", deck.PlayerName);
+            _logger.LogInformation("✅ Saved deck for player {PlayerName}. Civic: {CivicCount}, Military: {MilitaryCount}",
+                deck.PlayerName,
+                deck.CivicDeck?.Count ?? 0,
+                deck.MilitaryDeck?.Count ?? 0);
         }
+
 
         // Get the final deck for the player
         public async Task<PlayerDeck> GetDeckAsync(string playerName)
