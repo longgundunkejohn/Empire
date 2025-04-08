@@ -22,6 +22,7 @@ builder.Services.AddSingleton<IMongoClient>(sp =>
     return new MongoClient(config["MongoDB:ConnectionString"]);
 });
 
+builder.Services.AddSingleton<DeckService>();
 builder.Services.AddScoped<IMongoDbService, MongoDbService>();
 builder.Services.AddScoped<ICardDatabaseService, CardGameDatabaseService>();
 builder.Services.AddScoped<ICardService, CardService>();
