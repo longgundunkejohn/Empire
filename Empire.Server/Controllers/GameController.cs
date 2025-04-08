@@ -1,7 +1,7 @@
 ﻿//  File: Empire.Server/Controllers/GameController.cs
 using Empire.Server.Services;
 using Empire.Shared.Models.DTOs;
-using Empire.Shared.Models;
+using Empire.Shared.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using System.Linq; // Import Linq for .Where()
@@ -71,7 +71,7 @@ namespace Empire.Server.Controllers
         {
             var deck = await _deckService.GetDeckAsync(playerId);
 
-            if (deck == null || deck.Count == 0)
+            if (deck.Count == 0) // ✅ if deck is List<T>
                 return BadRequest("No deck found for this player.");
 
             var existingState = await _sessionService.GetGameState(gameId);

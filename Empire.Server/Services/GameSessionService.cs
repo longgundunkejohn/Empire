@@ -135,6 +135,28 @@ namespace Empire.Server.Services
                 return new List<GameState>();
             }
         }
+        private List<RawDeckEntry> ConvertCardListToRawDeck(List<Card> cards)
+        {
+            return cards
+                .GroupBy(c => c.CardId)
+                .Select(g => new RawDeckEntry
+                {
+                    CardId = g.Key,
+                    Count = g.Count(),
+                    DeckType = InferDeckType(g.First())
+                })
+                .ToList();
+        }
+
+        private string InferDeckType(Card card)
+        {
+            return card.Type.ToLower() switch
+            {
+                "villager" => "Civic",
+                "settlement" => "Civic",
+                _ => "Military"
+            };
+        }
 
         public async Task<bool> JoinGame(string gameId, string player2Id, List<Card> player2Deck)
         {
@@ -144,7 +166,8 @@ namespace Empire.Server.Services
                 return false;
 
             gameState.Player2 = player2Id;
-            gameState.PlayerDecks[player2Id] = ConvertRawDeckToPlayerDeck(player2Deck); // Store Player 2's deck
+            var rawDeck = ConvertCardListToRawDeck(player2Deck);
+            gameState.PlayerDecks[player2Id] = ConvertRawDeckToPlayerDeck(rawDeck);
             gameState.PlayerHands[player2Id] = new List<int>();
             gameState.PlayerBoard[player2Id] = new List<BoardCard>();
             gameState.PlayerGraveyards[player2Id] = new List<int>();
