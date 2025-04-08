@@ -136,7 +136,7 @@ namespace Empire.Server.Services
             }
         }
 
-        public async Task<bool> JoinGame(string gameId, string player2Id, List<RawDeckEntry> player2Deck)
+        public async Task<bool> JoinGame(string gameId, string player2Id, List<Card> player2Deck)
         {
             var gameState = await _gameCollection.Find(gs => gs.GameId == gameId).FirstOrDefaultAsync();
 
