@@ -4,14 +4,25 @@
 <div class="game-container">
     <h3>@PlayerId's Game View</h3>
 
+    <!-- ─────── BOARD AREA ─────── -->
     <section class="board-area">
         <h4>Your Board</h4>
-        @if (PlayerBoard != null && PlayerBoard.Any())
+        @if (PlayerBoard.Any())
         {
             <div class="card-row">
                 @foreach (var card in PlayerBoard)
                 {
-                    <CardImage CardId="@card.CardId" />
+                    <div class="card-slot">
+                        <CardImage CardId="@card.CardId" />
+                        @if (card.IsExerted)
+                        {
+                            <div class="card-status">🌀 Exerted</div>
+                        }
+                        @if (card.Damage > 0)
+                        {
+                            <div class="card-status">❤️ -@card.Damage</div>
+                        }
+                    </div>
                 }
             </div>
         }
@@ -21,14 +32,17 @@
         }
     </section>
 
+    <!-- ─────── HAND AREA ─────── -->
     <section class="hand-area">
         <h4>Your Hand</h4>
-        @if (PlayerHand != null && PlayerHand.Any())
+        @if (PlayerHand.Any())
         {
             <div class="card-row">
-                @foreach (var card in PlayerHand)
+                @foreach (var cardId in PlayerHand)
                 {
-                    <CardImage CardId="@card" />
+                    <div class="card-slot">
+                        <CardImage CardId="@cardId" />
+                    </div>
                 }
             </div>
         }

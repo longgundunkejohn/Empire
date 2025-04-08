@@ -171,18 +171,21 @@ namespace Empire.Server.Services
             await _gameCollection.ReplaceOneAsync(gs => gs.GameId == gameId, gameState);
             return true;
         }
-
         private List<Card> ConvertRawDeckToCardList(List<RawDeckEntry> rawDeck)
         {
-            var cards = new List<Card>();
-            foreach (var entry in rawDeck)
-            {
-                for (int i = 0; i < entry.Count; i++)
-                {
-                    cards.Add(new Card { CardId = entry.CardId, Type = entry.DeckType }); //  Only CardId and Type are needed
-                }
-            }
+            var cards = rawDeck
+                .SelectMany(entry => Enumerable.Repeat(
+                    new Card
+                    {
+                        CardId = entry.CardId,
+                        Type = entry.DeckType
+                    },
+                    entry.Count
+                ))
+                .ToList();
+
             return cards;
         }
+
     }
 }
