@@ -15,6 +15,12 @@ builder.Services.AddSingleton<IMongoClient>(sp =>
     var config = sp.GetRequiredService<IConfiguration>();
     return new MongoClient(config["MongoDB:ConnectionString"]);
 });
+builder.Services.AddSingleton<IMongoDatabase>(sp =>
+{
+    var client = sp.GetRequiredService<IMongoClient>();
+    var config = sp.GetRequiredService<IConfiguration>();
+    return client.GetDatabase(config["MongoDB:DatabaseName"]);
+});
 
 builder.Services.AddScoped<IMongoDbService, MongoDbService>();
 builder.Services.AddScoped<ICardDatabaseService, CardGameDatabaseService>();

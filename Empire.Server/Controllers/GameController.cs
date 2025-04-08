@@ -45,7 +45,6 @@ namespace Empire.Server.Controllers
 
             return Content(json, "application/json");
         }
-
         [HttpPost("create")]
         public async Task<ActionResult<string>> CreateGame([FromBody] GameStartRequest request)
         {
@@ -60,7 +59,6 @@ namespace Empire.Server.Controllers
             var gameId = await _sessionService.CreateGameSession(request.Player1, new List<RawDeckEntry>());
             return Ok(gameId);
         }
-
 
         [HttpPost("join/{gameId}/{playerId}")]
         public async Task<IActionResult> JoinGame(string gameId, string playerId)
