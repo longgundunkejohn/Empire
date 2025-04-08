@@ -1,7 +1,7 @@
-﻿using Empire.Server.Services;
+﻿//  File: Empire.Server/Controllers/GameController.cs
+using Empire.Server.Services;
 using Empire.Shared.Models.DTOs;
 using Empire.Shared.Models;
-using Empire.Shared.Models.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using System.Linq; // Import Linq for .Where()
@@ -15,15 +15,18 @@ namespace Empire.Server.Controllers
         private readonly GameSessionService _sessionService;
         private readonly GameStateService _gameStateService;
         private readonly DeckService _deckService;
+        private readonly CardService _cardService; // Add CardService
 
         public GameController(
             GameSessionService sessionService,
             GameStateService gameStateService,
-            DeckService deckService)
+            DeckService deckService,
+            CardService cardService) // Inject CardService
         {
             _sessionService = sessionService;
             _gameStateService = gameStateService;
             _deckService = deckService;
+            _cardService = cardService; // Initialize CardService
         }
 
         [HttpGet("open")]
@@ -75,14 +78,22 @@ namespace Empire.Server.Controllers
             if (existingState == null)
                 return NotFound("Game not found.");
 
-            // Here we break the deck into Civic and Military sections
-            var civicDeck = deck.Where(d => d.DeckType == "Civic").Select(d => d.CardId).ToList();
-            var militaryDeck = deck.Where(d => d.DeckType == "Military").Select(d => d.CardId).ToList();
+            // Fetch the full Card objects
+            var fullCivicDeck = await _cardService.GetDeckCards(deck.CivicDeck);
+            var fullMilitaryDeck = await _cardService.GetDeckCards(deck.MilitaryDeck);
+
+            // Populate the PlayerDeck.Cards property
+            deck.Cards.AddRange(fullCivicDeck);
+            deck.Cards.AddRange(fullMilitaryDeck);
 
             // Initialize the game with the player's deck
-            _gameStateService.InitializeGame(playerId, civicDeck, militaryDeck);
+            _gameStateService.InitializeGame(playerId, deck.CivicDeck, deck.MilitaryDeck); //  Adjust GameStateService if needed
 
-            await _sessionService.JoinGame(gameId, playerId, deck);
+            //  IMPORTANT QUESTION:
+            //  What does _sessionService.JoinGame expect as the third parameter?
+            //  Currently, it's List<RawDeckEntry>.  Does it need to be changed to List<Card>?
+            //  I will proceed assuming it needs to be changed to List<Card> for now.
+            await _sessionService.JoinGame(gameId, playerId, deck.Cards);
 
             return Ok(gameId);
         }
