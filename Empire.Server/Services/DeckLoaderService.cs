@@ -47,6 +47,11 @@ namespace Empire.Server.Services
                 TrimOptions = TrimOptions.Trim,
             });
 
+            // Log the raw CSV stream (if feasible - be mindful of size!)
+            //string rawCsv = reader.ReadToEnd();
+            //_logger.LogInformation("Raw CSV data:\n{RawCsv}", rawCsv);
+            //csvStream.Position = 0; // Reset stream position after reading
+
             csv.Read();
             csv.ReadHeader();
 
@@ -57,17 +62,23 @@ namespace Empire.Server.Services
 
                 countString = countString.Trim();
 
+                _logger.LogDebug("Processing Card ID: {CardIdString}, Count: {CountString}", cardIdString, countString);
+
+
                 if (!int.TryParse(cardIdString, out int cardId))
                 {
-                    _logger.LogError("Invalid CardId: {CardId}", cardIdString);
+                    _logger.LogError("Invalid CardId: {CardIdString}", cardIdString);
                     continue;
                 }
 
                 if (!int.TryParse(countString, out int count))
                 {
-                    _logger.LogError("Invalid Count: {Count}", countString);
+                    _logger.LogError("Invalid Count: {CountString}", countString);
                     continue;
                 }
+
+                _logger.LogDebug("Parsed Card ID: {CardId}, Count: {Count}", cardId, count);
+
 
                 // Card name is no longer read from CSV
                 // var cardName = csv.GetField("Card Name");
@@ -76,6 +87,7 @@ namespace Empire.Server.Services
                 for (int i = 0; i < count; i++)
                 {
                     target.Add(cardId);
+                    _logger.LogDebug("Added Card ID {CardId} to {Target} deck", cardId, IsCivicCard(cardId) ? "Civic" : "Military");
                 }
 
                 _logger.LogInformation("Parsed card {CardId} x{Count}", cardId, count);

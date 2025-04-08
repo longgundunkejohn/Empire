@@ -2,5 +2,5 @@
 
 public class JoinGameMove : GameMove
 {
-    public PlayerDeck PlayerDeck { get; set; }
+    public PlayerDeck PlayzxcverDeck { get; set; }
 }
