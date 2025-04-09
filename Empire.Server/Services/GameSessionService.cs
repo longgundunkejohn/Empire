@@ -19,15 +19,21 @@ namespace Empire.Server.Services
 
         public async Task<string> CreateGameSession(string player1Id, List<RawDeckEntry> player1Deck)
         {
+            var fullDeck = ConvertRawDeckToCardList(player1Deck);
+
             var gameState = new GameState
             {
                 GameId = Guid.NewGuid().ToString(),
                 Player1 = player1Id,
+                Player2 = null,
+                InitiativeHolder = Random.Shared.Next(2) == 0 ? player1Id : null,
+                PriorityPlayer = null,
                 CurrentPhase = GamePhase.Strategy,
-                InitiativeHolder = player1Id,
-                PriorityPlayer = player1Id,
                 GameBoardState = new GameBoard(),
-                PlayerDecks = new Dictionary<string, List<Card>>(), // Changed to List<Card>
+                PlayerDecks = new Dictionary<string, List<Card>>
+                {
+                    { player1Id, fullDeck }
+                },
                 PlayerHands = new Dictionary<string, List<int>>
                 {
                     { player1Id, new List<int>() }
@@ -46,9 +52,6 @@ namespace Empire.Server.Services
                 },
                 MoveHistory = new List<GameMove>()
             };
-
-            //  Store the deck in the PlayerDecks dictionary
-            gameState.PlayerDecks[player1Id] = ConvertRawDeckToCardList(player1Deck); // Use the new method
 
             Console.WriteLine($"[CreateGame] Received name: '{player1Id}', deck: {player1Deck.Count} entries");
 
@@ -78,7 +81,7 @@ namespace Empire.Server.Services
 
         private bool ValidateMove(GameState gameState, GameMove move)
         {
-            return true; // Simplified for now, custom rules can go here
+            return true;
         }
 
         private void ProcessMove(GameState gameState, GameMove move)
@@ -93,19 +96,21 @@ namespace Empire.Server.Services
                         var joinMove = move as JoinGameMove;
                         if (joinMove?.PlayerDeck != null)
                         {
-                            // gameState.PlayerDecks[player] = joinMove.PlayerDeck;  //  This was incorrect
-                            //  We should be storing List<Card> here
-                            //gameState.PlayerDecks[player] = ConvertRawDeckToCardList(ConvertCardListToRawDeck(joinMove.PlayerDeck.Cards));
                             gameState.PlayerDecks[player] = ConvertDeckIntsToCards(joinMove.PlayerDeck.CivicDeck, joinMove.PlayerDeck.MilitaryDeck);
                             gameState.PlayerHands[player] = new List<int>();
                             gameState.PlayerBoard[player] = new List<BoardCard>();
                             gameState.PlayerGraveyards[player] = new List<int>();
                             gameState.PlayerLifeTotals[player] = 25;
+
+                            if (string.IsNullOrEmpty(gameState.InitiativeHolder))
+                            {
+                                gameState.InitiativeHolder = Random.Shared.Next(2) == 0 ? gameState.Player1 : player;
+                            }
+
+                            gameState.Player2 = player;
                         }
                     }
                     break;
-
-                    // (Rest of ProcessMove remains similar)
             }
 
             gameState.MoveHistory.Add(move);
@@ -162,45 +167,39 @@ namespace Empire.Server.Services
                 return false;
 
             gameState.Player2 = player2Id;
-            //var rawDeck = ConvertCardListToRawDeck(player2Deck);
-            gameState.PlayerDecks[player2Id] = player2Deck; //  Use the new method
+            gameState.PlayerDecks[player2Id] = player2Deck;
             gameState.PlayerHands[player2Id] = new List<int>();
             gameState.PlayerBoard[player2Id] = new List<BoardCard>();
             gameState.PlayerGraveyards[player2Id] = new List<int>();
             gameState.PlayerLifeTotals[player2Id] = 25;
 
+            if (string.IsNullOrEmpty(gameState.InitiativeHolder))
+            {
+                gameState.InitiativeHolder = Random.Shared.Next(2) == 0 ? gameState.Player1 : player2Id;
+            }
+
             await _gameCollection.ReplaceOneAsync(gs => gs.GameId == gameId, gameState);
             return true;
         }
+
         private List<Card> ConvertRawDeckToCardList(List<RawDeckEntry> rawDeck)
         {
-            var cards = rawDeck
+            return rawDeck
                 .SelectMany(entry => Enumerable.Repeat(
                     new Card
                     {
                         CardId = entry.CardId,
                         Type = entry.DeckType
                     },
-                    entry.Count
-                ))
+                    entry.Count))
                 .ToList();
-
-            return cards;
         }
 
         private List<Card> ConvertDeckIntsToCards(List<int> civicIds, List<int> militaryIds)
         {
-            var cards = new List<Card>();
-
-            // Fetch card details based on IDs (replace with your actual card retrieval logic)
-            //  This is a placeholder - you'll need to use your CardService or similar
             var civicCards = civicIds.Select(id => new Card { CardId = id, Type = "Civic" }).ToList();
             var militaryCards = militaryIds.Select(id => new Card { CardId = id, Type = "Military" }).ToList();
-
-            cards.AddRange(civicCards);
-            cards.AddRange(militaryCards);
-
-            return cards;
+            return civicCards.Concat(militaryCards).ToList();
         }
     }
 }
