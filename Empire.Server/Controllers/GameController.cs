@@ -28,19 +28,16 @@ namespace Empire.Server.Controllers
             _deckService = deckService;
             _cardService = cardService;
         }
-
-        [HttpGet("state/{gameId}/{playerId}")]
-        public async Task<IActionResult> GetGameState(string gameId, string playerId)
+        [HttpGet("state/{gameId}")]
+        public async Task<IActionResult> GetGameState(string gameId)
         {
             var state = await _sessionService.GetGameState(gameId);
             if (state == null)
                 return NotFound("Game not found.");
 
-            // Optional: log this
-            Console.WriteLine($"✅ Retrieved state for game {gameId}, player {playerId}");
-
             return Ok(state);
         }
+
 
 
         [HttpGet("open")]
