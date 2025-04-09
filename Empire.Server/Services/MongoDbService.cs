@@ -12,20 +12,22 @@ namespace Empire.Server.Services
 
         public MongoDbService(IConfiguration config)
         {
-            var localConn = config.GetSection("MongoDB:ConnectionString").Value;
-            var localDbName = config.GetSection("MongoDB:DatabaseName").Value;
+            var gameConn = config["MongoDB:ConnectionString"];
+            var gameDbName = config["MongoDB:DatabaseName"];
 
-            var atlasConn = config.GetSection("CardDB:ConnectionString").Value;
-            var atlasDbName = config.GetSection("CardDB:DatabaseName").Value;
+            var deckConn = config["DeckDB:ConnectionString"];
+            var deckDbName = config["DeckDB:DatabaseName"];
 
-            var deckDbName = "gamedeck"; // Or "playerdeck", choose your name
+            var atlasConn = config["CardDB:ConnectionString"];
+            var atlasDbName = config["CardDB:DatabaseName"];
 
-            var localClient = new MongoClient(localConn);
+            var gameClient = new MongoClient(gameConn);
+            var deckClient = new MongoClient(deckConn);
             var atlasClient = new MongoClient(atlasConn);
 
-            GameDatabase = localClient.GetDatabase(localDbName);
+            GameDatabase = gameClient.GetDatabase(gameDbName);
+            DeckDatabase = deckClient.GetDatabase(deckDbName);
             CardDatabase = atlasClient.GetDatabase(atlasDbName);
-            DeckDatabase = localClient.GetDatabase(deckDbName); // Initialize DeckDatabase
         }
     }
 }
