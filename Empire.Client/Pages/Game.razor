@@ -1,65 +1,78 @@
-﻿@using Empire.Shared.Models
+﻿@page "/game/{gameId}/{playerId}"
+@using Empire.Shared.Models
 @using Empire.Shared.Models.Enums
+@inject GameApi GameApi
 
-<div class="game-container">
-    <h3>@PlayerId's Game View</h3>
+@if (gameState == null)
+{
+    <p>Loading game data for <strong>@playerId</strong>...</p>
+}
+else
+{
+    <div class="game-container">
+        <h3>@playerId's Game View</h3>
 
-    <!-- ─────── BOARD AREA ─────── -->
-    <section class="board-area">
-        <h4>Your Board</h4>
-        @if (PlayerBoard.Any())
-        {
-            <div class="card-row">
-                @foreach (var card in PlayerBoard)
-                {
-                    <div class="card-slot">
-                        <CardImage CardId="@card.CardId" />
-                        @if (card.IsExerted)
-                        {
-                            <div class="card-status">🌀 Exerted</div>
-                        }
-                        @if (card.Damage > 0)
-                        {
-                            <div class="card-status">❤️ -@card.Damage</div>
-                        }
-                    </div>
-                }
-            </div>
-        }
-        else
-        {
-            <p>No cards on board.</p>
-        }
-    </section>
+        <!-- ─────── BOARD AREA ─────── -->
+        <section class="board-area">
+            <h4>Your Board</h4>
+            @if (PlayerBoard.Any())
+            {
+                <div class="card-row">
+                    @foreach (var card in PlayerBoard)
+                    {
+                        <div class="card-slot">
+                            <CardImage CardId="@card.CardId" />
+                            @if (card.IsExerted)
+                            {
+                                <div class="card-status">🌀 Exerted</div>
+                            }
+                            @if (card.Damage > 0)
+                            {
+                                <div class="card-status">❤️ -@card.Damage</div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p>No cards on board.</p>
+            }
+        </section>
 
-    <!-- ─────── HAND AREA ─────── -->
-    <section class="hand-area">
-        <h4>Your Hand</h4>
-        @if (PlayerHand.Any())
-        {
-            <div class="card-row">
-                @foreach (var cardId in PlayerHand)
-                {
-                    <div class="card-slot">
-                        <CardImage CardId="@cardId" />
-                    </div>
-                }
-            </div>
-        }
-        else
-        {
-            <p>Your hand is empty.</p>
-        }
-    </section>
-</div>
+        <!-- ─────── HAND AREA ─────── -->
+        <section class="hand-area">
+            <h4>Your Hand</h4>
+            @if (PlayerHand.Any())
+            {
+                <div class="card-row">
+                    @foreach (var cardId in PlayerHand)
+                    {
+                        <div class="card-slot">
+                            <CardImage CardId="@cardId" />
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p>Your hand is empty.</p>
+            }
+        </section>
+    </div>
+}
 
 @code {
-    [Parameter]
-    public GameState GameState { get; set; }
+    [Parameter] public string gameId { get; set; } = string.Empty;
+    [Parameter] public string playerId { get; set; } = string.Empty;
 
-    [Parameter]
-    public string PlayerId { get; set; }
+    private GameState? gameState;
 
-    private List<BoardCard> PlayerBoard => GameState.PlayerBoard.GetValueOrDefault(PlayerId) ?? new();
-    private List<int> PlayerHand => GameState.PlayerHands.GetValueOrDefault(PlayerId) ?? new();
+    private List<BoardCard> PlayerBoard => gameState?.PlayerBoard.GetValueOrDefault(playerId) ?? new();
+    private List<int> PlayerHand => gameState?.PlayerHands.GetValueOrDefault(playerId) ?? new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        gameState = await GameApi.GetGameState(gameId, playerId);
+    }
 }
