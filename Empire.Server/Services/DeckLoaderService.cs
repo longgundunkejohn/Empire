@@ -60,6 +60,16 @@ namespace Empire.Server.Services
             foreach (var entry in rawDeck)
             {
                 var type = entry.DeckType?.Trim().ToLowerInvariant();
+
+                if (string.IsNullOrWhiteSpace(type))
+                {
+                    // 🧠 Infer from CardId
+                    if (IsCivicCard(entry.CardId))
+                        type = "civic";
+                    else
+                        type = "military";
+                }
+
                 for (int i = 0; i < entry.Count; i++)
                 {
                     if (type == "civic")
@@ -71,9 +81,18 @@ namespace Empire.Server.Services
                 }
             }
 
-            _logger.LogInformation("Converted deck for {Player} — Civic: {CivicCount}, Military: {MilitaryCount}", playerName, civicDeck.Count, militaryDeck.Count);
+            _logger.LogInformation("Converted deck for {Player} — Civic: {CivicCount}, Military: {MilitaryCount}",
+                playerName, civicDeck.Count, militaryDeck.Count);
+
             return new PlayerDeck(playerName, civicDeck, militaryDeck);
         }
+
+        private bool IsCivicCard(int cardId)
+        {
+            var idStr = cardId.ToString();
+            return idStr.StartsWith("18") || idStr.StartsWith("19") || idStr.StartsWith("11148") || idStr.StartsWith("119");
+        }
+
 
         // ✅ Store deck in MongoDB (clears old entries first)
         public void SaveDeckToDatabase(string player, List<RawDeckEntry> rawDeck)
