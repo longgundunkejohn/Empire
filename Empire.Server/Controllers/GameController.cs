@@ -1,10 +1,12 @@
-﻿using Empire.Server.Services;
+﻿// Empire.Server/Controllers/GameController.cs
+using Empire.Server.Services;
 using Empire.Shared.Models.DTOs;
 using Empire.Shared.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using System.Linq;
 using System.Collections.Generic;
 using Empire.Shared.Models;
+using System;
 
 namespace Empire.Server.Controllers
 {
@@ -29,13 +31,26 @@ namespace Empire.Server.Controllers
             _cardService = cardService;
         }
 
-        [HttpGet("{gameId}/state")]
-        public async Task<IActionResult> GetGameState(string gameId)
+        [HttpGet("state/{gameId}/{playerId}")]
+        public async Task<IActionResult> GetGameState(string gameId, string playerId)
         {
-            var state = await _sessionService.GetGameState(gameId);
-            if (state == null)
-                return NotFound("Game not found.");
-            return Ok(state);
+            try
+            {
+                var state = await _sessionService.GetGameState(gameId);
+                if (state == null)
+                    return NotFound("Game not found.");
+
+                // Optional: log this
+                Console.WriteLine($"✅ Retrieved state for game {gameId}, player {playerId}");
+
+                return Ok(state);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error in GetGameState: {ex.Message}");
+                Console.WriteLine(ex.StackTrace); // Log the stack trace
+                return StatusCode(500, "Internal Server Error");
+            }
         }
 
         [HttpGet("open")]
