@@ -2,6 +2,7 @@
 @using Empire.Shared.Models
 @using Empire.Shared.Models.Enums
 @inject GameApi GameApi
+@page "/game/{gameId}/{playerId}"
 
 @if (gameState == null)
 {
@@ -73,6 +74,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        gameState = await GameApi.GetGameState(gameId, playerId);
+        gameState = await GameApi.GetGameState(gameId); // 🔥 only gameId
     }
 }
+

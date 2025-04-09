@@ -50,6 +50,30 @@ public class GameApi
         }
     }
 
+    public async Task<List<string>> GetUploadedDeckNames()
+    {
+        var response = await _http.GetAsync("api/prelobby/decks");
+
+        if (!response.IsSuccessStatusCode)
+            return new List<string>();
+
+        var names = await response.Content.ReadFromJsonAsync<List<string>>();
+        return names ?? new List<string>();
+    }
+
+    public async Task<GameState?> GetGameState(string gameId)
+    {
+        try
+        {
+            return await _http.GetFromJsonAsync<GameState>($"api/game/{gameId}/state", _jsonOptions);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[GameApi] ❌ GetGameState() error: {ex.Message}");
+            return null;
+        }
+    }
+
     public async Task<List<Card>> GetDeck(string gameId, string playerId)
     {
         try
@@ -77,29 +101,6 @@ public class GameApi
             Console.WriteLine($"[GameApi] ❌ Unexpected error in GetDeck: {ex.Message}");
             return new();
         }
-    }
-
-    public async Task<GameState?> GetGameState(string gameId, string playerId)
-    {
-        try
-        {
-            return await _http.GetFromJsonAsync<GameState>($"api/game/state/{gameId}/{playerId}", _jsonOptions);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[GameApi] ❌ GetGameState() error: {ex.Message}");
-            return null;
-        }
-    }
-    public async Task<List<string>> GetUploadedDeckNames()
-    {
-        var response = await _http.GetAsync("api/prelobby/decks");
-
-        if (!response.IsSuccessStatusCode)
-            return new List<string>();
-
-        var names = await response.Content.ReadFromJsonAsync<List<string>>();
-        return names ?? new List<string>();
     }
 
     public async Task<bool> JoinGame(string gameId, string playerId, List<int> civicDeck, List<int> militaryDeck)
@@ -148,13 +149,14 @@ public class GameApi
         }
     }
 
-    public async Task<string?> CreateGame(string player1, List<RawDeckEntry> player1Deck)
+    public async Task<string?> CreateGame(string player1, string deckName)
     {
         try
         {
             var request = new GameStartRequest
             {
                 Player1 = player1,
+                DeckName = deckName
             };
 
             var response = await _http.PostAsJsonAsync("api/game/create", request);
@@ -163,7 +165,7 @@ public class GameApi
             {
                 var error = await response.Content.ReadAsStringAsync();
                 Console.WriteLine($"[GameApi] ❌ CreateGame failed: {response.StatusCode} - {error}");
-                return null; // Or throw an exception if you prefer
+                return null;
             }
 
             var gameId = await response.Content.ReadAsStringAsync();
@@ -172,7 +174,7 @@ public class GameApi
         catch (Exception ex)
         {
             Console.WriteLine($"[GameApi] ❌ CreateGame() error: {ex.Message}");
-            return null; // Or throw an exception
+            return null;
         }
     }
 }
