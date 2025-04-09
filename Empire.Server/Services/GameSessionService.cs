@@ -1,4 +1,5 @@
-﻿using Empire.Shared.Models;
+﻿using Empire.Server.Interfaces;
+using Empire.Shared.Models;
 using Empire.Shared.Models.DTOs;
 using MongoDB.Driver;
 using System.Collections.Generic;
@@ -12,9 +13,9 @@ namespace Empire.Server.Services
 
         public GameState? GameState { get; private set; }
 
-        public GameSessionService(IMongoDatabase database)
+        public GameSessionService(IMongoDbService mongo)
         {
-            _gameCollection = database.GetCollection<GameState>("GameSessions");
+            _gameCollection = mongo.GameDatabase.GetCollection<GameState>("GameSessions");
         }
 
         public async Task<string> CreateGameSession(string player1Id, List<RawDeckEntry> player1Deck)
