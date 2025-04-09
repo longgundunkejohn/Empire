@@ -58,25 +58,36 @@ namespace Empire.Server.Controllers
             if (string.IsNullOrWhiteSpace(request.Player1))
                 return BadRequest("Player1 is required.");
 
-            var deckLoader = HttpContext.RequestServices.GetRequiredService<DeckLoaderService>();
             var deck = await _deckService.GetDeckAsync(request.DeckName);
             if (deck == null || (!deck.CivicDeck.Any() && !deck.MilitaryDeck.Any()))
                 return BadRequest("No deck found with that name.");
 
             var fullCivicDeck = await _cardService.GetDeckCards(deck.CivicDeck);
             var fullMilitaryDeck = await _cardService.GetDeckCards(deck.MilitaryDeck);
+            var fullDeck = fullCivicDeck.Concat(fullMilitaryDeck).ToList();
 
+            var rawDeck = fullDeck
+                .GroupBy(card => card.CardId)
+                .Select(g => new RawDeckEntry
+                {
+                    CardId = g.Key,
+                    Count = g.Count(),
+                    DeckType = InferDeckType(g.First())
+                }).ToList();
 
-            // Extract card IDs instead of passing full Card objects
-            var civicCardIds = fullCivicDeck.Select(card => card.CardId).ToList();
-            var militaryCardIds = fullMilitaryDeck.Select(card => card.CardId).ToList();
+            var gameId = await _sessionService.CreateGameSession(request.Player1, rawDeck);
 
-            _gameStateService.InitializeGame(request.Player1, civicCardIds, militaryCardIds);
+            return Ok(gameId);
+        }
 
-            // 🔥 Creates an empty deck in Mongo representation but initializes the game logic
-            var gameId = await _sessionService.CreateGameSession(request.Player1, new List<RawDeckEntry>());
-
-            return Ok(gameId);  // Fixed return statement
+        private string InferDeckType(Card card)
+        {
+            return card.Type.ToLower() switch
+            {
+                "villager" => "Civic",
+                "settlement" => "Civic",
+                _ => "Military"
+            };
         }
 
         [HttpPost("join/{gameId}/{playerId}")]
