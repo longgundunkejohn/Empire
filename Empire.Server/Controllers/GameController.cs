@@ -59,10 +59,13 @@ namespace Empire.Server.Controllers
                 return BadRequest("Player1 is required.");
 
             var deckLoader = HttpContext.RequestServices.GetRequiredService<DeckLoaderService>();
-            var playerDeck = deckLoader.LoadDeck(request.DeckOwner);
+            var deck = await _deckService.GetDeckAsync(request.DeckName);
+            if (deck == null || (!deck.CivicDeck.Any() && !deck.MilitaryDeck.Any()))
+                return BadRequest("No deck found with that name.");
 
-            var fullCivicDeck = await _cardService.GetDeckCards(playerDeck.CivicDeck);
-            var fullMilitaryDeck = await _cardService.GetDeckCards(playerDeck.MilitaryDeck);
+            var fullCivicDeck = await _cardService.GetDeckCards(deck.CivicDeck);
+            var fullMilitaryDeck = await _cardService.GetDeckCards(deck.MilitaryDeck);
+
 
             // Extract card IDs instead of passing full Card objects
             var civicCardIds = fullCivicDeck.Select(card => card.CardId).ToList();
