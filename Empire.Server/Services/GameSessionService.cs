@@ -19,6 +19,7 @@ namespace Empire.Server.Services
             _gameCollection = database.GetCollection<GameState>("GameSessions");
             _cardFactory = cardFactory;
         }
+        
 
         public async Task<string> CreateGameSession(string player1Id, List<RawDeckEntry> player1Deck)
         {
@@ -99,6 +100,27 @@ namespace Empire.Server.Services
             }
 
             gameState.MoveHistory.Add(move);
+        }
+        public async Task<bool> JoinGame(string gameId, string playerId, List<Card> deck)
+        {
+            var gameState = await _gameCollection.Find(gs => gs.GameId == gameId).FirstOrDefaultAsync();
+            if (gameState == null || !string.IsNullOrEmpty(gameState.Player2))
+                return false;
+
+            gameState.Player2 = playerId;
+            gameState.PlayerDecks[playerId] = deck;
+            gameState.PlayerHands[playerId] = new List<int>();
+            gameState.PlayerBoard[playerId] = new List<BoardCard>();
+            gameState.PlayerGraveyards[playerId] = new List<int>();
+            gameState.PlayerLifeTotals[playerId] = 25;
+
+            if (string.IsNullOrEmpty(gameState.InitiativeHolder))
+            {
+                gameState.InitiativeHolder = Random.Shared.Next(2) == 0 ? gameState.Player1 : playerId;
+            }
+
+            await _gameCollection.ReplaceOneAsync(gs => gs.GameId == gameId, gameState);
+            return true;
         }
 
         public async Task<List<GameState>> ListOpenGames()
