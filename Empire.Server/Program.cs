@@ -33,24 +33,17 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 // ✅ Core game services
 builder.Services.AddScoped<IMongoDbService, MongoDbService>();
 builder.Services.AddScoped<ICardDatabaseService, CardGameDatabaseService>();
-
-// 🧠 CardService holds card definitions from DeckLoader → make it singleton
-builder.Services.AddSingleton<ICardService, CardService>();
+builder.Services.AddSingleton<ICardService, CardService>(); // CardService holds card definitions in memory
 
 // ✅ Game logic services — thread-safe, shared with per-game state dictionaries
 builder.Services.AddSingleton<GameSessionService>();
 builder.Services.AddSingleton<GameStateService>();
 builder.Services.AddSingleton<BoardService>();
 builder.Services.AddSingleton<DeckService>();
-
-// 🧠 DeckLoader should be singleton — it parses static files/data once
 builder.Services.AddSingleton<DeckLoaderService>();
+builder.Services.AddSingleton<CardFactory>(); // ✅ Add this to hydrate cards from Atlas
 
-// ✅ Optional: caching (if you want to add MemoryCache in services like DeckLoader)
-builder.Services.AddMemoryCache();
-
-// ✅ Swagger & Controllers
-builder.Services.AddControllers();
+builder.Services.AddMemoryCache(); // Optional caching
 builder.Services.AddSwaggerGen();
 
 // ✅ CORS
@@ -84,7 +77,7 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 });
 
-// ✅ Force domain name in dev prod parity
+// ✅ Force domain name in prod
 app.Use((context, next) =>
 {
     context.Request.Host = new HostString("empirecardgame.com");

@@ -15,7 +15,7 @@ namespace Empire.Server.Services
 
         public Task<Card?> CreateCardFromIdAsync(int id)
         {
-            var data = _cardDb.GetAllCards().FirstOrDefault(c => c.CardID == id);
+            var data = _cardDb.GetCardById(id.ToString());
             return Task.FromResult(data != null ? new Card(data) : null);
         }
 
@@ -23,7 +23,7 @@ namespace Empire.Server.Services
         {
             var cardDataList = _cardDb.GetAllCards();
 
-            // Group by CardID and take the first for each to avoid duplicate key issues
+            // Group by CardID and take the first to avoid dupes
             var cardLookup = cardDataList
                 .GroupBy(c => c.CardID)
                 .ToDictionary(g => g.Key, g => g.First());
@@ -36,6 +36,10 @@ namespace Empire.Server.Services
                 {
                     for (int i = 0; i < count; i++)
                         result.Add(new Card(data));
+                }
+                else
+                {
+                    Console.WriteLine($"⚠️ Card ID {id} not found in database.");
                 }
             }
 
