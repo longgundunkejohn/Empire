@@ -1,14 +1,12 @@
 ﻿using CsvHelper.Configuration;
 using Empire.Shared.Models.DTOs;
 
-namespace Empire.Server.Parsing
+public class RawDeckEntryMap : ClassMap<RawDeckEntry>
 {
-    public class RawDeckEntryMap : ClassMap<RawDeckEntry>
+    public RawDeckEntryMap()
     {
-        public RawDeckEntryMap()
-        {
-            Map(m => m.CardId).Name("Card ID");
-            Map(m => m.Count).Name("Count");
-        }
+        Map(m => m.CardId).Name("Card ID");
+        Map(m => m.Count).Name("Count");
+        Map(m => m.DeckType).Name("Deck Type"); // ✅ <-- this was missing!
     }
 }
