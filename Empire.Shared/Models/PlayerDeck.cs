@@ -4,8 +4,9 @@ using MongoDB.Bson.Serialization.Attributes;
 public class PlayerDeck
 {
     [BsonId]
-    [BsonRepresentation(BsonType.ObjectId)] // Let Mongo handle this
-    public string? Id { get; set; }
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string Id { get; set; } = ObjectId.GenerateNewId().ToString();
+
 
     public string PlayerName { get; set; } = string.Empty;
 
