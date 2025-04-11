@@ -5,29 +5,36 @@ using Microsoft.AspNetCore.Mvc;
 using System.Linq;
 using System.Collections.Generic;
 using Empire.Shared.Models;
+using MongoDB.Driver;
+using Empire.Server.Interfaces;
 
 namespace Empire.Server.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+
     public class GameController : ControllerBase
     {
         private readonly GameSessionService _sessionService;
         private readonly GameStateService _gameStateService;
         private readonly DeckService _deckService;
         private readonly ICardService _cardService;
+        private readonly IMongoCollection<PlayerDeck> _deckCollection;
 
         public GameController(
             GameSessionService sessionService,
             GameStateService gameStateService,
             DeckService deckService,
-            ICardService cardService)
+            ICardService cardService,
+            IMongoDbService mongo) // 👈 add this param
         {
             _sessionService = sessionService;
             _gameStateService = gameStateService;
             _deckService = deckService;
             _cardService = cardService;
+            _deckCollection = mongo.DeckDatabase.GetCollection<PlayerDeck>("PlayerDecks"); // 👈 set it here
         }
+
 
         [HttpGet("{gameId}/state")]
         public async Task<IActionResult> GetGameState(string gameId)
@@ -53,32 +60,33 @@ namespace Empire.Server.Controllers
             return Ok(previews);
         }
 
-        [HttpPost("create")]
-        public async Task<ActionResult<string>> CreateGame([FromBody] GameStartRequest request)
+[HttpPost("create")]
+public async Task<ActionResult<string>> CreateGame([FromBody] GameStartRequest request)
+{
+    if (string.IsNullOrWhiteSpace(request.Player1))
+        return BadRequest("Player1 is required.");
+
+    var deck = await _deckCollection.Find(d => d.Id == request.DeckId).FirstOrDefaultAsync();
+    if (deck == null || (!deck.CivicDeck.Any() && !deck.MilitaryDeck.Any()))
+        return BadRequest("Invalid or missing deck.");
+
+    var fullCivicDeck = await _cardService.GetDeckCards(deck.CivicDeck);
+    var fullMilitaryDeck = await _cardService.GetDeckCards(deck.MilitaryDeck);
+    var fullDeck = fullCivicDeck.Concat(fullMilitaryDeck).ToList();
+
+    var rawDeck = fullDeck
+        .GroupBy(card => card.CardId)
+        .Select(g => new RawDeckEntry
         {
-            if (string.IsNullOrWhiteSpace(request.Player1))
-                return BadRequest("Player1 is required.");
+            CardId = g.Key,
+            Count = g.Count(),
+            DeckType = InferDeckType(g.First())
+        }).ToList();
 
-            var deck = await _deckService.GetDeckAsync(request.DeckName);
-            if (deck == null || (!deck.CivicDeck.Any() && !deck.MilitaryDeck.Any()))
-                return BadRequest("No deck found with that name.");
+    var gameId = await _sessionService.CreateGameSession(request.Player1, rawDeck);
+    return Ok(gameId);
+}
 
-            var fullCivicDeck = await _cardService.GetDeckCards(deck.CivicDeck);
-            var fullMilitaryDeck = await _cardService.GetDeckCards(deck.MilitaryDeck);
-            var fullDeck = fullCivicDeck.Concat(fullMilitaryDeck).ToList();
-
-            var rawDeck = fullDeck
-                .GroupBy(card => card.CardId)
-                .Select(g => new RawDeckEntry
-                {
-                    CardId = g.Key,
-                    Count = g.Count(),
-                    DeckType = InferDeckType(g.First())
-                }).ToList();
-
-            var gameId = await _sessionService.CreateGameSession(request.Player1, rawDeck);
-            return Ok(gameId);
-        }
 
         private string InferDeckType(Card card)
         {

@@ -25,36 +25,41 @@ namespace Empire.Server.Controllers
         }
 
         [HttpGet("decks")]
-        public async Task<ActionResult<List<string>>> GetDeckOwners()
+        public async Task<ActionResult<List<PlayerDeck>>> GetAllDecks()
         {
             var decks = await _deckCollection.Find(_ => true).ToListAsync();
-            return Ok(decks.Select(d => d.PlayerName).Distinct().ToList());
+            return Ok(decks);
+        }
+        [HttpGet("decks/{playerName}")]
+        public async Task<ActionResult<List<PlayerDeck>>> GetDecksForPlayer(string playerName)
+        {
+            var filter = Builders<PlayerDeck>.Filter.Eq(d => d.PlayerName, playerName);
+            var decks = await _deckCollection.Find(filter).ToListAsync();
+            return Ok(decks);
         }
 
+
         [HttpPost("upload")]
-        public async Task<IActionResult> UploadDeck([FromQuery] string playerName, IFormFile file)
+        [HttpPost("upload")]
+        public async Task<IActionResult> UploadDeck([FromQuery] string playerName, [FromQuery] string? deckName, IFormFile file)
         {
             if (string.IsNullOrWhiteSpace(playerName) || file == null || file.Length == 0)
                 return BadRequest("Player name and CSV file are required.");
 
             using var stream = file.OpenReadStream();
-
             var rawDeck = _deckLoader.ParseDeckFromCsv(stream);
 
-            // ✅ Convert to PlayerDeck before saving
-            var playerDeck = _deckLoader.ConvertRawDeckToPlayerDeck(playerName, rawDeck);
-
-            // ✅ Double check something is there
-            if (!playerDeck.CivicDeck.Any() && !playerDeck.MilitaryDeck.Any())
-            {
+            if (!rawDeck.Any())
                 return BadRequest("Parsed deck is empty.");
-            }
 
-            // ✅ Save properly
-            await _deckService.SaveDeckAsync(playerDeck);
+            var playerDeck = _deckLoader.ConvertRawDeckToPlayerDeck(playerName, rawDeck);
+            playerDeck.DeckName = string.IsNullOrWhiteSpace(deckName) ? "Untitled" : deckName;
 
-            return Ok(new { message = "Deck uploaded and saved.", count = rawDeck.Count });
+            await _deckCollection.InsertOneAsync(playerDeck);
+
+            return Ok(new { message = "Deck uploaded and saved.", deckId = playerDeck.Id });
         }
+
 
 
 

@@ -156,8 +156,9 @@ public class GameApi
             var request = new GameStartRequest
             {
                 Player1 = player1,
-                DeckName = deckName
+                DeckId = deckName
             };
+
 
             var response = await _http.PostAsJsonAsync("api/game/create", request);
 

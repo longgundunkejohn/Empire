@@ -119,8 +119,10 @@ else
         var gameStart = new GameStartRequest
             {
                 Player1 = createPlayerName,
-                DeckName = selectedDeckOwner // or selectedDeckName
+                DeckId = selectedDeckOwner
             };
+
+
 
 
         var response = await Http.PostAsJsonAsync("api/game/create", gameStart);
