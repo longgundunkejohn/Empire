@@ -7,6 +7,8 @@ public class RawDeckEntryMap : ClassMap<RawDeckEntry>
     {
         Map(m => m.CardId).Name("Card ID");
         Map(m => m.Count).Name("Count");
-        Map(m => m.DeckType).Name("Deck Type"); // ✅ <-- this was missing!
+
+        // Make this optional: if not found, leave null
+        Map(m => m.DeckType).Optional().Name("Deck Type");
     }
 }
