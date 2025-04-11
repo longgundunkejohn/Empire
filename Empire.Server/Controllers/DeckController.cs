@@ -24,7 +24,7 @@ namespace Empire.Server.Controllers
                 (102, 2)
             };
 
-            var cards = await _cardFactory.CreateDeckAsync(testDeckList);
+            var cards = await _cardFactory.CreateDeckAsync(testDeckList, "Military"); // or "Civic" for test
             return Ok(cards);
         }
     }

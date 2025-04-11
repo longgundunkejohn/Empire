@@ -151,14 +151,29 @@ namespace Empire.Server.Services
                 deckList.Add((entry.CardId, entry.Count));
             }
 
-            return await _cardFactory.CreateDeckAsync(deckList);
+            // Group rawDeck entries by deck type and hydrate separately
+            var civicEntries = rawDeck.Where(d => d.DeckType == "Civic").Select(d => (d.CardId, d.Count)).ToList();
+            var militaryEntries = rawDeck.Where(d => d.DeckType == "Military").Select(d => (d.CardId, d.Count)).ToList();
+
+            var civicCards = await _cardFactory.CreateDeckAsync(civicEntries, "Civic");
+            var militaryCards = await _cardFactory.CreateDeckAsync(militaryEntries, "Military");
+
+            return civicCards.Concat(militaryCards).ToList();
+
         }
 
         private async Task<List<Card>> HydrateDeckFromIdsAsync(List<int> civicIds, List<int> militaryIds)
         {
             var allIds = civicIds.Concat(militaryIds).ToList();
             var grouped = allIds.GroupBy(id => id).Select(g => (g.Key, g.Count())).ToList();
-            return await _cardFactory.CreateDeckAsync(grouped);
+            var civicGrouped = civicIds.GroupBy(id => id).Select(g => (g.Key, g.Count())).ToList();
+            var militaryGrouped = militaryIds.GroupBy(id => id).Select(g => (g.Key, g.Count())).ToList();
+
+            var civicCards = await _cardFactory.CreateDeckAsync(civicGrouped, "Civic");
+            var militaryCards = await _cardFactory.CreateDeckAsync(militaryGrouped, "Military");
+
+            return civicCards.Concat(militaryCards).ToList();
+
         }
 
 
