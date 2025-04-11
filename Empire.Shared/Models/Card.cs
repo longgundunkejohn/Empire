@@ -11,6 +11,7 @@ namespace Empire.Shared.Models
         public string Faction { get; set; }
         public bool IsExerted { get; set; } = false;
         public int CurrentDamage { get; set; } = 0;
+        public string DeckType { get; set; } = "Military"; // Default just to be safe
 
         public string? ImagePath { get; set; }
 

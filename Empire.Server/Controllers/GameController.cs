@@ -60,32 +60,37 @@ namespace Empire.Server.Controllers
             return Ok(previews);
         }
 
-[HttpPost("create")]
-public async Task<ActionResult<string>> CreateGame([FromBody] GameStartRequest request)
-{
-    if (string.IsNullOrWhiteSpace(request.Player1))
-        return BadRequest("Player1 is required.");
-
-    var deck = await _deckCollection.Find(d => d.Id == request.DeckId).FirstOrDefaultAsync();
-    if (deck == null || (!deck.CivicDeck.Any() && !deck.MilitaryDeck.Any()))
-        return BadRequest("Invalid or missing deck.");
-
-    var fullCivicDeck = await _cardService.GetDeckCards(deck.CivicDeck);
-    var fullMilitaryDeck = await _cardService.GetDeckCards(deck.MilitaryDeck);
-    var fullDeck = fullCivicDeck.Concat(fullMilitaryDeck).ToList();
-
-    var rawDeck = fullDeck
-        .GroupBy(card => card.CardId)
-        .Select(g => new RawDeckEntry
+        [HttpPost("create")]
+        public async Task<ActionResult<string>> CreateGame([FromBody] GameStartRequest request)
         {
-            CardId = g.Key,
-            Count = g.Count(),
-            DeckType = InferDeckType(g.First())
-        }).ToList();
+            if (string.IsNullOrWhiteSpace(request.Player1))
+                return BadRequest("Player1 is required.");
 
-    var gameId = await _sessionService.CreateGameSession(request.Player1, rawDeck);
-    return Ok(gameId);
-}
+            var deck = await _deckCollection.Find(d => d.Id == request.DeckId).FirstOrDefaultAsync();
+            if (deck == null || (!deck.CivicDeck.Any() && !deck.MilitaryDeck.Any()))
+                return BadRequest("Invalid or missing deck.");
+
+            var fullCivicDeck = (await _cardService.GetDeckCards(deck.CivicDeck))
+                .Select(c => { c.DeckType = "Civic"; return c; }).ToList();
+
+            var fullMilitaryDeck = (await _cardService.GetDeckCards(deck.MilitaryDeck))
+                .Select(c => { c.DeckType = "Military"; return c; }).ToList();
+
+            var fullDeck = fullCivicDeck.Concat(fullMilitaryDeck).ToList();
+
+            var rawDeck = fullDeck
+                .GroupBy(card => card.CardId)
+                .Select(g => new RawDeckEntry
+                {
+                    CardId = g.Key,
+                    Count = g.Count(),
+                    DeckType = g.First().DeckType
+                }).ToList();
+
+            var gameId = await _sessionService.CreateGameSession(request.Player1, rawDeck);
+            return Ok(gameId);
+        }
+
 
 
         private string InferDeckType(Card card)
@@ -107,11 +112,10 @@ public async Task<ActionResult<string>> CreateGame([FromBody] GameStartRequest r
             if (!gameState.PlayerDecks.TryGetValue(playerId, out var deck) || deck.Count == 0)
                 return BadRequest("Deck is empty or missing.");
 
-            // Filter the draw pool
             var drawFrom = type.ToLower() switch
             {
-                "civic" => deck.Where(c => IsCivic(c.Type)).ToList(),
-                "military" => deck.Where(c => !IsCivic(c.Type)).ToList(),
+                "civic" => deck.Where(c => c.DeckType == "Civic").ToList(),
+                "military" => deck.Where(c => c.DeckType == "Military").ToList(),
                 _ => null
             };
 
@@ -135,6 +139,7 @@ public async Task<ActionResult<string>> CreateGame([FromBody] GameStartRequest r
             await _sessionService.SaveGameState(gameId, gameState);
             return Ok(drawn.CardId);
         }
+
 
         private bool IsCivic(string? type)
         {
