@@ -3,5 +3,5 @@
 public interface ICardDatabaseService
 {
     IEnumerable<CardData> GetAllCards();
-    CardData? GetCardById(string id);
+    CardData? GetCardById(int id);
 }
