@@ -22,11 +22,12 @@ namespace Empire.Server.Controllers
         }
 
         [HttpGet("{id}")]
-        public ActionResult<CardData> Get(string id)
+        public ActionResult<CardData> Get(int id)
         {
             var card = _cardDb.GetCardById(id);
             if (card == null) return NotFound();
             return Ok(card);
         }
+
     }
 }

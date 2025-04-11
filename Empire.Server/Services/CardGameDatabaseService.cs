@@ -4,6 +4,7 @@ using MongoDB.Driver;
 
 public class CardGameDatabaseService : ICardDatabaseService
 {
+
     private readonly IMongoCollection<CardData> _cards;
 
     public CardGameDatabaseService(IMongoDbService mongo)
@@ -14,11 +15,11 @@ public class CardGameDatabaseService : ICardDatabaseService
     public IEnumerable<CardData> GetAllCards() =>
         _cards.Find(_ => true).ToList();
 
-    public CardData? GetCardById(string id)
+    public CardData? GetCardById(int id)
     {
-        if (!int.TryParse(id, out var parsedId)) return null;
-        return _cards.Find(c => c.CardID == parsedId).FirstOrDefault();
+        return _cards.Find(c => c.CardID == id).FirstOrDefault();
     }
+
 }
 
 

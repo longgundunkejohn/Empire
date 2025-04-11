@@ -1,7 +1,5 @@
-﻿using Empire.Shared.Models;
-
-public interface ICardDatabaseService
+﻿public interface ICardDatabaseService
 {
     IEnumerable<CardData> GetAllCards();
-    CardData? GetCardById(int id);
+    CardData? GetCardById(int id); //
 }
