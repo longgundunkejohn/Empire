@@ -6,13 +6,14 @@ using Empire.Shared.Models.DTOs;
 
 namespace Empire.Shared.Models
 {
+    [BsonIgnoreExtraElements]
     public class GameState
     {
+        // Store GameId as the MongoDB _id field
         [BsonId]
-        [BsonRepresentation(BsonType.String)]
-        public string GameId { get; set; } = Guid.NewGuid().ToString();
+        public string GameId { get; set; } = string.Empty;
 
-        public string Player1 { get; set; }
+        public string Player1 { get; set; } = string.Empty;
         public string? Player2 { get; set; }
         public string? InitiativeHolder { get; set; }
         public string? PriorityPlayer { get; set; }
@@ -24,8 +25,10 @@ namespace Empire.Shared.Models
         public Dictionary<string, List<BoardCard>> PlayerBoard { get; set; } = new();
 
         public Dictionary<string, List<int>> PlayerHands { get; set; } = new();
+
         // Change PlayerDecks to store List<Card>
         public Dictionary<string, List<Card>> PlayerDecks { get; set; } = new();
+
         public Dictionary<string, List<int>> PlayerGraveyards { get; set; } = new();
 
         public List<GameMove> MoveHistory { get; set; } = new();
