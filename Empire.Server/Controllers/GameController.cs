@@ -29,7 +29,7 @@ namespace Empire.Server.Controllers
             _cardService = cardService;
         }
 
-        [HttpGet("state/{gameId}")]
+        [HttpGet("{gameId}/state")]
         public async Task<IActionResult> GetGameState(string gameId)
         {
             var state = await _sessionService.GetGameState(gameId);
