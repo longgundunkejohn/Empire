@@ -54,13 +54,18 @@ public class CardFactory
                         IsExerted = false,
                         CurrentDamage = 0,
                         ImagePath = card.ImagePath,
-                        DeckType = deckType // 🧠 This is what you were missing
+                        DeckType = deckType
                     });
                 }
+            }
+            else
+            {
+                Console.WriteLine($"❌ Card not found for ID: {id}");
             }
         }
 
         return result;
     }
+
 
 }
