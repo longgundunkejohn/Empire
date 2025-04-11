@@ -176,7 +176,6 @@ namespace Empire.Server.Services
 
 
 
-
         private async Task<List<Card>> HydrateDeckFromIdsAsync(List<int> civicIds, List<int> militaryIds)
         {
             var allIds = civicIds.Concat(militaryIds).ToList();
