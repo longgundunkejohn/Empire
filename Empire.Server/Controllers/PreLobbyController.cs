@@ -38,8 +38,6 @@ namespace Empire.Server.Controllers
             return Ok(decks);
         }
 
-
-        [HttpPost("upload")]
         [HttpPost("upload")]
         public async Task<IActionResult> UploadDeck([FromQuery] string playerName, [FromQuery] string? deckName, IFormFile file)
         {

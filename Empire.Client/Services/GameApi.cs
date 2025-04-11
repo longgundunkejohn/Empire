@@ -177,5 +177,17 @@ public class GameApi
             Console.WriteLine($"[GameApi] ❌ CreateGame() error: {ex.Message}");
             return null;
         }
+
     }
+    public async Task<List<PlayerDeck>> GetUploadedDecks()
+    {
+        var response = await _http.GetAsync("api/prelobby/decks");
+
+        if (!response.IsSuccessStatusCode)
+            return new List<PlayerDeck>();
+
+        var decks = await response.Content.ReadFromJsonAsync<List<PlayerDeck>>(_jsonOptions);
+        return decks ?? new List<PlayerDeck>();
+    }
+
 }
