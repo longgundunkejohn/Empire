@@ -46,7 +46,10 @@ namespace Empire.Server.Services
             await _gameCollection.InsertOneAsync(gameState);
             return gameState.GameId;
         }
-
+        public async Task SaveGameState(string gameId, GameState state)
+        {
+            await _gameCollection.ReplaceOneAsync(gs => gs.GameId == gameId, state);
+        }
         public async Task<GameState?> GetGameState(string gameId)
         {
             var state = await _gameCollection.Find(gs => gs.GameId == gameId).FirstOrDefaultAsync();
@@ -157,5 +160,7 @@ namespace Empire.Server.Services
             var grouped = allIds.GroupBy(id => id).Select(g => (g.Key, g.Count())).ToList();
             return await _cardFactory.CreateDeckAsync(grouped);
         }
+
+
     }
 }

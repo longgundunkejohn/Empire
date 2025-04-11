@@ -1,0 +1,18 @@
+﻿<div class="deck" @onclick="OnDrawClick" style="cursor: pointer;">
+    <img src="@BackPath" alt="Card Back" class="card-image" />
+    <div class="deck-count">@DeckCount</div>
+</div>
+
+@code {
+    [Parameter] public int DeckCount { get; set; }
+    [Parameter] public string BackType { get; set; } = "civic"; // or "military"
+    [Parameter] public EventCallback OnDraw { get; set; }
+
+    private string BackPath => BackType == "military" ? "images/Cards/armyCardback.png" : "images/Cards/civicCardback.png";
+
+    private async Task OnDrawClick()
+    {
+        if (DeckCount > 0)
+            await OnDraw.InvokeAsync();
+    }
+}

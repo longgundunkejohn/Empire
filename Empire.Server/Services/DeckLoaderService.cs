@@ -35,10 +35,9 @@ namespace Empire.Server.Services
             _deckCollection = mongo.DeckDatabase.GetCollection<RawDeckEntry>("PlayerDecks");
 
             LoadImageMappings();
-            _logger.LogInformation("DeckLoaderService initialized with {Count} image mappings.", CardDictionary.Count);
+            _logger.LogInformation("✅ DeckLoaderService initialized with {Count} image mappings.", CardDictionary.Count);
         }
 
-        // ✅ Parse uploaded CSV into raw deck entries
         public List<RawDeckEntry> ParseDeckFromCsv(Stream csvStream)
         {
             using var reader = new StreamReader(csvStream);
@@ -47,11 +46,10 @@ namespace Empire.Server.Services
             csv.Context.RegisterClassMap<RawDeckEntryMap>();
             var entries = csv.GetRecords<RawDeckEntry>().ToList();
 
-            _logger.LogInformation("Parsed {Count} deck entries from CSV.", entries.Count);
+            _logger.LogInformation("📄 Parsed {Count} deck entries from CSV.", entries.Count);
             return entries;
         }
 
-        // ✅ Convert raw CSV entries into grouped PlayerDeck
         public PlayerDeck ConvertRawDeckToPlayerDeck(string playerName, List<RawDeckEntry> rawDeck)
         {
             var civicDeck = new List<int>();
@@ -63,25 +61,18 @@ namespace Empire.Server.Services
 
                 if (string.IsNullOrWhiteSpace(type))
                 {
-                    // 🧠 Infer from CardId
-                    if (IsCivicCard(entry.CardId))
-                        type = "civic";
-                    else
-                        type = "military";
+                    type = IsCivicCard(entry.CardId) ? "civic" : "military";
                 }
 
                 for (int i = 0; i < entry.Count; i++)
                 {
-                    if (type == "civic")
-                        civicDeck.Add(entry.CardId);
-                    else if (type == "military")
-                        militaryDeck.Add(entry.CardId);
-                    else
-                        _logger.LogWarning("Unknown deck type '{DeckType}' for card ID {CardId}", entry.DeckType, entry.CardId);
+                    if (type == "civic") civicDeck.Add(entry.CardId);
+                    else if (type == "military") militaryDeck.Add(entry.CardId);
+                    else _logger.LogWarning("❓ Unknown deck type '{DeckType}' for card ID {CardId}", entry.DeckType, entry.CardId);
                 }
             }
 
-            _logger.LogInformation("Converted deck for {Player} — Civic: {CivicCount}, Military: {MilitaryCount}",
+            _logger.LogInformation("🛠 Built deck for {Player} — Civic: {CivicCount}, Military: {MilitaryCount}",
                 playerName, civicDeck.Count, militaryDeck.Count);
 
             return new PlayerDeck(playerName, civicDeck, militaryDeck);
@@ -93,8 +84,6 @@ namespace Empire.Server.Services
             return idStr.StartsWith("18") || idStr.StartsWith("19") || idStr.StartsWith("11148") || idStr.StartsWith("119");
         }
 
-
-        // ✅ Store deck in MongoDB (clears old entries first)
         public void SaveDeckToDatabase(string player, List<RawDeckEntry> rawDeck)
         {
             var filter = Builders<RawDeckEntry>.Filter.Eq("Player", player);
@@ -107,10 +96,9 @@ namespace Empire.Server.Services
             }
 
             _deckCollection.InsertMany(rawDeck);
-            _logger.LogInformation("✅ Saved deck for player {Player} with {Count} entries.", player, rawDeck.Count);
+            _logger.LogInformation("💾 Saved deck for player {Player} with {Count} entries.", player, rawDeck.Count);
         }
 
-        // ✅ Load deck from MongoDB
         public PlayerDeck LoadDeck(string player)
         {
             var filter = Builders<RawDeckEntry>.Filter.Eq("Player", player);
@@ -125,12 +113,11 @@ namespace Empire.Server.Services
             return ConvertRawDeckToPlayerDeck(player, rawDeck);
         }
 
-        // ✅ Load all card images into a dictionary: CardId => image path
         private void LoadImageMappings()
         {
             if (!Directory.Exists(_imagePath))
             {
-                _logger.LogWarning("Card image folder not found: {Path}", _imagePath);
+                _logger.LogWarning("📁 Card image folder not found: {Path}", _imagePath);
                 return;
             }
 
@@ -138,22 +125,43 @@ namespace Empire.Server.Services
             {
                 var name = Path.GetFileNameWithoutExtension(file);
                 var parts = name.Split(' ', 2);
+
+                if (parts.Length < 2)
+                {
+                    _logger.LogWarning("⚠️ Invalid card image filename (no name part): {File}", name);
+                    continue;
+                }
+
                 if (int.TryParse(parts[0], out int cardId))
                 {
-                    CardDictionary[cardId] = $"images/Cards/{Path.GetFileName(file)}";
+                    var imagePath = $"images/Cards/{Path.GetFileName(file)}";
+                    CardDictionary[cardId] = imagePath;
                 }
+                else
+                {
+                    _logger.LogWarning("⚠️ Could not parse CardId from filename: {File}", name);
+                }
+            }
+
+            if (CardDictionary.Count == 0)
+            {
+                _logger.LogError("❌ No valid image mappings loaded.");
             }
         }
 
-        // ✅ Get image path from card ID
         public string GetImagePath(int cardId)
         {
+            if (CardDictionary.Count == 0)
+            {
+                _logger.LogWarning("⚠️ CardDictionary is empty, attempting to reload image mappings.");
+                LoadImageMappings();
+            }
+
             return CardDictionary.TryGetValue(cardId, out var path)
                 ? path
                 : "images/Cards/placeholder.jpg";
         }
 
-        // ✅ Display-friendly name from file
         public string GetCardDisplayName(int cardId)
         {
             return CardDictionary.TryGetValue(cardId, out var fileName)

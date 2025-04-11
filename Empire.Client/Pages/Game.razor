@@ -18,19 +18,26 @@ else
             @if (PlayerBoard.Any())
             {
                 <div class="card-row">
-                    @foreach (var card in PlayerBoard)
+                    @foreach (var boardCard in PlayerBoard)
                     {
-                        <div class="card-slot">
-                            <CardImage CardId="@card.CardId" />
-                            @if (card.IsExerted)
-                            {
-                                <div class="card-status">🌀 Exerted</div>
-                            }
-                            @if (card.Damage > 0)
-                            {
-                                <div class="card-status">❤️ -@card.Damage</div>
-                            }
-                        </div>
+                        var card = GetCardFromDeck(boardCard.CardId);
+                        if (card != null)
+                        {
+                            card.IsExerted = boardCard.IsExerted;
+                            card.CurrentDamage = boardCard.Damage;
+
+                            <div class="card-slot">
+                                <CardImage Card="@card" />
+                                @if (card.IsExerted)
+                                {
+                                    <div class="card-status">🌀 Exerted</div>
+                                }
+                                @if (card.CurrentDamage > 0)
+                                {
+                                    <div class="card-status">❤️ -@card.CurrentDamage</div>
+                                }
+                            </div>
+                        }
                     }
                 </div>
             }
@@ -46,10 +53,10 @@ else
             @if (PlayerHand.Any())
             {
                 <div class="card-row">
-                    @foreach (var cardId in PlayerHand)
+                    @foreach (var card in PlayerHand)
                     {
                         <div class="card-slot">
-                            <CardImage CardId="@cardId" />
+                            <CardImage Card="@card" />
                         </div>
                     }
                 </div>
@@ -58,6 +65,12 @@ else
             {
                 <p>Your hand is empty.</p>
             }
+        </section>
+
+        <!-- ─────── DRAW DECKS ─────── -->
+        <section class="draw-decks">
+            <CardBackImage DeckCount="@CivicDeckCount" BackType="civic" OnDraw="DrawCivic" />
+            <CardBackImage DeckCount="@MilitaryDeckCount" BackType="military" OnDraw="DrawMilitary" />
         </section>
     </div>
 }
@@ -69,11 +82,23 @@ else
     private GameState? gameState;
 
     private List<BoardCard> PlayerBoard => gameState?.PlayerBoard.GetValueOrDefault(playerId) ?? new();
-    private List<int> PlayerHand => gameState?.PlayerHands.GetValueOrDefault(playerId) ?? new();
+    private List<Card> PlayerHand => gameState?.PlayerHands.GetValueOrDefault(playerId)?.Select(id => GetCardFromDeck(id) ?? new Card { CardId = id }).ToList() ?? new();
+
+    private List<Card> AllCards = new();
+    private int CivicDeckCount => gameState?.PlayerDecks.GetValueOrDefault(playerId)?.Count(c => c.Type == "Villager" || c.Type == "Settlement") ?? 0;
+    private int MilitaryDeckCount => gameState?.PlayerDecks.GetValueOrDefault(playerId)?.Count(c => c.Type != "Villager" && c.Type != "Settlement") ?? 0;
 
     protected override async Task OnInitializedAsync()
     {
-        gameState = await GameApi.GetGameState(gameId); // 🔥 only gameId
+        gameState = await GameApi.GetGameState(gameId);
+        AllCards = gameState?.PlayerDecks.SelectMany(kv => kv.Value).ToList() ?? new();
     }
-}
 
+    private Card? GetCardFromDeck(int cardId)
+    {
+        return AllCards.FirstOrDefault(c => c.CardId == cardId);
+    }
+
+    private Task DrawCivic() => Task.Run(() => Console.WriteLine("[Draw] Civic card requested"));
+    private Task DrawMilitary() => Task.Run(() => Console.WriteLine("[Draw] Military card requested"));
+}
