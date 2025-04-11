@@ -101,16 +101,17 @@ public async Task<ActionResult<string>> CreateGame([FromBody] GameStartRequest r
         public async Task<IActionResult> DrawCard(string gameId, string playerId, string type)
         {
             var gameState = await _sessionService.GetGameState(gameId);
-            if (gameState == null) return NotFound("Game not found.");
+            if (gameState == null)
+                return NotFound("Game not found.");
 
             if (!gameState.PlayerDecks.TryGetValue(playerId, out var deck) || deck.Count == 0)
                 return BadRequest("Deck is empty or missing.");
 
-            // Filter by type
+            // Filter the draw pool
             var drawFrom = type.ToLower() switch
             {
-                "civic" => deck.Where(c => c.Type == "Villager" || c.Type == "Settlement").ToList(),
-                "military" => deck.Where(c => c.Type != "Villager" && c.Type != "Settlement").ToList(),
+                "civic" => deck.Where(c => IsCivic(c.Type)).ToList(),
+                "military" => deck.Where(c => !IsCivic(c.Type)).ToList(),
                 _ => null
             };
 
@@ -120,7 +121,6 @@ public async Task<ActionResult<string>> CreateGame([FromBody] GameStartRequest r
             var random = new Random();
             var drawn = drawFrom[random.Next(drawFrom.Count)];
 
-            // Remove one instance
             var indexToRemove = deck.FindIndex(c => c.CardId == drawn.CardId);
             if (indexToRemove >= 0)
                 deck.RemoveAt(indexToRemove);
@@ -130,8 +130,16 @@ public async Task<ActionResult<string>> CreateGame([FromBody] GameStartRequest r
 
             gameState.PlayerHands[playerId].Add(drawn.CardId);
 
+            Console.WriteLine($"[Draw] {playerId} drew {drawn.Name} ({drawn.CardId}) from {type}.");
+
             await _sessionService.SaveGameState(gameId, gameState);
             return Ok(drawn.CardId);
+        }
+
+        private bool IsCivic(string? type)
+        {
+            var t = type?.Trim().ToLowerInvariant();
+            return t == "villager" || t == "settlement";
         }
 
         [HttpPost("join/{gameId}/{playerId}")]

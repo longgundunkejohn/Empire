@@ -4,10 +4,13 @@
 @inject GameApi GameApi
 
 @if (gameState == null)
+
 {
     <p>Loading game data for <strong>@playerId</strong>...</p>
 }
+
 else
+
 {
     <div class="game-container">
         <h3>@playerId's Game View</h3>
@@ -16,32 +19,44 @@ else
         <section class="board-area">
             <h4>Your Board</h4>
             @if (PlayerBoard.Any())
+
             {
                 <div class="card-row">
                     @foreach (var boardCard in PlayerBoard)
+
                     {
+
                         var card = GetCardFromDeck(boardCard.CardId);
+
                         if (card != null)
+
                         {
+
                             card.IsExerted = boardCard.IsExerted;
+
                             card.CurrentDamage = boardCard.Damage;
 
                             <div class="card-slot">
                                 <CardImage Card="@card" />
                                 @if (card.IsExerted)
+
                                 {
                                     <div class="card-status">🌀 Exerted</div>
                                 }
                                 @if (card.CurrentDamage > 0)
+
                                 {
                                     <div class="card-status">❤️ -@card.CurrentDamage</div>
                                 }
                             </div>
                         }
+
                     }
                 </div>
             }
+
             else
+
             {
                 <p>No cards on board.</p>
             }
@@ -51,9 +66,11 @@ else
         <section class="hand-area">
             <h4>Your Hand</h4>
             @if (PlayerHand.Any())
+
             {
                 <div class="card-row">
                     @foreach (var card in PlayerHand)
+
                     {
                         <div class="card-slot">
                             <CardImage Card="@card" />
@@ -61,7 +78,9 @@ else
                     }
                 </div>
             }
+
             else
+
             {
                 <p>Your hand is empty.</p>
             }
@@ -77,28 +96,118 @@ else
 
 @code {
     [Parameter] public string gameId { get; set; } = string.Empty;
+
     [Parameter] public string playerId { get; set; } = string.Empty;
+
+
 
     private GameState? gameState;
 
+
+
     private List<BoardCard> PlayerBoard => gameState?.PlayerBoard.GetValueOrDefault(playerId) ?? new();
-    private List<Card> PlayerHand => gameState?.PlayerHands.GetValueOrDefault(playerId)?.Select(id => GetCardFromDeck(id) ?? new Card { CardId = id }).ToList() ?? new();
+
+
+
+    private List<Card> PlayerHand => gameState?.PlayerHands
+
+        .GetValueOrDefault(playerId)?
+
+        .Select(id => GetCardFromDeck(id) ?? new Card { CardId = id })
+
+        .ToList() ?? new();
+
+
 
     private List<Card> AllCards = new();
-    private int CivicDeckCount => gameState?.PlayerDecks.GetValueOrDefault(playerId)?.Count(c => c.Type == "Villager" || c.Type == "Settlement") ?? 0;
-    private int MilitaryDeckCount => gameState?.PlayerDecks.GetValueOrDefault(playerId)?.Count(c => c.Type != "Villager" && c.Type != "Settlement") ?? 0;
+
+
+
+    private int CivicDeckCount => gameState?.PlayerDecks
+
+        .GetValueOrDefault(playerId)?
+
+        .Count(c => IsCivic(c.Type)) ?? 0;
+
+
+
+    private int MilitaryDeckCount => gameState?.PlayerDecks
+
+        .GetValueOrDefault(playerId)?
+
+        .Count(c => !IsCivic(c.Type)) ?? 0;
+
+
+
+    private bool IsCivic(string? type)
+
+    {
+
+        var t = type?.Trim().ToLowerInvariant();
+
+        return t == "villager" || t == "settlement";
+
+    }
+
+
 
     protected override async Task OnInitializedAsync()
+
     {
+
         gameState = await GameApi.GetGameState(gameId);
+
         AllCards = gameState?.PlayerDecks.SelectMany(kv => kv.Value).ToList() ?? new();
+
     }
+
+
 
     private Card? GetCardFromDeck(int cardId)
+
     {
+
         return AllCards.FirstOrDefault(c => c.CardId == cardId);
+
     }
 
-    private Task DrawCivic() => Task.Run(() => Console.WriteLine("[Draw] Civic card requested"));
-    private Task DrawMilitary() => Task.Run(() => Console.WriteLine("[Draw] Military card requested"));
+
+
+    private async Task DrawCivic()
+
+    {
+
+        var drawnCardId = await GameApi.DrawCard(gameId, playerId, "civic");
+
+        Console.WriteLine($"[DrawCivic] Drew card ID: {drawnCardId}");
+
+
+
+        gameState = await GameApi.GetGameState(gameId);
+
+        AllCards = gameState?.PlayerDecks.SelectMany(kv => kv.Value).ToList() ?? new();
+
+        StateHasChanged();
+
+    }
+
+
+
+    private async Task DrawMilitary()
+
+    {
+
+        var drawnCardId = await GameApi.DrawCard(gameId, playerId, "military");
+
+        Console.WriteLine($"[DrawMilitary] Drew card ID: {drawnCardId}");
+
+
+
+        gameState = await GameApi.GetGameState(gameId);
+
+        AllCards = gameState?.PlayerDecks.SelectMany(kv => kv.Value).ToList() ?? new();
+
+        StateHasChanged();
+
+    }
 }
