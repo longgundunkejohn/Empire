@@ -9,16 +9,20 @@ namespace Empire.Server.Services
 {
     public class GameSessionService
     {
+        private readonly ILogger<GameSessionService> _logger;
+
         private readonly IMongoCollection<GameState> _gameCollection;
         private readonly CardFactory _cardFactory;
 
         public GameState? GameState { get; private set; }
 
-        public GameSessionService(IMongoDatabase database, CardFactory cardFactory)
+        public GameSessionService(IMongoDatabase database, CardFactory cardFactory, ILogger<GameSessionService> logger)
         {
             _gameCollection = database.GetCollection<GameState>("GameSessions");
             _cardFactory = cardFactory;
+            _logger = logger;
         }
+
 
         public async Task<string> CreateGameSession(string player1Id, List<RawDeckEntry> player1Deck)
         {
@@ -153,14 +157,23 @@ namespace Empire.Server.Services
                 }
             }
 
-            var civicEntries = rawDeck.Where(d => d.DeckType == "Civic").Select(d => (d.CardId, d.Count)).ToList();
-            var militaryEntries = rawDeck.Where(d => d.DeckType == "Military").Select(d => (d.CardId, d.Count)).ToList();
+            var civicEntries = rawDeck
+                .Where(d => d.DeckType == "Civic")
+                .Select(d => (d.CardId, d.Count)).ToList();
+
+            var militaryEntries = rawDeck
+                .Where(d => d.DeckType == "Military")
+                .Select(d => (d.CardId, d.Count)).ToList();
 
             var civicCards = await _cardFactory.CreateDeckAsync(civicEntries, "Civic");
             var militaryCards = await _cardFactory.CreateDeckAsync(militaryEntries, "Military");
 
+            _logger.LogInformation("🎴 Hydrated deck: {Civic} civic / {Military} military cards",
+                civicCards.Count, militaryCards.Count);
+
             return civicCards.Concat(militaryCards).ToList();
         }
+
 
 
 
