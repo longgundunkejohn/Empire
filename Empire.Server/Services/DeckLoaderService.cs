@@ -3,6 +3,7 @@ using CsvHelper;
 using Empire.Server.Interfaces;
 using Empire.Shared.Models.DTOs;
 using MongoDB.Driver;
+using Empire.Shared.Models;
 
 namespace Empire.Server.Services
 {
@@ -53,7 +54,7 @@ namespace Empire.Server.Services
 
                 if (string.IsNullOrWhiteSpace(type))
                 {
-                    type = IsCivicCard(entry.CardId) ? "civic" : "military";
+                    type = DeckUtils.IsCivicCard(entry.CardId) ? "civic" : "military";
                 }
 
                 for (int i = 0; i < entry.Count; i++)
@@ -70,11 +71,7 @@ namespace Empire.Server.Services
             return new PlayerDeck(playerName, civicDeck, militaryDeck);
         }
 
-        private bool IsCivicCard(int cardId)
-        {
-            var lastTwoDigits = cardId % 100;
-            return lastTwoDigits >= 80 && lastTwoDigits <= 99;
-        }
+
 
 
         public void SaveDeckToDatabase(string player, List<RawDeckEntry> rawDeck)

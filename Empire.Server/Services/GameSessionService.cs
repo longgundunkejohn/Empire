@@ -145,13 +145,14 @@ namespace Empire.Server.Services
 
         private async Task<List<Card>> HydrateDeckFromRawAsync(List<RawDeckEntry> rawDeck)
         {
-            var deckList = new List<(int CardId, int Count)>();
             foreach (var entry in rawDeck)
             {
-                deckList.Add((entry.CardId, entry.Count));
+                if (string.IsNullOrWhiteSpace(entry.DeckType))
+                {
+                    entry.DeckType = DeckUtils.IsCivicCard(entry.CardId) ? "Civic" : "Military";
+                }
             }
 
-            // Group rawDeck entries by deck type and hydrate separately
             var civicEntries = rawDeck.Where(d => d.DeckType == "Civic").Select(d => (d.CardId, d.Count)).ToList();
             var militaryEntries = rawDeck.Where(d => d.DeckType == "Military").Select(d => (d.CardId, d.Count)).ToList();
 
@@ -159,8 +160,9 @@ namespace Empire.Server.Services
             var militaryCards = await _cardFactory.CreateDeckAsync(militaryEntries, "Military");
 
             return civicCards.Concat(militaryCards).ToList();
-
         }
+
+
 
         private async Task<List<Card>> HydrateDeckFromIdsAsync(List<int> civicIds, List<int> militaryIds)
         {
