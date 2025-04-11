@@ -159,7 +159,6 @@ public class GameApi
                 DeckId = deckName
             };
 
-
             var response = await _http.PostAsJsonAsync("api/game/create", request);
 
             if (!response.IsSuccessStatusCode)
@@ -177,8 +176,8 @@ public class GameApi
             Console.WriteLine($"[GameApi] ❌ CreateGame() error: {ex.Message}");
             return null;
         }
-
     }
+
     public async Task<List<PlayerDeck>> GetUploadedDecks()
     {
         var response = await _http.GetAsync("api/prelobby/decks");
@@ -190,4 +189,27 @@ public class GameApi
         return decks ?? new List<PlayerDeck>();
     }
 
+    // ✅ DrawCard client-side method
+    public async Task<int?> DrawCard(string gameId, string playerId, string type)
+    {
+        try
+        {
+            var response = await _http.PostAsync($"api/game/{gameId}/draw/{playerId}/{type}", null);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"[GameApi] ❌ DrawCard failed: {response.StatusCode} - {error}");
+                return null;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<int>();
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[GameApi] ❌ DrawCard() error: {ex.Message}");
+            return null;
+        }
+    }
 }

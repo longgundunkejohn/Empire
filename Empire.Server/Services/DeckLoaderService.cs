@@ -80,9 +80,10 @@ namespace Empire.Server.Services
 
         private bool IsCivicCard(int cardId)
         {
-            var idStr = cardId.ToString();
-            return idStr.StartsWith("18") || idStr.StartsWith("19") || idStr.StartsWith("11148") || idStr.StartsWith("119");
+            var lastTwoDigits = cardId % 100;
+            return lastTwoDigits >= 80 && lastTwoDigits <= 99;
         }
+
 
         public void SaveDeckToDatabase(string player, List<RawDeckEntry> rawDeck)
         {
