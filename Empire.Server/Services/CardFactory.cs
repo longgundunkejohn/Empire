@@ -33,7 +33,7 @@ public class CardFactory
         return Task.FromResult<Card?>(hydratedCard);
     }
 
-    public async Task<List<Card>> CreateDeckAsync(List<(int CardId, int Count)> deckList)
+    public async Task<List<Card>> CreateDeckAsync(List<(int CardId, int Count)> deckList, string deckType)
     {
         var result = new List<Card>();
 
@@ -44,7 +44,6 @@ public class CardFactory
             {
                 for (int i = 0; i < count; i++)
                 {
-                    // Clone each to avoid reference issues
                     result.Add(new Card
                     {
                         CardId = card.CardId,
@@ -54,7 +53,8 @@ public class CardFactory
                         Faction = card.Faction,
                         IsExerted = false,
                         CurrentDamage = 0,
-                        ImagePath = card.ImagePath
+                        ImagePath = card.ImagePath,
+                        DeckType = deckType // 🧠 This is what you were missing
                     });
                 }
             }
@@ -62,4 +62,5 @@ public class CardFactory
 
         return result;
     }
+
 }
