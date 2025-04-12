@@ -99,7 +99,7 @@ public class GameApi
                         : card.Name;
 
                     // 🌐 Encode it to be URL safe and assign the full path
-                    card.ImagePath = $"https://empirecardgame.com/images/Cards/{Uri.EscapeDataString(name)}.jpg";
+                    card.ImagePath = $"https://empirecardgame.com/images/Cards/{card.CardId}.jpg";
                 }
             }
 
