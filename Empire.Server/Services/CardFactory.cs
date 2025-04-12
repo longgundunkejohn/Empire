@@ -33,55 +33,43 @@ public class CardFactory
         return Task.FromResult<Card?>(hydratedCard);
     }
 
-    public async Task<List<Card>> CreateDeckAsync(List<(int CardId, int Count)> deckList, string deckType)
+    public async Task<List<Card>> CreateDeckAsync(List<int> cardIds, string deckType)
     {
+        // Get all unique card data from the DB
+        var allCardData = _cardDb.GetAllCards()
+            .Where(cd => cardIds.Contains(cd.CardID))
+            .ToDictionary(cd => cd.CardID, cd => cd); // fast lookup
+
         var result = new List<Card>();
 
-        foreach (var (id, count) in deckList)
+        foreach (var id in cardIds)
         {
-            var cardData = await CreateCardFromIdAsync(id);
-
-            if (cardData == null)
+            if (allCardData.TryGetValue(id, out var cd))
             {
-                Console.WriteLine($"❌ Card not found for ID: {id}");
-                continue;
-            }
-
-            Console.WriteLine($"🔧 Hydrating card {cardData.CardId} x{count} ({cardData.Name})");
-
-            for (int i = 0; i < count; i++)
-            {
-                // 🔁 Create a unique instance per copy
-                var cardInstance = new Card
+                var newCard = new Card
                 {
-                    CardId = cardData.CardId,
-                    Name = cardData.Name,
-                    CardText = cardData.CardText,
-                    Type = cardData.Type,
-                    Faction = cardData.Faction,
+                    CardId = cd.CardID,
+                    Name = cd.Name,
+                    CardText = cd.CardText,
+                    Type = cd.CardType,
+                    Faction = cd.Faction,
+                    DeckType = deckType,
+                    ImagePath = cd.ImageFileName ?? "images/Cards/placeholder.jpg",
                     IsExerted = false,
-                    CurrentDamage = 0,
-                    ImagePath = cardData.ImagePath,
-                    DeckType = deckType
+                    CurrentDamage = 0
                 };
 
-                result.Add(cardInstance);
+                result.Add(newCard);
+            }
+            else
+            {
+                Console.WriteLine($"❌ Card ID {id} not found in DB");
             }
         }
 
-        Console.WriteLine($"✅ Created {result.Count} cards for deck type: {deckType}");
-
-        var grouped = result
-            .GroupBy(c => c.CardId)
-            .Select(g => $"🃏 {g.First().Name} (ID {g.Key}): {g.Count()} copies");
-
-        Console.WriteLine("🧾 Final Card Breakdown:");
-        foreach (var line in grouped)
-        {
-            Console.WriteLine($"   {line}");
-        }
-
-        return result;
+        Console.WriteLine($"✅ Hydrated {result.Count} {deckType} cards from {cardIds.Count} requested IDs");
+        return await Task.FromResult(result);
     }
+
 
 }

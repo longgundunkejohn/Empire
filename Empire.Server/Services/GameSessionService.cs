@@ -133,18 +133,8 @@ namespace Empire.Server.Services
 
         private async Task<List<Card>> HydrateDeckFromPlayerDeckAsync(PlayerDeck deck)
         {
-            var civicGrouped = deck.CivicDeck
-                .GroupBy(id => id)
-                .Select(g => (g.Key, g.Count()))
-                .ToList();
-
-            var militaryGrouped = deck.MilitaryDeck
-                .GroupBy(id => id)
-                .Select(g => (g.Key, g.Count()))
-                .ToList();
-
-            var civicCards = await _cardFactory.CreateDeckAsync(civicGrouped, "Civic");
-            var militaryCards = await _cardFactory.CreateDeckAsync(militaryGrouped, "Military");
+            var civicCards = await _cardFactory.CreateDeckAsync(deck.CivicDeck, "Civic");
+            var militaryCards = await _cardFactory.CreateDeckAsync(deck.MilitaryDeck, "Military");
 
             Console.WriteLine($"✅ Hydrated {civicCards.Count} civic + {militaryCards.Count} military = {civicCards.Count + militaryCards.Count} total cards");
 
