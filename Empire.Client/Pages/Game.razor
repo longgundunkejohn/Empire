@@ -1,96 +1,61 @@
 ﻿@page "/game/{gameId}/{playerId}"
+@inject GameApi GameApi
 @using Empire.Shared.Models
 @using Empire.Shared.Models.Enums
-@inject GameApi GameApi
 
 @if (gameState == null)
 
 {
-    <p>Loading game data for <strong>@playerId</strong>...</p>
+    <p>Loading game...</p>
 }
 
 else
 
 {
     <div class="game-container">
-        <h3>@playerId's Game View</h3>
 
-        <!-- ─────── BOARD AREA ─────── -->
-        <section class="board-area">
-            <h4>Your Board</h4>
-            @if (PlayerBoard.Any())
+        <!-- Enemy Hand -->
+        <div class="hand enemy-hand">
+            @foreach (var _ in OpponentHand)
 
             {
-                <div class="card-row">
-                    @foreach (var boardCard in PlayerBoard)
-
-                    {
-
-                        var card = GetCardFromDeck(boardCard.CardId);
-
-                        if (card != null)
-
-                        {
-
-                            card.IsExerted = boardCard.IsExerted;
-
-                            card.CurrentDamage = boardCard.Damage;
-
-                            <div class="card-slot">
-                                <CardImage Card="@card" />
-                                @if (card.IsExerted)
-
-                                {
-                                    <div class="card-status">🌀 Exerted</div>
-                                }
-                                @if (card.CurrentDamage > 0)
-
-                                {
-                                    <div class="card-status">❤️ -@card.CurrentDamage</div>
-                                }
-                            </div>
-                        }
-
-                    }
-                </div>
+                <img src="images/Cards/cardback.png" class="card-image small" alt="Hidden card" />
             }
+        </div>
 
-            else
+        <!-- Shared Board -->
+        <div class="board"
+             @ondragover:preventDefault="true"
+             @ondrop="OnCardDrop">
+            @foreach (var boardCard in PlayerBoard)
 
             {
-                <p>No cards on board.</p>
-            }
-        </section>
 
-        <!-- ─────── HAND AREA ─────── -->
-        <section class="hand-area">
-            <h4>Your Hand</h4>
-            @if (PlayerHand.Any())
+                var card = GetCardFromDeck(boardCard.CardId);
+
+                if (card != null)
+
+                {
+                    <div class="card-slot">
+                        <CardImage Card="card" />
+                    </div>
+                }
+
+            }
+        </div>
+
+        <!-- Your Hand -->
+        <div class="hand player-hand">
+            @foreach (var card in PlayerHand)
 
             {
-                <div class="card-row">
-                    @foreach (var card in PlayerHand)
-
-                    {
-                        <div class="card-slot">
-                            <CardImage Card="@card" />
-                        </div>
-                    }
-                </div>
+                <img src="@card.ImagePath"
+                     class="card-image"
+                     draggable="true"
+                     @ondragstart="(e) => OnDragStart(card.CardId)"
+                     alt="@card.Name" />
             }
-
-            else
-
-            {
-                <p>Your hand is empty.</p>
-            }
-        </section>
-
-        <!-- ─────── DRAW DECKS ─────── -->
-        <section class="draw-decks">
-            <CardBackImage DeckCount="@CivicDeckCount" BackType="civic" OnDraw="DrawCivic" />
-            <CardBackImage DeckCount="@MilitaryDeckCount" BackType="military" OnDraw="DrawMilitary" />
-        </section>
+        </div>
     </div>
 }
 
@@ -103,51 +68,35 @@ else
 
     private GameState? gameState;
 
+    private List<Card> AllCards = new();
+
+    private int? draggedCardId = null;
+
+
+
+    private List<int> HandCardIds => gameState?.PlayerHands.GetValueOrDefault(playerId) ?? new();
+
+
+
+    private List<Card> PlayerHand => HandCardIds
+
+        .Select(id => GetCardFromDeck(id))
+
+        .Where(c => c != null)
+
+        .ToList()!;
+
+
+
+    private List<Card> OpponentHand => gameState?.PlayerHands
+
+        .FirstOrDefault(p => p.Key != playerId).Value?
+
+        .Select(id => new Card { CardId = id })?.ToList() ?? new();
+
 
 
     private List<BoardCard> PlayerBoard => gameState?.PlayerBoard.GetValueOrDefault(playerId) ?? new();
-
-
-
-    private List<Card> PlayerHand => gameState?.PlayerHands
-
-        .GetValueOrDefault(playerId)?
-
-        .Select(id => GetCardFromDeck(id) ?? new Card { CardId = id })
-
-        .ToList() ?? new();
-
-
-
-    private List<Card> AllCards = new();
-
-
-
-    private int CivicDeckCount => gameState?.PlayerDecks
-
-        .GetValueOrDefault(playerId)?
-
-        .Count(c => IsCivic(c.Type)) ?? 0;
-
-
-
-    private int MilitaryDeckCount => gameState?.PlayerDecks
-
-        .GetValueOrDefault(playerId)?
-
-        .Count(c => !IsCivic(c.Type)) ?? 0;
-
-
-
-    private bool IsCivic(string? type)
-
-    {
-
-        var t = type?.Trim().ToLowerInvariant();
-
-        return t == "villager" || t == "settlement";
-
-    }
 
 
 
@@ -157,57 +106,57 @@ else
 
         gameState = await GameApi.GetGameState(gameId);
 
-        AllCards = gameState?.PlayerDecks.SelectMany(kv => kv.Value).ToList() ?? new();
+        AllCards = gameState?.PlayerDecks.SelectMany(p => p.Value).ToList() ?? new();
 
     }
 
 
 
-    private Card? GetCardFromDeck(int cardId)
+    private Card? GetCardFromDeck(int id) => AllCards.FirstOrDefault(c => c.CardId == id);
+
+
+
+    private void OnDragStart(int cardId)
 
     {
 
-        return AllCards.FirstOrDefault(c => c.CardId == cardId);
+        draggedCardId = cardId;
 
     }
 
 
 
-    private async Task DrawCivic()
+    private async Task OnCardDrop()
 
     {
 
-        var drawnCardId = await GameApi.DrawCard(gameId, playerId, "civic");
+        if (draggedCardId.HasValue)
 
-        Console.WriteLine($"[DrawCivic] Drew card ID: {drawnCardId}");
+        {
 
+            var move = new GameMove
 
+                {
 
-        gameState = await GameApi.GetGameState(gameId);
+                    PlayerId = playerId,
 
-        AllCards = gameState?.PlayerDecks.SelectMany(kv => kv.Value).ToList() ?? new();
+                    MoveType = "PlayCard",
 
-        StateHasChanged();
+                    CardId = draggedCardId
 
-    }
-
-
-
-    private async Task DrawMilitary()
-
-    {
-
-        var drawnCardId = await GameApi.DrawCard(gameId, playerId, "military");
-
-        Console.WriteLine($"[DrawMilitary] Drew card ID: {drawnCardId}");
+                };
 
 
 
-        gameState = await GameApi.GetGameState(gameId);
+            await GameApi.SubmitMove(gameId, move);
 
-        AllCards = gameState?.PlayerDecks.SelectMany(kv => kv.Value).ToList() ?? new();
+            gameState = await GameApi.GetGameState(gameId);
 
-        StateHasChanged();
+            draggedCardId = null;
+
+            StateHasChanged();
+
+        }
 
     }
 }

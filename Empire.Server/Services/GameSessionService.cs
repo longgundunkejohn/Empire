@@ -161,6 +161,33 @@ namespace Empire.Server.Services
 
             switch (move.MoveType)
             {
+                case "PlayCard":
+                    if (!move.CardId.HasValue) break;
+
+                    var cardId = move.CardId.Value;
+
+                    if (!gameState.PlayerHands.TryGetValue(player, out var hand) || !hand.Contains(cardId))
+                    {
+                        _logger.LogWarning("[PlayCard] Player '{Player}' attempted to play invalid card ID {CardId}", player, cardId);
+                        break;
+                    }
+
+                    // Remove card from hand
+                    hand.Remove(cardId);
+
+                    // Add to board
+                    if (!gameState.PlayerBoard.ContainsKey(player))
+                        gameState.PlayerBoard[player] = new List<BoardCard>();
+
+                    gameState.PlayerBoard[player].Add(new BoardCard(cardId)
+                    {
+                        IsExerted = move.IsExerting ?? false,
+                        Damage = 0
+                    });
+
+
+                    _logger.LogInformation("[PlayCard] Player '{Player}' played card ID {CardId}", player, cardId);
+                    break;
                 case "JoinGame":
                     if (!gameState.PlayerDecks.ContainsKey(player))
                     {
@@ -195,6 +222,12 @@ namespace Empire.Server.Services
 
             return civicCards.Concat(militaryCards).ToList();
         }
+        private Deck GetDeckObject(GameState gameState, string playerId)
+        {
+            if (!gameState.PlayerDecks.TryGetValue(playerId, out var cards))
+                throw new InvalidOperationException($"No deck found for player {playerId}");
 
+            return new Deck(cards);
+        }
     }
 }

@@ -41,23 +41,35 @@ namespace Empire.Server.Services
             Console.WriteLine($"Initialized single-player deck for {playerId}. Civic: {civicDeck.Count}, Military: {militaryDeck.Count}");
         }
 
-        public void DrawCard(string player, bool isCivic)
+        public void DrawCard(string playerId, bool isCivic)
         {
-            Console.WriteLine($"Attempting to draw a card for {player}");
+            var currentDeck = GetDeckObject(GameState, playerId);
 
-            // Delegate drawing to the CardService
-            Card? drawnCard = _cardService.DrawCard();
+            // pick the subset
+            var subset = isCivic ? currentDeck.Civic.ToList() : currentDeck.Army.ToList();
+            if (_cardService.GetHand().Count == 0)
+            {
+                Console.WriteLine($"⚠️ No {(isCivic ? "civic" : "military")} cards left to draw.");
+                return;
+            }
 
-            if (drawnCard != null)
-            {
-                GameState.PlayerHands[player].Add(drawnCard.CardId);
-                Console.WriteLine($"{player} drew card {drawnCard.CardId} from {(isCivic ? "Civic" : "Military")} deck.");
-            }
-            else
-            {
-                Console.WriteLine($"WARNING: {player}'s {(isCivic ? "Civic" : "Military")} deck is empty.");
-            }
+            var drawnCard = subset.First(); // top card
+            GameState.PlayerHands[playerId].Add(drawnCard.CardId);
+
+            // Now update PlayerDecks with the new deck order
+            var updatedDeck = currentDeck.GetAllCards().Where(c => c.CardId != drawnCard.CardId).ToList();
+            GameState.PlayerDecks[playerId] = updatedDeck;
+
+            Console.WriteLine($"✅ {playerId} drew card {drawnCard.CardId}");
         }
+        private Deck GetDeckObject(GameState gameState, string playerId)
+        {
+            if (!gameState.PlayerDecks.TryGetValue(playerId, out var cards))
+                throw new InvalidOperationException($"No deck found for player {playerId}");
+
+            return new Deck(cards); // Your Deck class handles shuffle/draw/etc.
+        }
+
 
         public void PlayCard(string player, int cardId)
         {
