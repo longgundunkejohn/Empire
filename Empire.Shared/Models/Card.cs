@@ -25,5 +25,6 @@ namespace Empire.Shared.Models
             Type = data.CardType;
             Faction = data.Faction;
         }
+
     }
 }

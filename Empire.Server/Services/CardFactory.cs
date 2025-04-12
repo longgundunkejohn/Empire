@@ -39,35 +39,49 @@ public class CardFactory
 
         foreach (var (id, count) in deckList)
         {
-            var baseCard = await CreateCardFromIdAsync(id);
-            if (baseCard != null)
-            {
-                for (int i = 0; i < count; i++)
-                {
-                    // 🔁 Ensure each Card object is a unique instance
-                    result.Add(new Card
-                    {
-                        CardId = baseCard.CardId,
-                        Name = baseCard.Name,
-                        CardText = baseCard.CardText,
-                        Type = baseCard.Type,
-                        Faction = baseCard.Faction,
-                        IsExerted = false,
-                        CurrentDamage = 0,
-                        ImagePath = baseCard.ImagePath,
-                        DeckType = deckType
-                    });
-                }
-            }
-            else
+            var cardData = await CreateCardFromIdAsync(id);
+
+            if (cardData == null)
             {
                 Console.WriteLine($"❌ Card not found for ID: {id}");
+                continue;
             }
+
+            Console.WriteLine($"🔧 Hydrating card {cardData.CardId} x{count} ({cardData.Name})");
+
+            for (int i = 0; i < count; i++)
+            {
+                // 🔁 Create a unique instance per copy
+                var cardInstance = new Card
+                {
+                    CardId = cardData.CardId,
+                    Name = cardData.Name,
+                    CardText = cardData.CardText,
+                    Type = cardData.Type,
+                    Faction = cardData.Faction,
+                    IsExerted = false,
+                    CurrentDamage = 0,
+                    ImagePath = cardData.ImagePath,
+                    DeckType = deckType
+                };
+
+                result.Add(cardInstance);
+            }
+        }
+
+        Console.WriteLine($"✅ Created {result.Count} cards for deck type: {deckType}");
+
+        var grouped = result
+            .GroupBy(c => c.CardId)
+            .Select(g => $"🃏 {g.First().Name} (ID {g.Key}): {g.Count()} copies");
+
+        Console.WriteLine("🧾 Final Card Breakdown:");
+        foreach (var line in grouped)
+        {
+            Console.WriteLine($"   {line}");
         }
 
         return result;
     }
-
-
 
 }
