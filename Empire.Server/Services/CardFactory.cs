@@ -44,6 +44,7 @@ public class CardFactory
             {
                 for (int i = 0; i < count; i++)
                 {
+                    // 🔁 Ensure each Card object is a unique instance
                     result.Add(new Card
                     {
                         CardId = baseCard.CardId,
@@ -66,6 +67,7 @@ public class CardFactory
 
         return result;
     }
+
 
 
 }
