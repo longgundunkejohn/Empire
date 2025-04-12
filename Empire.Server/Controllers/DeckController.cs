@@ -15,18 +15,6 @@ namespace Empire.Server.Controllers
             _cardFactory = cardFactory;
         }
 
-        [HttpGet]
-        public async Task<ActionResult<List<Card>>> GetTestDeck()
-        {
-            var testDeckList = new List<(int CardId, int Count)>
-            {
-                (101, 3),
-                (102, 2)
-            };
-
-            var cards = await _cardFactory.CreateDeckAsync(testDeckList, "Military"); // or "Civic" for test
-            return Ok(cards);
-        }
     }
 }
 

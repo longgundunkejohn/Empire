@@ -190,13 +190,11 @@ namespace Empire.Server.Services
 
         private async Task<List<Card>> HydrateDeckFromIdsAsync(List<int> civicIds, List<int> militaryIds)
         {
-            var civicGrouped = civicIds.GroupBy(id => id).Select(g => (g.Key, g.Count())).ToList();
-            var militaryGrouped = militaryIds.GroupBy(id => id).Select(g => (g.Key, g.Count())).ToList();
-
-            var civicCards = await _cardFactory.CreateDeckAsync(civicGrouped, "Civic");
-            var militaryCards = await _cardFactory.CreateDeckAsync(militaryGrouped, "Military");
+            var civicCards = await _cardFactory.CreateDeckAsync(civicIds, "Civic");
+            var militaryCards = await _cardFactory.CreateDeckAsync(militaryIds, "Military");
 
             return civicCards.Concat(militaryCards).ToList();
         }
+
     }
 }
