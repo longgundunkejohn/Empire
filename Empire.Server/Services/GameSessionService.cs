@@ -10,23 +10,28 @@ namespace Empire.Server.Services
     public class GameSessionService
     {
         private readonly ILogger<GameSessionService> _logger;
-
         private readonly IMongoCollection<GameState> _gameCollection;
         private readonly CardFactory _cardFactory;
+        private readonly DeckLoaderService _deckLoader;
 
         public GameState? GameState { get; private set; }
 
-        public GameSessionService(IMongoDatabase database, CardFactory cardFactory, ILogger<GameSessionService> logger)
+        public GameSessionService(
+            IMongoDatabase database,
+            CardFactory cardFactory,
+            DeckLoaderService deckLoader,
+            ILogger<GameSessionService> logger)
         {
             _gameCollection = database.GetCollection<GameState>("GameSessions");
             _cardFactory = cardFactory;
+            _deckLoader = deckLoader;
             _logger = logger;
         }
 
-
         public async Task<string> CreateGameSession(string player1Id, List<RawDeckEntry> player1Deck)
         {
-            var fullDeck = await HydrateDeckFromRawAsync(player1Deck);
+            var playerDeck = _deckLoader.ConvertRawDeckToPlayerDeck(player1Id, player1Deck);
+            var fullDeck = await HydrateDeckFromPlayerDeckAsync(playerDeck);
 
             var gameState = new GameState
             {
@@ -49,16 +54,6 @@ namespace Empire.Server.Services
 
             await _gameCollection.InsertOneAsync(gameState);
             return gameState.GameId;
-        }
-        public async Task SaveGameState(string gameId, GameState state)
-        {
-            await _gameCollection.ReplaceOneAsync(gs => gs.GameId == gameId, state);
-        }
-        public async Task<GameState?> GetGameState(string gameId)
-        {
-            var state = await _gameCollection.Find(gs => gs.GameId == gameId).FirstOrDefaultAsync();
-            GameState = state;
-            return state;
         }
 
         public async Task<bool> ApplyMove(string gameId, GameMove move)
@@ -147,39 +142,8 @@ namespace Empire.Server.Services
             }
         }
 
-        private async Task<List<Card>> HydrateDeckFromRawAsync(List<RawDeckEntry> rawDeck)
-        {
-            foreach (var entry in rawDeck)
-            {
-                if (string.IsNullOrWhiteSpace(entry.DeckType))
-                {
-                    entry.DeckType = DeckUtils.IsCivicCard(entry.CardId) ? "Civic" : "Military";
-                }
-            }
-
-            var civicEntries = rawDeck
-                .Where(d => d.DeckType == "Civic")
-                .Select(d => (d.CardId, d.Count)).ToList();
-
-            var militaryEntries = rawDeck
-                .Where(d => d.DeckType == "Military")
-                .Select(d => (d.CardId, d.Count)).ToList();
-
-            var civicCards = await _cardFactory.CreateDeckAsync(civicEntries, "Civic");
-            var militaryCards = await _cardFactory.CreateDeckAsync(militaryEntries, "Military");
-
-            _logger.LogInformation("🎴 Hydrated deck: {Civic} civic / {Military} military cards",
-                civicCards.Count, militaryCards.Count);
-
-            return civicCards.Concat(militaryCards).ToList();
-        }
-
-
-
         private async Task<List<Card>> HydrateDeckFromIdsAsync(List<int> civicIds, List<int> militaryIds)
         {
-            var allIds = civicIds.Concat(militaryIds).ToList();
-            var grouped = allIds.GroupBy(id => id).Select(g => (g.Key, g.Count())).ToList();
             var civicGrouped = civicIds.GroupBy(id => id).Select(g => (g.Key, g.Count())).ToList();
             var militaryGrouped = militaryIds.GroupBy(id => id).Select(g => (g.Key, g.Count())).ToList();
 
@@ -187,9 +151,26 @@ namespace Empire.Server.Services
             var militaryCards = await _cardFactory.CreateDeckAsync(militaryGrouped, "Military");
 
             return civicCards.Concat(militaryCards).ToList();
-
         }
 
+        private async Task<List<Card>> HydrateDeckFromPlayerDeckAsync(PlayerDeck deck)
+        {
+            var civicGrouped = deck.CivicDeck
+                .GroupBy(id => id)
+                .Select(g => (g.Key, g.Count()))
+                .ToList();
 
+            var militaryGrouped = deck.MilitaryDeck
+                .GroupBy(id => id)
+                .Select(g => (g.Key, g.Count()))
+                .ToList();
+
+            var civicCards = await _cardFactory.CreateDeckAsync(civicGrouped, "Civic");
+            var militaryCards = await _cardFactory.CreateDeckAsync(militaryGrouped, "Military");
+
+            Console.WriteLine($"✅ Hydrated {civicCards.Count} civic + {militaryCards.Count} military = {civicCards.Count + militaryCards.Count} total cards");
+
+            return civicCards.Concat(militaryCards).ToList();
+        }
     }
 }
