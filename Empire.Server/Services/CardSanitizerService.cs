@@ -141,11 +141,43 @@ public class CardSanitizerServiceV2
 
     private string FindImage(int cardId)
     {
-        var match = Directory.GetFiles(_imagePath, "*.jpg")
-            .FirstOrDefault(f => Path.GetFileNameWithoutExtension(f).StartsWith(cardId.ToString()));
+        var cardIdStr = cardId.ToString();
 
-        return match != null
-            ? $"images/{Path.GetFileName(match)}"
-            : "images/Cards/placeholder.jpg";
+        var allExtensions = new[] { "*.jpg", "*.jpeg", "*.png", "*.webp" };
+        var files = allExtensions.SelectMany(ext => Directory.GetFiles(_imagePath, ext)).ToList();
+
+        foreach (var file in files)
+        {
+            var filename = Path.GetFileNameWithoutExtension(file);
+            var normalized = Normalize(filename);
+
+            if (normalized.StartsWith(cardIdStr))
+            {
+                return $"images/Cards/{Path.GetFileName(file)}";
+            }
+        }
+
+        _logger.LogWarning("🔍 No image found for CardID {CardID}", cardId);
+        return "images/Cards/placeholder.jpg";
     }
+
+    private string Normalize(string input)
+    {
+        var normalized = input.ToLowerInvariant()
+            .Replace("’", "'") // smart quotes to straight
+            .Replace("“", "\"").Replace("”", "\"")
+            .Replace("–", "-").Replace("—", "-")
+            .Replace("_", " ")
+            .Replace(".", "") // remove dots
+            .Replace(",", "")
+            .Replace(":", "")
+            .Replace(";", "")
+            .Replace("&", "and")
+            .Replace("  ", " ");
+
+        normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"[^a-z0-9 \-]", "");
+
+        return normalized.Trim();
+    }
+
 }
