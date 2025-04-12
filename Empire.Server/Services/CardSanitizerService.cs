@@ -19,7 +19,7 @@ public class CardSanitizerServiceV2
         _source = mongo.CardDatabase.GetCollection<BsonDocument>("Cards");
         _target = mongo.CardDatabase.GetCollection<CardData>("CardsForGame");
         _logger = logger;
-        _cardsPath = Path.Combine(env.WebRootPath, "images", "Cards");
+        _cardsPath = Path.Combine(env.WebRootPath, "images", "Cards"); // ✅ now consistent
     }
 
     public async Task<int> RunAsync(bool clearBeforeInsert = true)
@@ -94,10 +94,16 @@ public class CardSanitizerServiceV2
 
     private string FindImage(int cardId)
     {
-        var file = Path.Combine(_cardsPath, $"{cardId}.jpg");
-        return File.Exists(file)
-            ? $"images/Cards/{cardId}.jpg"
-            : "images/Cards/placeholder.jpg";
+        var fileName = $"{cardId}.jpg";
+        var fullPath = Path.Combine(_cardsPath, fileName);
+
+        if (File.Exists(fullPath))
+        {
+            return $"images/Cards/{fileName}";
+        }
+
+        _logger.LogWarning("🔍 No image found for CardID {CardID}", cardId);
+        return "images/Cards/placeholder.jpg";
     }
 
     private int TryParseCost(BsonValue val)
