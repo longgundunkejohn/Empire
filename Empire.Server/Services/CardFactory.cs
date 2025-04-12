@@ -39,21 +39,21 @@ public class CardFactory
 
         foreach (var (id, count) in deckList)
         {
-            var card = await CreateCardFromIdAsync(id);
-            if (card != null)
+            var baseCard = await CreateCardFromIdAsync(id);
+            if (baseCard != null)
             {
                 for (int i = 0; i < count; i++)
                 {
                     result.Add(new Card
                     {
-                        CardId = card.CardId,
-                        Name = card.Name,
-                        CardText = card.CardText,
-                        Type = card.Type,
-                        Faction = card.Faction,
+                        CardId = baseCard.CardId,
+                        Name = baseCard.Name,
+                        CardText = baseCard.CardText,
+                        Type = baseCard.Type,
+                        Faction = baseCard.Faction,
                         IsExerted = false,
                         CurrentDamage = 0,
-                        ImagePath = card.ImagePath,
+                        ImagePath = baseCard.ImagePath,
                         DeckType = deckType
                     });
                 }
