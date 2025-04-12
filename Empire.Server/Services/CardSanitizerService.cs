@@ -1,4 +1,5 @@
-﻿using Empire.Shared.Models;
+﻿using System;
+using Empire.Shared.Models;
 using Empire.Server.Interfaces;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
@@ -11,14 +12,14 @@ public class CardSanitizerServiceV2
     private readonly IMongoCollection<BsonDocument> _source;
     private readonly IMongoCollection<CardData> _target;
     private readonly ILogger<CardSanitizerServiceV2> _logger;
-    private readonly string _imagePath;
+    private readonly string _cardsPath;
 
     public CardSanitizerServiceV2(IMongoDbService mongo, ILogger<CardSanitizerServiceV2> logger, IWebHostEnvironment env)
     {
         _source = mongo.CardDatabase.GetCollection<BsonDocument>("Cards");
         _target = mongo.CardDatabase.GetCollection<CardData>("CardsForGame");
         _logger = logger;
-        _imagePath = Path.Combine(env.WebRootPath, "images");
+        _cardsPath = Path.Combine(env.WebRootPath, "images", "Cards");
     }
 
     public async Task<int> RunAsync(bool clearBeforeInsert = true)
@@ -30,8 +31,7 @@ public class CardSanitizerServiceV2
         }
 
         var rawCards = await _source.Find(FilterDefinition<BsonDocument>.Empty).ToListAsync();
-        int inserted = 0;
-        int skipped = 0;
+        int inserted = 0, skipped = 0;
         var seenCardIds = new HashSet<int>();
 
         foreach (var raw in rawCards)
@@ -71,32 +71,33 @@ public class CardSanitizerServiceV2
         return inserted;
     }
 
-
     private CardData Sanitize(BsonDocument doc)
     {
         var card = new CardData
         {
-            Id = ObjectId.GenerateNewId() // ✅ this guarantees no duplicate _id
+            Id = ObjectId.GenerateNewId(),
+            CardID = doc.GetValue("CardID", -1).ToInt32(),
+            Cost = TryParseCost(doc.GetValue("Cost", BsonNull.Value)),
+            Attack = TryParseInt(doc, "Attack"),
+            Defence = TryParseInt(doc, "Defence"),
+            Name = SanitizeString(doc.GetValue("Name", null)?.ToString(), $"Bug_{doc.GetValue("CardID", -1)}"),
+            CardText = SanitizeMultiline(doc.GetValue("CardText", "").ToString()),
+            CardType = SanitizeString(doc.GetValue("CardType", "Unknown").ToString()),
+            Tier = SanitizeString(doc.GetValue("Tier", "-").ToString()),
+            Unique = CoerceYesNo(doc.GetValue("Unique", "No").ToString()),
+            Faction = CoerceYesNo(doc.GetValue("Faction", "No").ToString()),
+            ImageFileName = FindImage(doc.GetValue("CardID", -1).ToInt32())
         };
-        card.CardID = doc.Contains("CardID") && doc["CardID"].IsInt32
-            ? doc["CardID"].AsInt32
-            : -1;
-
-        card.Cost = TryParseCost(doc.GetValue("Cost", BsonNull.Value));
-        card.Attack = TryParseInt(doc, "Attack");
-        card.Defence = TryParseInt(doc, "Defence");
-
-        card.Name = SanitizeString(doc.GetValue("Name", null)?.ToString(), $"Bug_{card.CardID}");
-        card.CardText = SanitizeMultiline(doc.GetValue("CardText", "").ToString());
-        card.CardType = SanitizeString(doc.GetValue("CardType", "Unknown").ToString());
-        card.Tier = SanitizeString(doc.GetValue("Tier", "-").ToString());
-
-        card.Unique = CoerceYesNo(doc.GetValue("Unique", "No").ToString());
-        card.Faction = CoerceYesNo(doc.GetValue("Faction", "No").ToString());
-
-        card.ImageFileName = FindImage(card.CardID);
 
         return card;
+    }
+
+    private string FindImage(int cardId)
+    {
+        var file = Path.Combine(_cardsPath, $"{cardId}.jpg");
+        return File.Exists(file)
+            ? $"images/Cards/{cardId}.jpg"
+            : "images/Cards/placeholder.jpg";
     }
 
     private int TryParseCost(BsonValue val)
@@ -138,46 +139,4 @@ public class CardSanitizerServiceV2
             _ => "No"
         };
     }
-
-    private string FindImage(int cardId)
-    {
-        var cardIdStr = cardId.ToString();
-
-        var allExtensions = new[] { "*.jpg", "*.jpeg", "*.png", "*.webp" };
-        var files = allExtensions.SelectMany(ext => Directory.GetFiles(_imagePath, ext)).ToList();
-
-        foreach (var file in files)
-        {
-            var filename = Path.GetFileNameWithoutExtension(file);
-            var normalized = Normalize(filename);
-
-            if (normalized.StartsWith(cardIdStr))
-            {
-                return $"images/Cards/{Path.GetFileName(file)}";
-            }
-        }
-
-        _logger.LogWarning("🔍 No image found for CardID {CardID}", cardId);
-        return "images/Cards/placeholder.jpg";
-    }
-
-    private string Normalize(string input)
-    {
-        var normalized = input.ToLowerInvariant()
-            .Replace("’", "'") // smart quotes to straight
-            .Replace("“", "\"").Replace("”", "\"")
-            .Replace("–", "-").Replace("—", "-")
-            .Replace("_", " ")
-            .Replace(".", "") // remove dots
-            .Replace(",", "")
-            .Replace(":", "")
-            .Replace(";", "")
-            .Replace("&", "and")
-            .Replace("  ", " ");
-
-        normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"[^a-z0-9 \-]", "");
-
-        return normalized.Trim();
-    }
-
 }
