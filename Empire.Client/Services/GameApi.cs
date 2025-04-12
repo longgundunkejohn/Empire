@@ -89,6 +89,20 @@ public class GameApi
             }
 
             var result = JsonSerializer.Deserialize<List<Card>>(content, _jsonOptions);
+            if (result != null)
+            {
+                foreach (var card in result)
+                {
+                    // 🔥 Add a fallback name if it's missing, just in case
+                    var name = string.IsNullOrWhiteSpace(card.Name)
+                        ? $"Card_{card.CardId}"
+                        : card.Name;
+
+                    // 🌐 Encode it to be URL safe and assign the full path
+                    card.ImagePath = $"https://empirecardgame.com/images/Cards/{Uri.EscapeDataString(name)}.jpg";
+                }
+            }
+
             return result ?? new();
         }
         catch (JsonException je)
@@ -102,6 +116,7 @@ public class GameApi
             return new();
         }
     }
+
 
     public async Task<bool> JoinGame(string gameId, string playerId, List<int> civicDeck, List<int> militaryDeck)
     {
