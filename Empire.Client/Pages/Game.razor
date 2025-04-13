@@ -58,11 +58,63 @@ else
         </div>
     </div>
 }
+<!-- Chat UI -->
+<div class="chat-container" style="margin-top: 2rem;">
+    <div class="chat-log" style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 8px;">
+        @foreach (var msg in ChatLog)
+
+        {
+            <div><strong>@msg.PlayerId:</strong> @msg.Message</div>
+        }
+    </div>
+
+    <input class="form-control mt-2"
+           @bind="chatInput"
+           @bind:event="oninput"
+           @onkeydown="HandleChatKey"
+           placeholder="Type message or /shuffle..." />
+</div>
 
 @code {
     [Parameter] public string gameId { get; set; } = string.Empty;
 
     [Parameter] public string playerId { get; set; } = string.Empty;
+
+
+
+    private async Task ShuffleDeck()
+
+    {
+
+        var move = new GameMove
+
+            {
+
+                PlayerId = playerId,
+
+                MoveType = "ShuffleDeck"
+
+            };
+
+
+
+        await GameApi.SubmitMove(gameId, move);
+
+        Console.WriteLine("[Client] Sent shuffle move");
+
+
+
+        // Update local game state
+
+        gameState = await GameApi.GetGameState(gameId);
+
+        AllCards = gameState?.PlayerDecks.SelectMany(p => p.Value).ToList() ?? new();
+
+        StateHasChanged();
+
+    }
+
+
 
 
 
@@ -93,6 +145,84 @@ else
         .FirstOrDefault(p => p.Key != playerId).Value?
 
         .Select(id => new Card { CardId = id })?.ToList() ?? new();
+
+
+
+    private string chatInput = string.Empty;
+
+    private List<(string PlayerId, string Message)> ChatLog = new();
+
+
+
+    private async Task HandleChatKey(KeyboardEventArgs e)
+
+    {
+
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(chatInput))
+
+        {
+
+            var message = chatInput.Trim();
+
+
+
+            // Commands like /shuffle
+
+            if (message.StartsWith("/"))
+
+            {
+
+                await HandleChatCommand(message);
+
+            }
+
+            else
+
+            {
+
+                ChatLog.Add((playerId, message)); // Just local for now
+
+            }
+
+
+
+            chatInput = string.Empty;
+
+            StateHasChanged();
+
+        }
+
+    }
+
+
+
+    private async Task HandleChatCommand(string command)
+
+    {
+
+        switch (command.ToLowerInvariant())
+
+        {
+
+            case "/shuffle":
+
+                await ShuffleDeck();
+
+                ChatLog.Add((playerId, "🔀 shuffled their deck."));
+
+                break;
+
+            default:
+
+                ChatLog.Add((playerId, $"❓ Unknown command: {command}"));
+
+                break;
+
+        }
+
+    }
+
+
 
 
 

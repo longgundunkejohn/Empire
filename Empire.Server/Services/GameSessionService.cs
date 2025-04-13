@@ -154,6 +154,20 @@ namespace Empire.Server.Services
         }
 
         private bool ValidateMove(GameState gameState, GameMove move) => true;
+        private void ShuffleDeck(GameState gameState, string playerId)
+        {
+            if (!gameState.PlayerDecks.TryGetValue(playerId, out var cards))
+            {
+                _logger.LogWarning("Attempted to shuffle but no deck found for {PlayerId}", playerId);
+                return;
+            }
+
+            var deck = new Deck(cards);
+            deck.Shuffle();
+            gameState.PlayerDecks[playerId] = deck.GetAllCards().ToList();
+
+            _logger.LogInformation("🔀 Shuffled deck for {PlayerId}", playerId);
+        }
 
         private async Task ProcessMoveAsync(GameState gameState, GameMove move)
         {
@@ -161,6 +175,12 @@ namespace Empire.Server.Services
 
             switch (move.MoveType)
             {
+                case "ShuffleDeck":
+                    ShuffleDeck(gameState, player);
+                    _logger.LogInformation("[Move] Player {Player} shuffled their deck", player);
+                    break;
+
+
                 case "PlayCard":
                     if (!move.CardId.HasValue) break;
 
@@ -229,5 +249,6 @@ namespace Empire.Server.Services
 
             return new Deck(cards);
         }
+
     }
 }
