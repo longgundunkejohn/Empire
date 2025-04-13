@@ -53,7 +53,10 @@ else
                      class="card-image"
                      draggable="true"
                      @ondragstart="(e) => OnDragStart(card.CardId)"
+                     @oncontextmenu="(e => ShowZoomedCard(card, e))"
+                     @onmousedown="e => { if (e.Button == 0 || e.Button == 2) HideZoomedCard(); }"
                      alt="@card.Name" />
+
             }
         </div>
     </div>
@@ -79,11 +82,52 @@ else
            @onkeydown="HandleChatKey"
            placeholder="Type message or /shuffle..." />
 </div>
+@if (ZoomedCard != null)
+
+{
+    <div class="card-preview" style="top:@PreviewYpx; left:@PreviewXpx;">
+        <img src="@ZoomedCard.ImagePath" alt="@ZoomedCard.Name" class="card-image" />
+    </div>
+}
 
 @code {
     [Parameter] public string gameId { get; set; } = string.Empty;
 
     [Parameter] public string playerId { get; set; } = string.Empty;
+
+
+
+    private Card? ZoomedCard = null;
+
+    private string PreviewXpx = "0px";
+
+    private string PreviewYpx = "0px";
+
+
+
+    private void ShowZoomedCard(Card card, MouseEventArgs e)
+
+    {
+
+        ZoomedCard = card;
+
+        PreviewXpx = $"{e.ClientX + 20}px";
+
+        PreviewYpx = $"{e.ClientY + 20}px";
+
+    }
+
+
+
+    private void HideZoomedCard()
+
+    {
+
+        ZoomedCard = null;
+
+    }
+
+
 
 
 
@@ -350,6 +394,5 @@ else
             StateHasChanged();
 
         }
-
     }
 }

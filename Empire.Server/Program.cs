@@ -45,6 +45,7 @@ builder.Services.AddSingleton<CardFactory>(); // ✅ Add this to hydrate cards f
 
 builder.Services.AddMemoryCache(); // Optional caching
 builder.Services.AddSwaggerGen();
+builder.Services.AddSignalR();
 
 // ✅ CORS
 builder.Services.AddCors(options =>
@@ -53,9 +54,11 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins("http://localhost:5173", "https://empirecardgame.com")
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials(); // 👈 required for SignalR
     });
 });
+
 
 // ────────────── App Pipeline ──────────────
 
@@ -83,7 +86,7 @@ app.Use((context, next) =>
     context.Request.Host = new HostString("empirecardgame.com");
     return next();
 });
-
+app.UseCors("AllowEmpireClient");
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
