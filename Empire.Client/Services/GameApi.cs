@@ -7,12 +7,6 @@ using Empire.Shared.Models.DTOs;
 public class GameApi
 {
     private readonly HttpClient _http;
-    private readonly JsonSerializerOptions _jsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true
-    };
 
     public GameApi(HttpClient http)
     {
@@ -35,7 +29,7 @@ public class GameApi
                 return new();
             }
 
-            var result = JsonSerializer.Deserialize<List<GamePreview>>(content, _jsonOptions);
+            var result = JsonSerializer.Deserialize<List<GamePreview>>(content);
             return result ?? new();
         }
         catch (JsonException je)
@@ -65,7 +59,7 @@ public class GameApi
     {
         try
         {
-            return await _http.GetFromJsonAsync<GameState>($"api/game/{gameId}/state", _jsonOptions);
+            return await _http.GetFromJsonAsync<GameState>($"api/game/{gameId}/state");
         }
         catch (Exception ex)
         {
@@ -88,17 +82,15 @@ public class GameApi
                 return new();
             }
 
-            var result = JsonSerializer.Deserialize<List<Card>>(content, _jsonOptions);
+            var result = JsonSerializer.Deserialize<List<Card>>(content);
             if (result != null)
             {
                 foreach (var card in result)
                 {
-                    // 🔥 Add a fallback name if it's missing, just in case
                     var name = string.IsNullOrWhiteSpace(card.Name)
                         ? $"Card_{card.CardId}"
                         : card.Name;
 
-                    // 🌐 Encode it to be URL safe and assign the full path
                     card.ImagePath = $"https://empirecardgame.com/images/Cards/{card.CardId}.jpg";
                 }
             }
@@ -116,7 +108,6 @@ public class GameApi
             return new();
         }
     }
-
 
     public async Task<bool> JoinGame(string gameId, string playerId, List<int> civicDeck, List<int> militaryDeck)
     {
@@ -200,11 +191,10 @@ public class GameApi
         if (!response.IsSuccessStatusCode)
             return new List<PlayerDeck>();
 
-        var decks = await response.Content.ReadFromJsonAsync<List<PlayerDeck>>(_jsonOptions);
+        var decks = await response.Content.ReadFromJsonAsync<List<PlayerDeck>>();
         return decks ?? new List<PlayerDeck>();
     }
 
-    // ✅ DrawCard client-side method
     public async Task<int?> DrawCard(string gameId, string playerId, string type)
     {
         try
