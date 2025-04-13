@@ -58,6 +58,11 @@ else
         </div>
     </div>
 }
+<section class="draw-decks" style="display: flex; justify-content: center; gap: 1rem; margin-top: 1rem;">
+    <CardBackImage DeckCount="@CivicDeckCount" BackType="civic" OnDraw="DrawCivic" />
+    <CardBackImage DeckCount="@MilitaryDeckCount" BackType="military" OnDraw="DrawMilitary" />
+</section>
+
 <!-- Chat UI -->
 <div class="chat-container" style="margin-top: 2rem;">
     <div class="chat-log" style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 8px;">
@@ -113,6 +118,64 @@ else
         StateHasChanged();
 
     }
+
+    private int CivicDeckCount => gameState?.PlayerDecks
+
+        .GetValueOrDefault(playerId)?
+
+        .Count(c => c.Type?.ToLowerInvariant() is "villager" or "settlement") ?? 0;
+
+
+
+    private int MilitaryDeckCount => gameState?.PlayerDecks
+
+        .GetValueOrDefault(playerId)?
+
+        .Count(c => c.Type?.ToLowerInvariant() is not ("villager" or "settlement")) ?? 0;
+
+
+
+    private async Task DrawCivic()
+
+    {
+
+        await GameApi.DrawCard(gameId, playerId, "civic");
+
+        await RefreshGameState();
+
+    }
+
+
+
+    private async Task DrawMilitary()
+
+    {
+
+        await GameApi.DrawCard(gameId, playerId, "military");
+
+        await RefreshGameState();
+
+    }
+
+
+
+    private async Task RefreshGameState()
+
+    {
+
+        gameState = await GameApi.GetGameState(gameId);
+
+        AllCards = gameState?.PlayerDecks.SelectMany(p => p.Value).ToList() ?? new();
+
+        StateHasChanged();
+
+    }
+
+
+
+
+
+
 
 
 
