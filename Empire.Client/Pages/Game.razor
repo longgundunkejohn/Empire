@@ -1,7 +1,9 @@
 ﻿@page "/game/{gameId}/{playerId}"
 @inject GameApi GameApi
+@inject NavigationManager NavigationManager
 @using Empire.Shared.Models
 @using Empire.Shared.Models.Enums
+@using Microsoft.AspNetCore.SignalR.Client
 
 @if (gameState == null)
 
@@ -53,12 +55,13 @@ else
                      class="card-image"
                      draggable="true"
                      @ondragstart="(e) => OnDragStart(card.CardId)"
-                     @oncontextmenu="(e => ShowZoomedCard(card, e))"
+                @oncontextmenu:preventDefault
+                     @oncontextmenu="e => ShowZoomedCard(card, e)"
                      @onmousedown="e => { if (e.Button == 0 || e.Button == 2) HideZoomedCard(); }"
                      alt="@card.Name" />
-
             }
         </div>
+
     </div>
 }
 <section class="draw-decks" style="display: flex; justify-content: center; gap: 1rem; margin-top: 1rem;">
@@ -82,7 +85,14 @@ else
            @onkeydown="HandleChatKey"
            placeholder="Type message or /shuffle..." />
 </div>
-@if (ZoomedCard != null)
+
+    @if (ZoomedCard != null)
+
+    {
+        <div class="card-preview" style="top:@PreviewYpx; left:@PreviewXpx;">
+            <img src="@ZoomedCard.ImagePath" alt="@ZoomedCard.Name" class="card-image" />
+        </div>
+    }
 
 {
     <div class="card-preview" style="top:@PreviewYpx; left:@PreviewXpx;">
@@ -97,6 +107,10 @@ else
 
 
 
+
+
+
+
     private Card? ZoomedCard = null;
 
     private string PreviewXpx = "0px";
@@ -108,7 +122,6 @@ else
     private void ShowZoomedCard(Card card, MouseEventArgs e)
 
     {
-
         ZoomedCard = card;
 
         PreviewXpx = $"{e.ClientX + 20}px";
@@ -116,7 +129,6 @@ else
         PreviewYpx = $"{e.ClientY + 20}px";
 
     }
-
 
 
     private void HideZoomedCard()
@@ -255,6 +267,12 @@ else
 
 
 
+
+
+    private HubConnection? hub;
+
+
+
     private string chatInput = string.Empty;
 
     private List<(string PlayerId, string Message)> ChatLog = new();
@@ -337,6 +355,10 @@ else
 
 
 
+
+
+
+
     protected override async Task OnInitializedAsync()
 
     {
@@ -345,7 +367,59 @@ else
 
         AllCards = gameState?.PlayerDecks.SelectMany(p => p.Value).ToList() ?? new();
 
+
+
+        // SignalR Setup
+
+        hub = new HubConnectionBuilder()
+
+            .WithUrl(NavigationManager.ToAbsoluteUri("/gamehub"))
+
+            .WithAutomaticReconnect()
+
+            .Build();
+
+
+
+
+
+
+
+        hub.On<BoardPositionUpdate>("ReceiveBoardUpdate", async (update) =>
+
+        {
+
+            if (update.GameId == gameId)
+
+            {
+
+                Console.WriteLine($"🔁 Board updated by {update.PlayerId}");
+
+                await RefreshGameState();
+
+            }
+
+        });
+
+
+
+
+
+
+
+
+
+        await hub.StartAsync();
+
+        await hub.SendAsync("JoinGameGroup", gameId);
+
     }
+
+
+
+
+
+
 
 
 
@@ -363,6 +437,10 @@ else
 
 
 
+
+
+
+
     private async Task OnCardDrop()
 
     {
@@ -371,28 +449,62 @@ else
 
         {
 
-            var move = new GameMove
+            var currentBoard = PlayerBoard;
+
+
+
+            var draggedCard = new BoardCard(draggedCardId.Value);
+
+
+
+
+
+
+
+            // Hotwire: Remove if already exists (avoid duplicates)
+
+            currentBoard.RemoveAll(c => c.CardId == draggedCardId.Value);
+
+
+
+            // Snap to end of board grid
+
+            currentBoard.Add(draggedCard);
+
+
+
+            var newOrder = currentBoard.Select(c => c.CardId).ToList();
+
+
+
+            // Send update to backend (you can store the order if needed later)
+
+            var update = new BoardPositionUpdate
 
                 {
 
+                    GameId = gameId,
+
                     PlayerId = playerId,
 
-                    MoveType = "PlayCard",
-
-                    CardId = draggedCardId
+                    NewOrder = newOrder
 
                 };
 
 
 
-            await GameApi.SubmitMove(gameId, move);
+            if (hub is not null)
 
-            gameState = await GameApi.GetGameState(gameId);
+                await hub.SendAsync("SendBoardUpdate", update);
+
+
 
             draggedCardId = null;
 
             StateHasChanged();
 
         }
+
     }
+
 }

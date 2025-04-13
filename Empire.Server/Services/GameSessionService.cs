@@ -59,6 +59,12 @@ namespace Empire.Server.Services
             if (gameState == null || !string.IsNullOrEmpty(gameState.Player2))
                 return false;
 
+            // ✅ Ensure each card has its DeckType set
+            foreach (var card in deck)
+            {
+                card.DeckType ??= InferDeckType(card);
+            }
+
             gameState.Player2 = playerId;
             gameState.PlayerDecks[playerId] = deck;
             gameState.PlayerHands[playerId] = new List<int>();
@@ -73,6 +79,17 @@ namespace Empire.Server.Services
 
             await _gameCollection.ReplaceOneAsync(gs => gs.GameId == gameId, gameState);
             return true;
+        }
+
+        // 🧠 Local helper in GameSessionService (copy this over from controller if needed)
+        private string InferDeckType(Card card)
+        {
+            return card.Type?.ToLower() switch
+            {
+                "villager" => "Civic",
+                "settlement" => "Civic",
+                _ => "Military"
+            };
         }
 
         public async Task<List<GameState>> ListOpenGames()

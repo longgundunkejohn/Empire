@@ -31,6 +31,7 @@
     border-radius: 10px;
     box-shadow: 0 0 12px rgba(0,0,0,0.8);
 }
+
     .card-image:hover {
         transform: scale(1.05);
     }
@@ -76,14 +77,14 @@
 
 /* === Board Zone === */
 .board {
-    border: 2px dashed #ccc;
-    min-height: 200px;
-    padding: 1rem;
-    margin: 2rem;
-    background: #f9f9f9;
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(5, 120px); /* 5 cards per row */
+    grid-auto-rows: 180px;
+    gap: 12px;
     justify-content: center;
+    padding: 1rem;
+    border: 2px dashed #ccc;
+    background-color: #f9f9f9;
 }
 
 .card-row {
@@ -92,6 +93,16 @@
     gap: 0.5rem;
     margin-bottom: 1rem;
 }
+.card-slot {
+    width: 120px;
+    height: 180px;
+    position: relative;
+}
+.card-slot .card-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
 
 /* === Deck Zones === */
 .deck {
@@ -99,6 +110,7 @@
     position: relative;
     margin: 10px;
 }
+
 
 .deck-count {
     position: absolute;
@@ -109,6 +121,15 @@
     padding: 2px 6px;
     font-size: 0.8rem;
     border-radius: 4px;
+}
+/* === Draw Deck Card Size === */
+.draw-decks .card-image {
+    width: 80px;
+    height: auto;
+    aspect-ratio: 0.715;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    transition: transform 0.2s ease;
 }
 
 /* === Layout Containers === */

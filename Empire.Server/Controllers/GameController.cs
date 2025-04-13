@@ -7,6 +7,8 @@ using System.Collections.Generic;
 using Empire.Shared.Models;
 using MongoDB.Driver;
 using Empire.Server.Interfaces;
+using Empire.Server.Hubs;
+using Microsoft.AspNetCore.SignalR;
 
 namespace Empire.Server.Controllers
 {
@@ -15,6 +17,7 @@ namespace Empire.Server.Controllers
 
     public class GameController : ControllerBase
     {
+        private readonly IHubContext<GameHub> _hub;
         private readonly GameSessionService _sessionService;
         private readonly GameStateService _gameStateService;
         private readonly DeckService _deckService;
@@ -26,15 +29,16 @@ namespace Empire.Server.Controllers
             GameStateService gameStateService,
             DeckService deckService,
             ICardService cardService,
-            IMongoDbService mongo) // 👈 add this param
+            IMongoDbService mongo,
+            IHubContext<GameHub> hub) // 🧩 Add this
         {
             _sessionService = sessionService;
             _gameStateService = gameStateService;
             _deckService = deckService;
             _cardService = cardService;
-            _deckCollection = mongo.DeckDatabase.GetCollection<PlayerDeck>("PlayerDecks"); // 👈 set it here
+            _deckCollection = mongo.DeckDatabase.GetCollection<PlayerDeck>("PlayerDecks");
+            _hub = hub;
         }
-
 
         [HttpGet("{gameId}/state")]
         public async Task<IActionResult> GetGameState(string gameId)
@@ -44,6 +48,25 @@ namespace Empire.Server.Controllers
                 return NotFound("Game not found.");
 
             return Ok(state);
+        }
+        [HttpPost("reorder")]
+        public async Task<IActionResult> UpdateBoardOrder([FromBody] BoardPositionUpdate update)
+        {
+            if (string.IsNullOrEmpty(update.GameId) || string.IsNullOrEmpty(update.PlayerId))
+                return BadRequest("Missing game or player ID.");
+
+            var game = await _sessionService.GetGameState(update.GameId);
+            if (game == null)
+                return NotFound("Game not found.");
+
+            game.PlayerHands[update.PlayerId] = update.NewOrder;
+            await _sessionService.SaveGameState(update.GameId, game);
+
+            // 🔔 Notify everyone else in the group
+            await _hub.Clients.Group(update.GameId)
+                .SendAsync("ReceiveBoardUpdate", update);
+
+            return Ok();
         }
 
         [HttpGet("open")]
@@ -91,17 +114,6 @@ namespace Empire.Server.Controllers
             return Ok(gameId);
         }
 
-
-
-        private string InferDeckType(Card card)
-        {
-            return card.Type?.ToLower() switch
-            {
-                "villager" => "Civic",
-                "settlement" => "Civic",
-                _ => "Military"
-            };
-        }
         [HttpPost("{gameId}/draw/{playerId}/{type}")]
         public async Task<IActionResult> DrawCard(string gameId, string playerId, string type)
         {
@@ -124,7 +136,6 @@ namespace Empire.Server.Controllers
 
             var random = new Random();
             var drawn = drawFrom[random.Next(drawFrom.Count)];
-
             var indexToRemove = deck.FindIndex(c => c.CardId == drawn.CardId);
             if (indexToRemove >= 0)
                 deck.RemoveAt(indexToRemove);
@@ -134,11 +145,19 @@ namespace Empire.Server.Controllers
 
             gameState.PlayerHands[playerId].Add(drawn.CardId);
 
-            Console.WriteLine($"[Draw] {playerId} drew {drawn.Name} ({drawn.CardId}) from {type}.");
-
             await _sessionService.SaveGameState(gameId, gameState);
+
+            // 🧠 🔔 Broadcast to others
+            await _hub.Clients.Group(gameId).SendAsync("ReceiveBoardUpdate", new BoardPositionUpdate
+            {
+                GameId = gameId,
+                PlayerId = playerId,
+                NewOrder = gameState.PlayerHands[playerId]
+            });
+
             return Ok(drawn.CardId);
         }
+
 
 
         private bool IsCivic(string? type)
