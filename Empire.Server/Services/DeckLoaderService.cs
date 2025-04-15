@@ -114,15 +114,8 @@ namespace Empire.Server.Services
             foreach (var file in Directory.GetFiles(_imagePath, "*.jpg"))
             {
                 var name = Path.GetFileNameWithoutExtension(file);
-                var parts = name.Split(' ', 2);
 
-                if (parts.Length < 2)
-                {
-                    _logger.LogWarning("⚠️ Invalid card image filename (no name part): {File}", name);
-                    continue;
-                }
-
-                if (int.TryParse(parts[0], out int cardId))
+                if (int.TryParse(name, out int cardId))
                 {
                     var imagePath = $"images/Cards/{Path.GetFileName(file)}";
                     CardDictionary[cardId] = imagePath;
@@ -137,7 +130,12 @@ namespace Empire.Server.Services
             {
                 _logger.LogError("❌ No valid image mappings loaded.");
             }
+            else
+            {
+                _logger.LogInformation("✅ Loaded {Count} card images from disk.", CardDictionary.Count);
+            }
         }
+
 
         public string GetImagePath(int cardId)
         {
