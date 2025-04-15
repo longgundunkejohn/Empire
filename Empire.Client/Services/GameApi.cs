@@ -3,6 +3,7 @@ using Empire.Shared.DTOs;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Empire.Shared.Models.DTOs;
+using Empire.Shared.Serialization; // 👈 required
 
 public class GameApi
 {
@@ -29,7 +30,7 @@ public class GameApi
                 return new();
             }
 
-            var result = JsonSerializer.Deserialize<List<GamePreview>>(content);
+            var result = JsonSerializer.Deserialize(content, AppJsonContext.Default.ListGamePreview);
             return result ?? new();
         }
         catch (JsonException je)
@@ -51,7 +52,7 @@ public class GameApi
         if (!response.IsSuccessStatusCode)
             return new List<string>();
 
-        var names = await response.Content.ReadFromJsonAsync<List<string>>();
+        var names = await response.Content.ReadFromJsonAsync(AppJsonContext.Default.ListString);
         return names ?? new List<string>();
     }
 
@@ -59,7 +60,7 @@ public class GameApi
     {
         try
         {
-            return await _http.GetFromJsonAsync<GameState>($"api/game/{gameId}/state");
+            return await _http.GetFromJsonAsync($"api/game/{gameId}/state", AppJsonContext.Default.GameState);
         }
         catch (Exception ex)
         {
@@ -82,7 +83,7 @@ public class GameApi
                 return new();
             }
 
-            var result = JsonSerializer.Deserialize<List<Card>>(content);
+            var result = JsonSerializer.Deserialize(content, AppJsonContext.Default.ListCard);
             if (result != null)
             {
                 foreach (var card in result)
@@ -119,7 +120,8 @@ public class GameApi
                 MilitaryDeck = militaryDeck
             };
 
-            var response = await _http.PostAsJsonAsync($"api/game/join/{gameId}/{playerId}", deck);
+            var response = await _http.PostAsJsonAsync($"api/game/join/{gameId}/{playerId}", deck, AppJsonContext.Default.PlayerDeck);
+
             if (!response.IsSuccessStatusCode)
             {
                 var error = await response.Content.ReadAsStringAsync();
@@ -139,7 +141,7 @@ public class GameApi
     {
         try
         {
-            var response = await _http.PostAsJsonAsync($"api/game/move?gameId={gameId}", move);
+            var response = await _http.PostAsJsonAsync($"api/game/move?gameId={gameId}", move, AppJsonContext.Default.GameMove);
             if (!response.IsSuccessStatusCode)
             {
                 var error = await response.Content.ReadAsStringAsync();
@@ -165,7 +167,7 @@ public class GameApi
                 DeckId = deckName
             };
 
-            var response = await _http.PostAsJsonAsync("api/game/create", request);
+            var response = await _http.PostAsJsonAsync("api/game/create", request, AppJsonContext.Default.GameStartRequest);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -191,7 +193,7 @@ public class GameApi
         if (!response.IsSuccessStatusCode)
             return new List<PlayerDeck>();
 
-        var decks = await response.Content.ReadFromJsonAsync<List<PlayerDeck>>();
+        var decks = await response.Content.ReadFromJsonAsync(AppJsonContext.Default.ListPlayerDeck);
         return decks ?? new List<PlayerDeck>();
     }
 
@@ -208,7 +210,7 @@ public class GameApi
                 return null;
             }
 
-            var result = await response.Content.ReadFromJsonAsync<int>();
+            var result = await response.Content.ReadFromJsonAsync(AppJsonContext.Default.Int32);
             return result;
         }
         catch (Exception ex)

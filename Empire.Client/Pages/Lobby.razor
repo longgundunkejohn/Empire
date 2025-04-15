@@ -53,6 +53,15 @@ else
     </ul>
 }
 
+<!-- ─────── DRAW DECKS SECTION ─────── -->
+@if (!string.IsNullOrWhiteSpace(gameId) && !string.IsNullOrWhiteSpace(playerId) && gameState != null)
+{
+    <section class="draw-decks">
+        <CardBackImage DeckCount="@CivicDeckCount" BackType="civic" OnDraw="DrawCivic" />
+        <CardBackImage DeckCount="@MilitaryDeckCount" BackType="military" OnDraw="DrawMilitary" />
+    </section>
+}
+
 @code {
     private List<GamePreview>? games;
     private List<PlayerDeck> uploadedDecks = new();
@@ -62,6 +71,18 @@ else
     private IBrowserFile? deckFile;
     private string uploadName = "";
     private string uploadOwner = "";
+
+    private GameState? gameState;
+    private string gameId = "";
+    private string playerId = "";
+
+    private int CivicDeckCount => gameState?.PlayerDecks
+        .GetValueOrDefault(playerId)?
+        .Count(c => c.Type?.ToLowerInvariant() is "settlement" or "villager") ?? 0;
+
+    private int MilitaryDeckCount => gameState?.PlayerDecks
+        .GetValueOrDefault(playerId)?
+        .Count(c => c.Type?.ToLowerInvariant() is not ("settlement" or "villager")) ?? 0;
 
     protected override async Task OnInitializedAsync()
     {
@@ -128,8 +149,10 @@ else
 
         if (response.IsSuccessStatusCode)
         {
-            var gameId = await response.Content.ReadAsStringAsync();
-            Nav.NavigateTo($"/game/{gameId}/{createPlayerName}");
+            gameId = await response.Content.ReadAsStringAsync();
+            playerId = createPlayerName;
+            await RefreshGameState();
+            Nav.NavigateTo($"/game/{gameId}/{playerId}");
         }
         else
         {
@@ -138,7 +161,7 @@ else
         }
     }
 
-    private async Task JoinGame(string gameId)
+    private async Task JoinGame(string id)
     {
         if (string.IsNullOrWhiteSpace(createPlayerName))
         {
@@ -153,16 +176,38 @@ else
             return;
         }
 
-        var success = await GameApi.JoinGame(gameId, createPlayerName, selectedDeck.CivicDeck, selectedDeck.MilitaryDeck);
+        var success = await GameApi.JoinGame(id, createPlayerName, selectedDeck.CivicDeck, selectedDeck.MilitaryDeck);
 
         if (success)
         {
-            Console.WriteLine($"✅ Joined game {gameId} as {createPlayerName}");
-            Nav.NavigateTo($"/game/{gameId}/{createPlayerName}");
+            gameId = id;
+            playerId = createPlayerName;
+            await RefreshGameState();
+            Nav.NavigateTo($"/game/{gameId}/{playerId}");
         }
         else
         {
             Console.WriteLine("❌ Failed to join game.");
         }
+    }
+
+    private async Task RefreshGameState()
+    {
+        if (!string.IsNullOrWhiteSpace(gameId))
+        {
+            gameState = await GameApi.GetGameState(gameId);
+        }
+    }
+
+    private async Task DrawCivic()
+    {
+        await GameApi.DrawCard(gameId, playerId, "civic");
+        await RefreshGameState();
+    }
+
+    private async Task DrawMilitary()
+    {
+        await GameApi.DrawCard(gameId, playerId, "military");
+        await RefreshGameState();
     }
 }
