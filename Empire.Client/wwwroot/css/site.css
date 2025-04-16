@@ -150,11 +150,12 @@ section {
 }
 
 .bg-lobby {
-    background-image: url('/images/bg-lobby.jpg');
+    background-image: url('/images/lobbybg.png');
 }
 
 .bg-game {
-    background-image: url('/images/bg-game.jpg');
+    background-image: url('/images/gamebg.png');
+}
 }
 
 .bg-default {
