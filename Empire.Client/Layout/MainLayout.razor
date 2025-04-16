@@ -1,5 +1,6 @@
 ﻿@inherits LayoutComponentBase
-<div class="page">
+
+<div class="page-layout @PageBackgroundClass">
     <div class="sidebar">
         <NavMenu />
     </div>
@@ -14,3 +15,13 @@
         </article>
     </main>
 </div>
+
+@code {
+    // You could expand this later to be dynamic per route.
+    private string PageBackgroundClass =>
+        NavigationManager.Uri.Contains("/game") ? "bg-game" :
+        NavigationManager.Uri.Contains("/lobby") ? "bg-lobby" :
+        "bg-default";
+
+    [Inject] private NavigationManager NavigationManager { get; set; }
+}

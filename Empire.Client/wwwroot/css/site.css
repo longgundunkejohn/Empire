@@ -140,3 +140,23 @@ section {
 .game-container {
     padding: 1rem;
 }
+.page-layout {
+    min-height: 100vh;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    display: flex;
+    flex-direction: row;
+}
+
+.bg-lobby {
+    background-image: url('/images/bg-lobby.jpg');
+}
+
+.bg-game {
+    background-image: url('/images/bg-game.jpg');
+}
+
+.bg-default {
+    background-color: #121212;
+}
