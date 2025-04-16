@@ -7,6 +7,7 @@
 <h3>Lobby</h3>
 
 <input type="text" placeholder="Your Name" @bind="createPlayerName" />
+
 <select @bind="selectedDeckName">
     @foreach (var deck in deckNames)
 
@@ -14,6 +15,7 @@
         <option value="@deck">@deck</option>
     }
 </select>
+
 <button @onclick="CreateGame">Create Game</button>
 
 <hr />
@@ -72,11 +74,25 @@ else
 
     {
 
-        games = await GameApi.GetOpenGames();
+        try
 
-        deckNames = await GameApi.GetUploadedDeckNames();
+        {
 
-        selectedDeckName = deckNames.FirstOrDefault() ?? "";
+            games = await GameApi.GetOpenGames();
+
+            deckNames = await GameApi.GetUploadedDeckNames();
+
+            selectedDeckName = deckNames.FirstOrDefault() ?? "";
+
+        }
+
+        catch (Exception ex)
+
+        {
+
+            Console.WriteLine($"[Lobby] ❌ Init error: {ex.Message}");
+
+        }
 
     }
 
@@ -144,8 +160,6 @@ else
 
         var success = await GameApi.JoinGame(id, createPlayerName, selected.CivicDeck, selected.MilitaryDeck);
 
-
-
         if (success)
 
         {
@@ -162,6 +176,14 @@ else
 
         }
 
+        else
+
+        {
+
+            Console.WriteLine("❌ Failed to join game.");
+
+        }
+
     }
 
 
@@ -170,7 +192,21 @@ else
 
     {
 
-        gameState = await GameApi.GetGameState(gameId);
+        try
+
+        {
+
+            gameState = await GameApi.GetGameState(gameId);
+
+        }
+
+        catch (Exception ex)
+
+        {
+
+            Console.WriteLine($"❌ Error refreshing game state: {ex.Message}");
+
+        }
 
     }
 
