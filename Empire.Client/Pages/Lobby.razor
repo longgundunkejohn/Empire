@@ -1,1 +1,199 @@
-﻿
+﻿@page "/lobby"
+@inject GameApi GameApi
+@inject NavigationManager Nav
+@using Empire.Shared.Models
+
+<h3>Lobby</h3>
+
+<input type="text" placeholder="Your Name" @bind="createPlayerName" />
+<select @bind="selectedDeckName">
+    @foreach (var deck in deckNames)
+
+    {
+        <option value="@deck">@deck</option>
+    }
+</select>
+<button @onclick="CreateGame">Create Game</button>
+
+<hr />
+
+<h4>Open Games</h4>
+@if (games?.Any() == true)
+
+{
+    <ul>
+        @foreach (var game in games)
+
+        {
+            <li>
+                @game.GameId
+                <button @onclick="() => JoinGame(game.GameId)">Join</button>
+            </li>
+        }
+    </ul>
+}
+
+else
+
+{
+    <p>No open games.</p>
+}
+
+@if (!string.IsNullOrWhiteSpace(gameId) && !string.IsNullOrWhiteSpace(playerId) && gameState is not null)
+
+{
+    <section class="draw-decks">
+        <button @onclick="DrawCivic">Draw Civic</button>
+        <button @onclick="DrawMilitary">Draw Military</button>
+    </section>
+}
+
+@code {
+    private List<GamePreview> games = new();
+
+    private List<string> deckNames = new();
+
+    private string selectedDeckName = "";
+
+    private string createPlayerName = "";
+
+
+
+    private string gameId = "";
+
+    private string playerId = "";
+
+    private GameState? gameState;
+
+
+
+    protected override async Task OnInitializedAsync()
+
+    {
+
+        games = await GameApi.GetOpenGames();
+
+        deckNames = await GameApi.GetUploadedDeckNames();
+
+        selectedDeckName = deckNames.FirstOrDefault() ?? "";
+
+    }
+
+
+
+    private async Task CreateGame()
+
+    {
+
+        if (string.IsNullOrWhiteSpace(createPlayerName) || string.IsNullOrWhiteSpace(selectedDeckName))
+
+            return;
+
+
+
+        var id = await GameApi.CreateGame(createPlayerName, selectedDeckName);
+
+        if (string.IsNullOrWhiteSpace(id))
+
+            return;
+
+
+
+        gameId = id;
+
+        playerId = createPlayerName;
+
+
+
+        await RefreshGameState();
+
+        Nav.NavigateTo($"/game/{gameId}/{playerId}");
+
+    }
+
+
+
+    private async Task JoinGame(string id)
+
+    {
+
+        if (string.IsNullOrWhiteSpace(createPlayerName) || string.IsNullOrWhiteSpace(selectedDeckName))
+
+            return;
+
+
+
+        var decks = await GameApi.GetUploadedDecks();
+
+        var selected = decks.FirstOrDefault(d => d.DeckName == selectedDeckName);
+
+
+
+        if (selected == null)
+
+        {
+
+            Console.WriteLine("❌ Deck not found.");
+
+            return;
+
+        }
+
+
+
+        var success = await GameApi.JoinGame(id, createPlayerName, selected.CivicDeck, selected.MilitaryDeck);
+
+
+
+        if (success)
+
+        {
+
+            gameId = id;
+
+            playerId = createPlayerName;
+
+
+
+            await RefreshGameState();
+
+            Nav.NavigateTo($"/game/{gameId}/{playerId}");
+
+        }
+
+    }
+
+
+
+    private async Task RefreshGameState()
+
+    {
+
+        gameState = await GameApi.GetGameState(gameId);
+
+    }
+
+
+
+    private async Task DrawCivic()
+
+    {
+
+        await GameApi.DrawCard(gameId, playerId, "civic");
+
+        await RefreshGameState();
+
+    }
+
+
+
+    private async Task DrawMilitary()
+
+    {
+
+        await GameApi.DrawCard(gameId, playerId, "military");
+
+        await RefreshGameState();
+
+    }
+}
