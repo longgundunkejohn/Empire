@@ -25,11 +25,19 @@ namespace Empire.Server.Controllers
         }
 
         [HttpGet("decks")]
-        public async Task<ActionResult<List<PlayerDeck>>> GetAllDecks()
+        public async Task<ActionResult<List<string>>> GetAllDeckNames()
         {
             var decks = await _deckCollection.Find(_ => true).ToListAsync();
-            return Ok(decks);
+            var names = decks
+                .Where(d => !string.IsNullOrWhiteSpace(d.DeckName))
+                .Select(d => d.DeckName)
+                .Distinct()
+                .OrderBy(n => n)
+                .ToList();
+
+            return Ok(names);
         }
+
         [HttpGet("decks/{playerName}")]
         public async Task<ActionResult<List<PlayerDeck>>> GetDecksForPlayer(string playerName)
         {

@@ -18,3 +18,4 @@ public interface ICardService
     void PutOnBottomOfDeck(Card card);
     IReadOnlyList<Card> PeekTopOfDeck(int count, bool draw = false);
 }
+
