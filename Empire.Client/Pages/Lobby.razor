@@ -1,5 +1,4 @@
-﻿// FIXED LOBBY.razor
-@page "/lobby"
+﻿@page "/lobby"
 @inject GameApi GameApi
 @inject NavigationManager Nav
 @inject HttpClient Http
@@ -45,30 +44,17 @@ else
     <p>No open games.</p>
 }
 
-@if (!string.IsNullOrWhiteSpace(gameId) && !string.IsNullOrWhiteSpace(playerId) && gameState is not null)
-
-{
-    <section class="draw-decks">
-        <button @onclick="DrawCivic">Draw Civic</button>
-        <button @onclick="DrawMilitary">Draw Military</button>
-    </section>
-}
-
 <hr />
 <h4>Upload New Deck</h4>
 
-<EditForm OnValidSubmit="UploadDeck">
-    <InputFile OnChange="HandleFileChange" accept=".csv" />
-    <input type="text" @bind="uploadDeckName" placeholder="Deck Name (optional)" />
-    <button type="submit" disabled="@(!CanUploadDeck)">Upload Deck</button>
-</EditForm>
+<InputFile OnChange="HandleFileChange" accept=".csv" />
+<input type="text" @bind="uploadDeckName" placeholder="Deck Name (optional)" />
+<button @onclick="UploadDeck" disabled="@(!CanUploadDeck)">Upload Deck</button>
 
 @if (!string.IsNullOrEmpty(uploadStatus))
 
 {
     <p>@uploadStatus</p>
-}
-
 }
 
 @code {
@@ -112,27 +98,13 @@ else
 
 
 
-
-
-
-
     private async Task UploadDeck()
 
     {
 
-        Console.WriteLine("🛫 UploadDeck called");
-
-
-
         if (selectedFile == null || string.IsNullOrWhiteSpace(createPlayerName))
 
-        {
-
-            Console.WriteLine("❌ Missing file or playerName.");
-
             return;
-
-        }
 
 
 
@@ -156,9 +128,9 @@ else
 
 
 
-            var response = await Http.PostAsync("api/prelobby/upload?playerName=" + createPlayerName +
+            var response = await Http.PostAsync($"api/prelobby/upload?playerName={createPlayerName}" +
 
-                                                (string.IsNullOrWhiteSpace(uploadDeckName) ? "" : "&deckName=" + uploadDeckName),
+                                                (string.IsNullOrWhiteSpace(uploadDeckName) ? "" : $"&deckName={uploadDeckName}"),
 
                                                 content);
 
@@ -172,9 +144,7 @@ else
 
 
 
-            Console.WriteLine($"[UploadDeck] Server said: {uploadStatus}");
-
-
+            // Refresh deck list
 
             deckNames = await GameApi.GetUploadedDeckNames();
 
@@ -188,15 +158,9 @@ else
 
             uploadStatus = $"❌ Exception: {ex.Message}";
 
-            Console.WriteLine("[UploadDeck] Exception: " + ex.Message);
-
         }
 
     }
-
-
-
-
 
 
 
@@ -333,30 +297,6 @@ else
             Console.WriteLine($"❌ Error refreshing game state: {ex.Message}");
 
         }
-
-    }
-
-
-
-    private async Task DrawCivic()
-
-    {
-
-        await GameApi.DrawCard(gameId, playerId, "civic");
-
-        await RefreshGameState();
-
-    }
-
-
-
-    private async Task DrawMilitary()
-
-    {
-
-        await GameApi.DrawCard(gameId, playerId, "military");
-
-        await RefreshGameState();
 
     }
 }
