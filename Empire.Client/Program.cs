@@ -7,19 +7,18 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// 🌍 Dynamic API base URL — switch between dev & prod automatically
+// 🌍 Dynamic API base URL — dev vs prod
 var apiBaseUrl = builder.HostEnvironment.IsDevelopment()
-    ? "http://134.209.20.47:5000"
-    : "https://empirecardgame.com";
+    ? "http://localhost:5000" // ✅ Your local dev backend
+    : "https://empirecardgame.com"; // ✅ Your prod domain
 
-
-// 🧠 Register HttpClient with correct base address
+// 🧠 Register HttpClient for API calls
 builder.Services.AddScoped(sp => new HttpClient
 {
     BaseAddress = new Uri(apiBaseUrl)
 });
 
-// 🔧 Register your API service
+// 🔧 Inject your API wrapper service
 builder.Services.AddScoped<GameApi>();
 
 await builder.Build().RunAsync();
