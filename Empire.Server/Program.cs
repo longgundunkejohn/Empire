@@ -1,3 +1,4 @@
+using Empire.Server.Hubs;
 using Empire.Server.Interfaces;
 using Empire.Server.Services;
 using Empire.Shared.Models;
@@ -91,7 +92,7 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
 app.UseCors("AllowEmpireClient");
-
+app.MapHub<GameHub>("/gamehub");
 app.MapControllers();
 app.MapFallbackToFile("index.html");
 

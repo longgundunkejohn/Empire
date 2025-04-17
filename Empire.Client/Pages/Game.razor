@@ -86,13 +86,14 @@ else
            placeholder="Type message or /shuffle..." />
 </div>
 
-    @if (ZoomedCard != null)
+@if (ZoomedCard != null)
 
-    {
-        <div class="card-preview" style="top:@PreviewYpx; left:@PreviewXpx;">
-            <img src="@ZoomedCard.ImagePath" alt="@ZoomedCard.Name" class="card-image" />
-        </div>
-    }
+{
+    <div class="card-preview" style="top:@PreviewYpx; left:@PreviewXpx;">
+        <img src="@ZoomedCard.ImagePath" alt="@ZoomedCard.Name" class="card-image" />
+    </div>
+}
+
 
 {
     <div class="card-preview" style="top:@PreviewYpx; left:@PreviewXpx;">
