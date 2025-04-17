@@ -58,5 +58,21 @@ namespace Empire.Server.Controllers
                 IsJoinable = true
             });
         }
+
+        [HttpGet("open")]
+        public async Task<ActionResult<List<GamePreview>>> GetOpenGames()
+        {
+            var filter = Builders<GameState>.Filter.Eq(g => g.Player2, null);
+            var openGames = await _gameCollection.Find(filter).ToListAsync();
+
+            var previews = openGames.Select(g => new GamePreview
+            {
+                GameId = g.GameId,
+                HostPlayer = g.Player1,
+                IsJoinable = true
+            }).ToList();
+
+            return Ok(previews);
+        }
     }
 }
