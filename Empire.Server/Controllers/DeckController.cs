@@ -8,13 +8,18 @@ namespace Empire.Server.Controllers
     [Route("api/[controller]")]
     public class DeckController : ControllerBase
     {
-        private readonly CardFactory _cardFactory;
+        private readonly DeckService _deckService;
 
-        public DeckController(CardFactory cardFactory)
+        public DeckController(DeckService deckService)
         {
-            _cardFactory = cardFactory;
+            _deckService = deckService;
         }
 
+        [HttpGet("prelobby/decks")]
+        public async Task<List<string>> GetUploadedDeckNames()
+        {
+            var allDecks = await _deckService.GetAllDecksAsync();
+            return allDecks.Select(d => d.DeckName).Distinct().ToList();
+        }
     }
 }
-

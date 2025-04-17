@@ -82,5 +82,10 @@
 
             return playerDeck;
         }
+        public async Task<List<PlayerDeck>> GetAllDecksAsync()
+        {
+            return await _deckCollection.Find(_ => true).ToListAsync();
+        }
+
     }
 }
