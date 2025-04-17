@@ -1,9 +1,10 @@
 ﻿@page "/lobby"
 @inject GameApi GameApi
 @inject NavigationManager Nav
+@inject HttpClient Http
 @using Empire.Shared.Models
 @using Empire.Shared.DTOs
-
+@using Microsoft.AspNetCore.Components.Forms
 <h3>Lobby</h3>
 
 <input type="text" placeholder="Your Name" @bind="createPlayerName" />
@@ -50,6 +51,21 @@ else
         <button @onclick="DrawMilitary">Draw Military</button>
     </section>
 }
+<hr />
+<h4>Upload New Deck</h4>
+private void HandleFileChange(InputFileChangeEventArgs e)
+{
+    selectedFile = e.File;
+    uploadStatus = $"📂 Selected: {selectedFile.Name}";
+}
+<input type="text" @bind="uploadDeckName" placeholder="Deck Name (optional)" />
+<button @onclick="UploadDeck" disabled="@(!CanUploadDeck)">Upload Deck</button>
+
+@if (!string.IsNullOrEmpty(uploadStatus))
+
+{
+    <p>@uploadStatus</p>
+}
 
 @code {
     private List<GamePreview> games = new();
@@ -67,6 +83,90 @@ else
     private string playerId = "";
 
     private GameState? gameState;
+
+
+
+
+
+    IBrowserFile? selectedFile;
+
+    string uploadDeckName = "";
+
+    string uploadStatus = "";
+
+
+
+    bool CanUploadDeck => selectedFile != null && !string.IsNullOrWhiteSpace(createPlayerName);
+
+
+
+    private void HandleFileChange(InputFileChangeEventArgs e)
+
+    {
+
+        selectedFile = e.File;
+
+        uploadStatus = $"📂 Selected: {selectedFile.Name}";
+
+    }
+
+
+
+    private async Task UploadDeck()
+
+    {
+
+        if (selectedFile == null || string.IsNullOrWhiteSpace(createPlayerName))
+
+            return;
+
+
+
+        try
+
+        {
+
+            var content = new MultipartFormDataContent();
+
+            var fileContent = new StreamContent(selectedFile.OpenReadStream(512000));
+
+            content.Add(fileContent, "file", selectedFile.Name);
+
+            content.Add(new StringContent(createPlayerName), "playerName");
+
+
+
+            if (!string.IsNullOrWhiteSpace(uploadDeckName))
+
+                content.Add(new StringContent(uploadDeckName), "deckName");
+
+
+
+            var response = await Http.PostAsync("api/prelobby/upload", content);
+
+            uploadStatus = response.IsSuccessStatusCode
+
+                ? "✅ Upload successful!"
+
+                : $"❌ Upload failed: {response.ReasonPhrase}";
+
+
+
+            deckNames = await GameApi.GetUploadedDeckNames();
+
+            selectedDeckName = deckNames.FirstOrDefault() ?? "";
+
+        }
+
+        catch (Exception ex)
+
+        {
+
+            uploadStatus = $"❌ Exception: {ex.Message}";
+
+        }
+
+    }
 
 
 
