@@ -9,8 +9,9 @@ namespace Empire.Shared.Models
     [BsonIgnoreExtraElements]
     public class GameState
     {
-        // Store GameId as the MongoDB _id field
+        // Store GameId as the MongoDB _id field, explicitly as a string
         [BsonId]
+        [BsonRepresentation(BsonType.String)] // ✅ Prevents 'not a valid ObjectId' error
         public string GameId { get; set; } = string.Empty;
 
         public string Player1 { get; set; } = string.Empty;
@@ -26,7 +27,6 @@ namespace Empire.Shared.Models
 
         public Dictionary<string, List<int>> PlayerHands { get; set; } = new();
 
-        // Change PlayerDecks to store List<Card>
         public Dictionary<string, List<Card>> PlayerDecks { get; set; } = new();
 
         public Dictionary<string, List<int>> PlayerGraveyards { get; set; } = new();
