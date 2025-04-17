@@ -49,8 +49,8 @@ namespace Empire.Server.Services
         public async Task<List<Card>> GetDeckCards(List<int> cardIds)
         {
             var allCardData = _cardDb.GetAllCards()
-                .Where(cd => cardIds.Contains(cd.CardID))
-                .ToDictionary(cd => cd.CardID, cd => cd); // for quick lookup
+                            .Where(cd => cardIds.Contains(cd.CardID))
+                .ToDictionary(cd => cd.CardID, cd => cd);
 
             var result = new List<Card>();
 
@@ -79,6 +79,7 @@ namespace Empire.Server.Services
             Console.WriteLine($"✅ Hydrated {result.Count} cards from list of {cardIds.Count} IDs");
             return await Task.FromResult(result);
         }
+
         public IReadOnlyList<Card> GetHand() => _hand.AsReadOnly();
         public IReadOnlyList<Card> GetBoard() => _board.AsReadOnly();
         public IReadOnlyList<Card> GetGraveyard() => _graveyard.AsReadOnly();
