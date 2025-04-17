@@ -8,17 +8,23 @@
 
 <h3>Lobby</h3>
 
-<input type="text" placeholder="Your Name" @bind="createPlayerName" />
+<div class="mb-3">
+    <label>Your Name:</label>
+    <input type="text" @bind="createPlayerName" class="form-control" />
+</div>
 
-<select @bind="selectedDeckName">
-    @foreach (var deck in deckNames)
+<div class="mb-3">
+    <label>Select Deck:</label>
+    <select @bind="selectedDeckName" class="form-select">
+        @foreach (var deck in deckNames)
 
-    {
-        <option value="@deck">@deck</option>
-    }
-</select>
+        {
+            <option value="@deck">@deck</option>
+        }
+    </select>
+</div>
 
-<button @onclick="CreateGame">Create Game</button>
+<button class="btn btn-primary" @onclick="CreateGame">Create Game</button>
 
 <hr />
 
@@ -31,8 +37,8 @@
 
         {
             <li>
-                @game.GameId
-                <button @onclick="() => JoinGame(game.GameId)">Join</button>
+                <strong>@game.GameId</strong> hosted by <em>@game.HostPlayer</em>
+                <button class="btn btn-success btn-sm" @onclick="() => JoinGame(game.GameId)">Join</button>
             </li>
         }
     </ul>
@@ -45,13 +51,14 @@ else
 }
 
 <hr />
+
 <h4>Upload New Deck</h4>
 
 <InputFile OnChange="HandleFileChange" accept=".csv" />
-<input type="text" @bind="uploadDeckName" placeholder="Deck Name (optional)" />
-<button @onclick="UploadDeck" disabled="@(!CanUploadDeck)">Upload Deck</button>
+<input type="text" @bind="uploadDeckName" placeholder="Deck Name (optional)" class="form-control my-2" />
+<button class="btn btn-secondary" @onclick="UploadDeck" disabled="@(!CanUploadDeck)">Upload Deck</button>
 
-@if (!string.IsNullOrEmpty(uploadStatus))
+@if (!string.IsNullOrWhiteSpace(uploadStatus))
 
 {
     <p>@uploadStatus</p>
@@ -114,9 +121,9 @@ else
 
             var content = new MultipartFormDataContent();
 
-            var fileContent = new StreamContent(selectedFile.OpenReadStream(512000));
+            var fileStream = selectedFile.OpenReadStream(512000);
 
-            content.Add(fileContent, "file", selectedFile.Name);
+            content.Add(new StreamContent(fileStream), "file", selectedFile.Name);
 
             content.Add(new StringContent(createPlayerName), "playerName");
 
@@ -128,11 +135,15 @@ else
 
 
 
-            var response = await Http.PostAsync($"api/prelobby/upload?playerName={createPlayerName}" +
+            var response = await Http.PostAsync(
 
-                                                (string.IsNullOrWhiteSpace(uploadDeckName) ? "" : $"&deckName={uploadDeckName}"),
+                $"api/prelobby/upload?playerName={createPlayerName}" +
 
-                                                content);
+                (string.IsNullOrWhiteSpace(uploadDeckName) ? "" : $"&deckName={uploadDeckName}"),
+
+                content
+
+            );
 
 
 
@@ -144,7 +155,7 @@ else
 
 
 
-            // Refresh deck list
+            // Refresh decks
 
             deckNames = await GameApi.GetUploadedDeckNames();
 
@@ -156,7 +167,7 @@ else
 
         {
 
-            uploadStatus = $"❌ Exception: {ex.Message}";
+            uploadStatus = $"❌ Upload failed: {ex.Message}";
 
         }
 
