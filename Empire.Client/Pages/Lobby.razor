@@ -57,14 +57,18 @@ else
 <hr />
 <h4>Upload New Deck</h4>
 
-<InputFile OnChange="HandleFileChange" accept=".csv" />
-<input type="text" @bind="uploadDeckName" placeholder="Deck Name (optional)" />
-<button @onclick="UploadDeck" disabled="@(!CanUploadDeck)">Upload Deck</button>
+<EditForm OnValidSubmit="UploadDeck">
+    <InputFile OnChange="HandleFileChange" accept=".csv" />
+    <input type="text" @bind="uploadDeckName" placeholder="Deck Name (optional)" />
+    <button type="submit" disabled="@(!CanUploadDeck)">Upload Deck</button>
+</EditForm>
 
 @if (!string.IsNullOrEmpty(uploadStatus))
 
 {
     <p>@uploadStatus</p>
+}
+
 }
 
 @code {
@@ -108,13 +112,27 @@ else
 
 
 
+
+
+
+
     private async Task UploadDeck()
 
     {
 
+        Console.WriteLine("🛫 UploadDeck called");
+
+
+
         if (selectedFile == null || string.IsNullOrWhiteSpace(createPlayerName))
 
+        {
+
+            Console.WriteLine("❌ Missing file or playerName.");
+
             return;
+
+        }
 
 
 
@@ -154,6 +172,10 @@ else
 
 
 
+            Console.WriteLine($"[UploadDeck] Server said: {uploadStatus}");
+
+
+
             deckNames = await GameApi.GetUploadedDeckNames();
 
             selectedDeckName = deckNames.FirstOrDefault() ?? "";
@@ -166,9 +188,15 @@ else
 
             uploadStatus = $"❌ Exception: {ex.Message}";
 
+            Console.WriteLine("[UploadDeck] Exception: " + ex.Message);
+
         }
 
     }
+
+
+
+
 
 
 
