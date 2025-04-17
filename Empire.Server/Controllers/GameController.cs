@@ -1,11 +1,11 @@
-﻿using Empire.Shared.Models;
+﻿// 🔧 FILE: GameController.cs (Empire.Server/Controllers)
+using Empire.Shared.Models;
 using Empire.Shared.DTOs;
 using Empire.Server.Interfaces;
 using Empire.Server.Services;
 using Microsoft.AspNetCore.Mvc;
 using MongoDB.Driver;
 using MongoDB.Bson;
-using System.Threading.Tasks;
 
 namespace Empire.Server.Controllers
 {
@@ -51,21 +51,16 @@ namespace Empire.Server.Controllers
 
             await _gameCollection.InsertOneAsync(game);
 
-            return Ok(new GamePreview
-            {
-                GameId = game.GameId,
-                HostPlayer = request.Player1,
-                IsJoinable = true
-            });
+            return Ok(game.GameId); // Only return the GameId string!
         }
 
         [HttpGet("open")]
         public async Task<ActionResult<List<GamePreview>>> GetOpenGames()
         {
-            var filter = Builders<GameState>.Filter.Eq(g => g.Player2, null);
-            var openGames = await _gameCollection.Find(filter).ToListAsync();
+            var filter = Builders<GameState>.Filter.Where(g => !string.IsNullOrEmpty(g.Player1) && string.IsNullOrEmpty(g.Player2));
+            var games = await _gameCollection.Find(filter).ToListAsync();
 
-            var previews = openGames.Select(g => new GamePreview
+            var previews = games.Select(g => new GamePreview
             {
                 GameId = g.GameId,
                 HostPlayer = g.Player1,
@@ -73,6 +68,40 @@ namespace Empire.Server.Controllers
             }).ToList();
 
             return Ok(previews);
+        }
+
+        [HttpPost("{gameId}/draw/{playerId}/{type}")]
+        public async Task<ActionResult<int>> DrawCard(string gameId, string playerId, string type)
+        {
+            var game = await _gameCollection.Find(g => g.GameId == gameId).FirstOrDefaultAsync();
+            if (game == null) return NotFound();
+
+            if (!game.PlayerDecks.TryGetValue(playerId, out var deck))
+                return BadRequest("Deck not found for player");
+
+            var drawPool = deck.Where(c =>
+                type.ToLower() == "civic" ? DeckUtils.IsCivicCard(c.CardId) : !DeckUtils.IsCivicCard(c.CardId)).ToList();
+
+            if (!drawPool.Any()) return BadRequest("No cards left of type");
+
+            var card = drawPool.First();
+            deck.Remove(card);
+
+            if (!game.PlayerHands.ContainsKey(playerId))
+                game.PlayerHands[playerId] = new();
+
+            game.PlayerHands[playerId].Add(card.CardId);
+
+            await _gameCollection.ReplaceOneAsync(g => g.GameId == gameId, game);
+
+            return Ok(card.CardId);
+        }
+
+        [HttpGet("{gameId}/state")]
+        public async Task<ActionResult<GameState>> GetGameState(string gameId)
+        {
+            var state = await _gameCollection.Find(g => g.GameId == gameId).FirstOrDefaultAsync();
+            return state == null ? NotFound() : Ok(state);
         }
     }
 }

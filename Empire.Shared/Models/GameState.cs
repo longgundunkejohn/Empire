@@ -1,17 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
-using MongoDB.Bson;
+﻿using Empire.Shared.Models;
 using MongoDB.Bson.Serialization.Attributes;
-using Empire.Shared.Models.DTOs;
+using MongoDB.Bson;
+
 
 namespace Empire.Shared.Models
 {
+
     [BsonIgnoreExtraElements]
     public class GameState
     {
-        // Store GameId as the MongoDB _id field, explicitly as a string
+        // Explicit ObjectId for Mongo, not using string for GameId
         [BsonId]
-        [BsonRepresentation(BsonType.String)] // ✅ Prevents 'not a valid ObjectId' error
+        [BsonRepresentation(BsonType.ObjectId)] // ✅ Add this line
         public string GameId { get; set; } = string.Empty;
 
         public string Player1 { get; set; } = string.Empty;
@@ -24,15 +24,10 @@ namespace Empire.Shared.Models
         public GameBoard GameBoardState { get; set; } = new GameBoard();
 
         public Dictionary<string, List<BoardCard>> PlayerBoard { get; set; } = new();
-
         public Dictionary<string, List<int>> PlayerHands { get; set; } = new();
-
         public Dictionary<string, List<Card>> PlayerDecks { get; set; } = new();
-
         public Dictionary<string, List<int>> PlayerGraveyards { get; set; } = new();
-
         public List<GameMove> MoveHistory { get; set; } = new();
-
         public Dictionary<string, int> PlayerLifeTotals { get; set; } = new();
     }
 }
