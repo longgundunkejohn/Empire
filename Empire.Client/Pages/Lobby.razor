@@ -5,69 +5,88 @@
 @using Empire.Shared.Models
 @using Empire.Shared.DTOs
 @using Microsoft.AspNetCore.Components.Forms
+@using System.Net.Http.Headers
 
-<h3>Lobby</h3>
+<div class="container py-4">
 
-<div class="mb-3">
-    <label>Your Name:</label>
-    <input type="text" @bind="createPlayerName" class="form-control" />
+    <h3>Empire Lobby</h3>
+
+    <div class="mb-3">
+        <label class="form-label">Your Name</label>
+        <input type="text" class="form-control" @bind="createPlayerName" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Select Deck</label>
+        <select class="form-select" @bind="selectedDeckName">
+            @foreach (var deck in deckNames)
+            {
+                <option value="@deck">@deck</option>
+            }
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <button class="btn btn-primary me-2" @onclick="CreateGame">Create Game</button>
+    </div>
+
+    <hr />
+
+    <h4>Open Games</h4>
+
+    @if (games?.Any() == true)
+
+    {
+        <ul class="list-group">
+            @foreach (var game in games)
+
+            {
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>@game.GameId</strong> hosted by <em>@game.HostPlayer</em>
+                    </div>
+                    <button class="btn btn-success btn-sm" @onclick="() => JoinGame(game.GameId)">Join</button>
+                </li>
+            }
+        </ul>
+    }
+
+    else
+
+    {
+        <p>No open games.</p>
+    }
+
+    <hr />
+
+    <h4>Upload New Deck</h4>
+
+    <div class="mb-3">
+        <InputFile OnChange="HandleFileChange" accept=".csv" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <input type="text" class="form-control" placeholder="Deck Name (optional)" @bind="uploadDeckName" />
+    </div>
+
+    <div class="mb-3">
+        <button class="btn btn-secondary" @onclick="UploadDeck" disabled="@(!CanUploadDeck)">Upload Deck</button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(uploadStatus))
+
+    {
+        <div class="alert alert-info">@uploadStatus</div>
+    }
+
 </div>
-
-<div class="mb-3">
-    <label>Select Deck:</label>
-    <select @bind="selectedDeckName" class="form-select">
-        @foreach (var deck in deckNames)
-
-        {
-            <option value="@deck">@deck</option>
-        }
-    </select>
-</div>
-
-<button class="btn btn-primary" @onclick="CreateGame">Create Game</button>
-
-<hr />
-
-<h4>Open Games</h4>
-@if (games?.Any() == true)
-
-{
-    <ul>
-        @foreach (var game in games)
-
-        {
-            <li>
-                <strong>@game.GameId</strong> hosted by <em>@game.HostPlayer</em>
-                <button class="btn btn-success btn-sm" @onclick="() => JoinGame(game.GameId)">Join</button>
-            </li>
-        }
-    </ul>
-}
-
-else
-
-{
-    <p>No open games.</p>
-}
-
-<hr />
-
-<h4>Upload New Deck</h4>
-
-<InputFile OnChange="HandleFileChange" accept=".csv" />
-<input type="text" @bind="uploadDeckName" placeholder="Deck Name (optional)" class="form-control my-2" />
-<button class="btn btn-secondary" @onclick="UploadDeck" disabled="@(!CanUploadDeck)">Upload Deck</button>
-
-@if (!string.IsNullOrWhiteSpace(uploadStatus))
-
-{
-    <p>@uploadStatus</p>
-}
 
 @code {
     private List<GamePreview> games = new();
 
     private List<string> deckNames = new();
+
+
 
     private string selectedDeckName = "";
 
@@ -121,9 +140,17 @@ else
 
             var content = new MultipartFormDataContent();
 
+
+
             var fileStream = selectedFile.OpenReadStream(512000);
 
-            content.Add(new StreamContent(fileStream), "file", selectedFile.Name);
+            var fileContent = new StreamContent(fileStream);
+
+            fileContent.Headers.ContentType = new MediaTypeHeaderValue("text/csv");
+
+
+
+            content.Add(fileContent, "file", selectedFile.Name);
 
             content.Add(new StringContent(createPlayerName), "playerName");
 
@@ -154,8 +181,6 @@ else
                 : $"❌ Upload failed: {response.ReasonPhrase}";
 
 
-
-            // Refresh decks
 
             deckNames = await GameApi.GetUploadedDeckNames();
 
@@ -262,6 +287,8 @@ else
 
 
         var success = await GameApi.JoinGame(id, createPlayerName, selected.CivicDeck, selected.MilitaryDeck);
+
+
 
         if (success)
 

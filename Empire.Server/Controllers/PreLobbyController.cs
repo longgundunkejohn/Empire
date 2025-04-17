@@ -58,19 +58,24 @@ namespace Empire.Server.Controllers
             if (!rawDeck.Any())
                 return BadRequest("Parsed deck is empty.");
 
-            // 🧠 Save raw deck to RawDeckEntry collection
+            // Save raw deck
             _deckLoader.SaveDeckToDatabase(playerName, rawDeck);
 
-            // 🛠️ Hydrate final PlayerDeck from raw data and assign name
+            // Hydrate and assign deck name
             var playerDeck = await _deckService.ParseAndSaveDeckAsync(playerName);
             playerDeck.DeckName = string.IsNullOrWhiteSpace(deckName) ? "Untitled" : deckName;
 
-            // 🧾 Overwrite or insert into PlayerDecks collection
-            var filter = Builders<PlayerDeck>.Filter.Eq(d => d.PlayerName, playerName);
+            // Fix: allow multiple decks per player
+            var filter = Builders<PlayerDeck>.Filter.And(
+                Builders<PlayerDeck>.Filter.Eq(d => d.PlayerName, playerName),
+                Builders<PlayerDeck>.Filter.Eq(d => d.DeckName, playerDeck.DeckName)
+            );
+
             await _deckCollection.ReplaceOneAsync(filter, playerDeck, new ReplaceOptions { IsUpsert = true });
 
             return Ok(new { message = "✅ Deck uploaded and saved.", deckId = playerDeck.Id });
         }
+
 
 
 
