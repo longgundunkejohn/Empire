@@ -55,6 +55,10 @@ public class GameApi
         var names = await response.Content.ReadFromJsonAsync(AppJsonContext.Default.ListString);
         return names ?? new List<string>();
     }
+    public async Task<List<PlayerDeck>> GetDecksForPlayer(string playerName)
+    {
+        return await _http.GetFromJsonAsync<List<PlayerDeck>>($"api/prelobby/decks/{playerName}") ?? new();
+    }
 
     public async Task<GameState?> GetGameState(string gameId)
     {

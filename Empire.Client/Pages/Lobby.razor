@@ -124,6 +124,10 @@
 
 
 
+
+
+
+
     private async Task UploadDeck()
 
     {
@@ -140,21 +144,21 @@
 
             var content = new MultipartFormDataContent();
 
-
-
             var fileStream = selectedFile.OpenReadStream(512000);
 
             var fileContent = new StreamContent(fileStream);
 
-            fileContent.Headers.ContentType = new MediaTypeHeaderValue("text/csv");
 
 
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");
 
             content.Add(fileContent, "file", selectedFile.Name);
 
+
+
+            // Add form values
+
             content.Add(new StringContent(createPlayerName), "playerName");
-
-
 
             if (!string.IsNullOrWhiteSpace(uploadDeckName))
 
@@ -162,15 +166,17 @@
 
 
 
-            var response = await Http.PostAsync(
+            // ALSO add them in query string
 
-                $"api/prelobby/upload?playerName={createPlayerName}" +
+            var query = $"?playerName={Uri.EscapeDataString(createPlayerName)}";
 
-                (string.IsNullOrWhiteSpace(uploadDeckName) ? "" : $"&deckName={uploadDeckName}"),
+            if (!string.IsNullOrWhiteSpace(uploadDeckName))
 
-                content
+                query += $"&deckName={Uri.EscapeDataString(uploadDeckName)}";
 
-            );
+
+
+            var response = await Http.PostAsync($"api/prelobby/upload{query}", content);
 
 
 
@@ -197,6 +203,10 @@
         }
 
     }
+
+
+
+
 
 
 
@@ -268,9 +278,19 @@
 
 
 
-        var decks = await GameApi.GetUploadedDecks();
+
+
+
+
+        var decks = await GameApi.GetDecksForPlayer(createPlayerName);
 
         var selected = decks.FirstOrDefault(d => d.DeckName == selectedDeckName);
+
+
+
+
+
+
 
 
 
