@@ -1,195 +1,62 @@
-﻿using Empire.Server.Services;
-using Empire.Shared.Models.DTOs;
+﻿using Empire.Shared.Models;
 using Empire.Shared.DTOs;
-using Microsoft.AspNetCore.Mvc;
-using System.Linq;
-using System.Collections.Generic;
-using Empire.Shared.Models;
-using MongoDB.Driver;
 using Empire.Server.Interfaces;
-using Empire.Server.Hubs;
-using Microsoft.AspNetCore.SignalR;
+using Empire.Server.Services;
+using Microsoft.AspNetCore.Mvc;
+using MongoDB.Driver;
+using MongoDB.Bson;
+using System.Threading.Tasks;
 
 namespace Empire.Server.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-
     public class GameController : ControllerBase
     {
-        private readonly IHubContext<GameHub> _hub;
-        private readonly GameSessionService _sessionService;
-        private readonly GameStateService _gameStateService;
         private readonly DeckService _deckService;
-        private readonly ICardService _cardService;
-        private readonly IMongoCollection<PlayerDeck> _deckCollection;
+        private readonly ICardDatabaseService _cardService;
+        private readonly IMongoCollection<GameState> _gameCollection;
 
-        public GameController(
-            GameSessionService sessionService,
-            GameStateService gameStateService,
-            DeckService deckService,
-            ICardService cardService,
-            IMongoDbService mongo,
-            IHubContext<GameHub> hub) // 🧩 Add this
+        public GameController(DeckService deckService, ICardDatabaseService cardService, IMongoDatabase mongoDb)
         {
-            _sessionService = sessionService;
-            _gameStateService = gameStateService;
             _deckService = deckService;
             _cardService = cardService;
-            _deckCollection = mongo.DeckDatabase.GetCollection<PlayerDeck>("PlayerDecks");
-            _hub = hub;
-        }
-
-        [HttpGet("{gameId}/state")]
-        public async Task<IActionResult> GetGameState(string gameId)
-        {
-            var state = await _sessionService.GetGameState(gameId);
-            if (state == null)
-                return NotFound("Game not found.");
-
-            return Ok(state);
-        }
-        [HttpPost("reorder")]
-        public async Task<IActionResult> UpdateBoardOrder([FromBody] BoardPositionUpdate update)
-        {
-            if (string.IsNullOrEmpty(update.GameId) || string.IsNullOrEmpty(update.PlayerId))
-                return BadRequest("Missing game or player ID.");
-
-            var game = await _sessionService.GetGameState(update.GameId);
-            if (game == null)
-                return NotFound("Game not found.");
-
-            game.PlayerHands[update.PlayerId] = update.NewOrder;
-            await _sessionService.SaveGameState(update.GameId, game);
-
-            // 🔔 Notify everyone else in the group
-            await _hub.Clients.Group(update.GameId)
-                .SendAsync("ReceiveBoardUpdate", update);
-
-            return Ok();
-        }
-
-        [HttpGet("open")]
-        public async Task<ActionResult<List<GamePreview>>> GetOpenGames()
-        {
-            var games = await _sessionService.ListOpenGames();
-            var previews = games.Select(g => new GamePreview
-            {
-                GameId = g.GameId,
-                HostPlayer = g.Player1,
-                IsJoinable = string.IsNullOrEmpty(g.Player2)
-            }).ToList();
-
-            return Ok(previews);
+            _gameCollection = mongoDb.GetCollection<GameState>("games");
         }
 
         [HttpPost("create")]
-        public async Task<ActionResult<string>> CreateGame([FromBody] GameStartRequest request)
+        public async Task<IActionResult> CreateGame([FromBody] GameStartRequest request)
         {
-            if (string.IsNullOrWhiteSpace(request.Player1))
-                return BadRequest("Player1 is required.");
+            var playerDeck = await _deckService.GetDeckAsync(request.Player1);
+            if (playerDeck == null)
+                return NotFound("No deck found for this player.");
 
-            var deck = await _deckCollection.Find(d => d.Id == request.DeckId).FirstOrDefaultAsync();
-            if (deck == null || (!deck.CivicDeck.Any() && !deck.MilitaryDeck.Any()))
-                return BadRequest("Invalid or missing deck.");
+            var civicCards = await _cardService.GetDeckCards(playerDeck.CivicDeck);
+            var militaryCards = await _cardService.GetDeckCards(playerDeck.MilitaryDeck);
+            var allCards = civicCards.Concat(militaryCards).ToList();
 
-            var fullCivicDeck = (await _cardService.GetDeckCards(deck.CivicDeck))
-                .Select(c => { c.DeckType = "Civic"; return c; }).ToList();
+            var hand = allCards.Take(5).Select(c => c.CardId).ToList();
 
-            var fullMilitaryDeck = (await _cardService.GetDeckCards(deck.MilitaryDeck))
-                .Select(c => { c.DeckType = "Military"; return c; }).ToList();
-
-            var fullDeck = fullCivicDeck.Concat(fullMilitaryDeck).ToList();
-
-            var rawDeck = fullDeck
-                .GroupBy(card => card.CardId)
-                .Select(g => new RawDeckEntry
-                {
-                    CardId = g.Key,
-                    Count = g.Count(),
-                    DeckType = g.First().DeckType
-                }).ToList();
-
-            var gameId = await _sessionService.CreateGameSession(request.Player1, rawDeck);
-            return Ok(gameId);
-        }
-
-        [HttpPost("{gameId}/draw/{playerId}/{type}")]
-        public async Task<IActionResult> DrawCard(string gameId, string playerId, string type)
-        {
-            var gameState = await _sessionService.GetGameState(gameId);
-            if (gameState == null)
-                return NotFound("Game not found.");
-
-            if (!gameState.PlayerDecks.TryGetValue(playerId, out var deck) || deck.Count == 0)
-                return BadRequest("Deck is empty or missing.");
-
-            var drawFrom = type.ToLower() switch
+            var game = new GameState
             {
-                "civic" => deck.Where(c => c.DeckType == "Civic").ToList(),
-                "military" => deck.Where(c => c.DeckType == "Military").ToList(),
-                _ => null
+                GameId = ObjectId.GenerateNewId().ToString(),
+                Player1 = request.Player1,
+                CurrentPhase = GamePhase.Strategy,
+                PlayerDecks = new Dictionary<string, List<Card>> { [request.Player1] = allCards },
+                PlayerHands = new Dictionary<string, List<int>> { [request.Player1] = hand },
+                PlayerBoard = new Dictionary<string, List<BoardCard>> { [request.Player1] = new() },
+                PlayerGraveyards = new Dictionary<string, List<int>> { [request.Player1] = new() },
+                PlayerLifeTotals = new Dictionary<string, int> { [request.Player1] = 20 }
             };
 
-            if (drawFrom == null || drawFrom.Count == 0)
-                return BadRequest($"No {type} cards left in deck.");
+            await _gameCollection.InsertOneAsync(game);
 
-            var random = new Random();
-            var drawn = drawFrom[random.Next(drawFrom.Count)];
-            var indexToRemove = deck.FindIndex(c => c.CardId == drawn.CardId);
-            if (indexToRemove >= 0)
-                deck.RemoveAt(indexToRemove);
-
-            if (!gameState.PlayerHands.ContainsKey(playerId))
-                gameState.PlayerHands[playerId] = new List<int>();
-
-            gameState.PlayerHands[playerId].Add(drawn.CardId);
-
-            await _sessionService.SaveGameState(gameId, gameState);
-
-            // 🧠 🔔 Broadcast to others
-            await _hub.Clients.Group(gameId).SendAsync("ReceiveBoardUpdate", new BoardPositionUpdate
+            return Ok(new GamePreview
             {
-                GameId = gameId,
-                PlayerId = playerId,
-                NewOrder = gameState.PlayerHands[playerId]
+                GameId = game.GameId,
+                HostPlayer = request.Player1,
+                IsJoinable = true
             });
-
-            return Ok(drawn.CardId);
         }
-
-
-
-        private bool IsCivic(string? type)
-        {
-            var t = type?.Trim().ToLowerInvariant();
-            return t == "villager" || t == "settlement";
-        }
-
-        [HttpPost("join/{gameId}/{playerId}")]
-        public async Task<IActionResult> JoinGame(string gameId, string playerId)
-        {
-            var deck = await _deckService.GetDeckAsync(playerId);
-            if (deck == null || (!deck.CivicDeck.Any() && !deck.MilitaryDeck.Any()))
-                return BadRequest("No deck found for this player.");
-
-            var existingState = await _sessionService.GetGameState(gameId);
-            if (existingState == null)
-                return NotFound("Game not found.");
-
-            var fullCivicDeck = await _cardService.GetDeckCards(deck.CivicDeck);
-            var fullMilitaryDeck = await _cardService.GetDeckCards(deck.MilitaryDeck);
-            var combinedDeck = fullCivicDeck.Concat(fullMilitaryDeck).ToList();
-
-            // ✅ Just let _sessionService handle the full card join logic
-            var success = await _sessionService.JoinGame(gameId, playerId, combinedDeck);
-
-            if (!success)
-                return BadRequest("Could not join game. It may already have two players.");
-
-            return Ok(gameId);
-        }
-
     }
-
 }
