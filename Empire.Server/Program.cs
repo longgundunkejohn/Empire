@@ -92,8 +92,8 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
 app.UseCors("AllowEmpireClient");
-app.MapHub<GameHub>("/gamehub");
 app.MapControllers();
+app.MapHub<GameHub>("/gamehub");
 app.MapFallbackToFile("index.html");
 
 app.Run();
