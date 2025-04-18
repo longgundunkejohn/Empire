@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Empire.Client;
 using System.Net.Http;
+using Empire.Client.Services;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -21,5 +22,6 @@ builder.Services.AddScoped(sp => new HttpClient
 
 // 🔧 Register your API service
 builder.Services.AddScoped<GameApi>();
+builder.Services.AddScoped<GameHubService>();
 
 await builder.Build().RunAsync();

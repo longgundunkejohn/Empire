@@ -1,9 +1,11 @@
 ﻿@page "/game/{gameId}/{playerId}"
 @inject GameApi GameApi
 @inject NavigationManager NavigationManager
+@using Empire.Client.Services
 @using Empire.Shared.Models
 @using Empire.Shared.Models.Enums
 @using Microsoft.AspNetCore.SignalR.Client
+@inject GameHubService HubService
 
 @if (gameState == null)
 
@@ -15,7 +17,6 @@ else
 
 {
     <div class="game-container">
-
         <!-- Enemy Hand -->
         <div class="hand enemy-hand">
             @foreach (var _ in OpponentHand)
@@ -26,9 +27,7 @@ else
         </div>
 
         <!-- Shared Board -->
-        <div class="board"
-             @ondragover:preventDefault="true"
-             @ondrop="OnCardDrop">
+        <div class="board" @ondragover:preventDefault="true" @ondrop="OnCardDrop">
             @foreach (var boardCard in PlayerBoard)
 
             {
@@ -61,44 +60,37 @@ else
                      alt="@card.Name" />
             }
         </div>
-
-    </div>
-}
-<section class="draw-decks" style="display: flex; justify-content: center; gap: 1rem; margin-top: 1rem;">
-    <CardBackImage DeckCount="@CivicDeckCount" BackType="civic" OnDraw="DrawCivic" />
-    <CardBackImage DeckCount="@MilitaryDeckCount" BackType="military" OnDraw="DrawMilitary" />
-</section>
-
-<!-- Chat UI -->
-<div class="chat-container" style="margin-top: 2rem;">
-    <div class="chat-log" style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 8px;">
-        @foreach (var msg in ChatLog)
-
-        {
-            <div><strong>@msg.PlayerId:</strong> @msg.Message</div>
-        }
     </div>
 
-    <input class="form-control mt-2"
-           @bind="chatInput"
-           @bind:event="oninput"
-           @onkeydown="HandleChatKey"
-           placeholder="Type message or /shuffle..." />
-</div>
+    <section class="draw-decks" style="display: flex; justify-content: center; gap: 1rem; margin-top: 1rem;">
+        <CardBackImage DeckCount="@CivicDeckCount" BackType="civic" OnDraw="DrawCivic" />
+        <CardBackImage DeckCount="@MilitaryDeckCount" BackType="military" OnDraw="DrawMilitary" />
+    </section>
 
-@if (ZoomedCard != null)
+    <!-- Chat UI -->
+    <div class="chat-container" style="margin-top: 2rem;">
+        <div class="chat-log" style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 8px;">
+            @foreach (var msg in ChatLog)
 
-{
-    <div class="card-preview" style="top:@PreviewYpx; left:@PreviewXpx;">
-        <img src="@ZoomedCard.ImagePath" alt="@ZoomedCard.Name" class="card-image" />
+            {
+                <div><strong>@msg.PlayerId:</strong> @msg.Message</div>
+            }
+        </div>
+
+        <input class="form-control mt-2"
+               @bind="chatInput"
+               @bind:event="oninput"
+               @onkeydown="HandleChatKey"
+               placeholder="Type message or /shuffle..." />
     </div>
-}
 
+    @if (ZoomedCard != null)
 
-{
-    <div class="card-preview" style="top:@PreviewYpx; left:@PreviewXpx;">
-        <img src="@ZoomedCard.ImagePath" alt="@ZoomedCard.Name" class="card-image" />
-    </div>
+    {
+        <div class="card-preview" style="top:@PreviewYpx; left:@PreviewXpx;">
+            <img src="@ZoomedCard.ImagePath" alt="@ZoomedCard.Name" class="card-image" />
+        </div>
+    }
 }
 
 @code {
@@ -108,7 +100,11 @@ else
 
 
 
+    private GameState? gameState;
 
+    private List<Card> AllCards = new();
+
+    private HubConnection? hub;
 
 
 
@@ -118,137 +114,15 @@ else
 
     private string PreviewYpx = "0px";
 
+    private string chatInput = string.Empty;
 
-
-    private void ShowZoomedCard(Card card, MouseEventArgs e)
-
-    {
-        ZoomedCard = card;
-
-        PreviewXpx = $"{e.ClientX + 20}px";
-
-        PreviewYpx = $"{e.ClientY + 20}px";
-
-    }
-
-
-    private void HideZoomedCard()
-
-    {
-
-        ZoomedCard = null;
-
-    }
-
-
-
-
-
-    private async Task ShuffleDeck()
-
-    {
-
-        var move = new GameMove
-
-            {
-
-                PlayerId = playerId,
-
-                MoveType = "ShuffleDeck"
-
-            };
-
-
-
-        await GameApi.SubmitMove(gameId, move);
-
-        Console.WriteLine("[Client] Sent shuffle move");
-
-
-
-        // Update local game state
-
-        gameState = await GameApi.GetGameState(gameId);
-
-        AllCards = gameState?.PlayerDecks.SelectMany(p => p.Value).ToList() ?? new();
-
-        StateHasChanged();
-
-    }
-
-    private int CivicDeckCount => gameState?.PlayerDecks
-
-        .GetValueOrDefault(playerId)?
-
-        .Count(c => c.Type?.ToLowerInvariant() is "villager" or "settlement") ?? 0;
-
-
-
-    private int MilitaryDeckCount => gameState?.PlayerDecks
-
-        .GetValueOrDefault(playerId)?
-
-        .Count(c => c.Type?.ToLowerInvariant() is not ("villager" or "settlement")) ?? 0;
-
-
-
-    private async Task DrawCivic()
-
-    {
-
-        await GameApi.DrawCard(gameId, playerId, "civic");
-
-        await RefreshGameState();
-
-    }
-
-
-
-    private async Task DrawMilitary()
-
-    {
-
-        await GameApi.DrawCard(gameId, playerId, "military");
-
-        await RefreshGameState();
-
-    }
-
-
-
-    private async Task RefreshGameState()
-
-    {
-
-        gameState = await GameApi.GetGameState(gameId);
-
-        AllCards = gameState?.PlayerDecks.SelectMany(p => p.Value).ToList() ?? new();
-
-        StateHasChanged();
-
-    }
-
-
-
-
-
-
-
-
-
-
-
-    private GameState? gameState;
-
-    private List<Card> AllCards = new();
+    private List<(string PlayerId, string Message)> ChatLog = new();
 
     private int? draggedCardId = null;
 
 
 
-    private List<int> HandCardIds => gameState?.PlayerHands.GetValueOrDefault(playerId) ?? new();
-
-
+    private List<int> HandCardIds => gameState?.PlayerHands?.GetValueOrDefault(playerId) ?? new();
 
     private List<Card> PlayerHand => HandCardIds
 
@@ -260,23 +134,153 @@ else
 
 
 
-    private List<Card> OpponentHand => gameState?.PlayerHands
+    private List<Card> OpponentHand =>
 
-        .FirstOrDefault(p => p.Key != playerId).Value?
+        gameState?.PlayerHands?.FirstOrDefault(p => p.Key != playerId).Value?
 
-        .Select(id => new Card { CardId = id })?.ToList() ?? new();
-
-
+            .Select(id => new Card { CardId = id })?.ToList() ?? new();
 
 
 
-    private HubConnection? hub;
+    private List<BoardCard> PlayerBoard =>
+
+        gameState?.PlayerBoard?.GetValueOrDefault(playerId) ?? new();
 
 
 
-    private string chatInput = string.Empty;
+    private int CivicDeckCount => gameState?.PlayerDecks?
 
-    private List<(string PlayerId, string Message)> ChatLog = new();
+        .GetValueOrDefault(playerId)?
+
+        .Count(c => c.Type?.ToLowerInvariant() is "villager" or "settlement") ?? 0;
+
+
+
+    private int MilitaryDeckCount => gameState?.PlayerDecks?
+
+        .GetValueOrDefault(playerId)?
+
+        .Count(c => c.Type?.ToLowerInvariant() is not ("villager" or "settlement")) ?? 0;
+
+
+
+
+
+
+
+
+
+
+
+    protected override async Task OnInitializedAsync()
+
+    {
+
+        gameState = await GameApi.GetGameState(gameId);
+
+        AllCards = gameState?.PlayerDecks.SelectMany(p => p.Value).ToList() ?? new();
+
+
+
+        HubService.OnBoardUpdate += async (update) =>
+
+        {
+
+            if (update.GameId == gameId)
+
+            {
+
+                Console.WriteLine($"🔁 Board updated from hub by {update.PlayerId}");
+
+
+
+                // Only update the *sending player's* board
+
+                gameState!.PlayerBoard[update.PlayerId] = update.NewOrder
+
+                    .Select(id => new BoardCard(id)) // Use new order
+
+                    .ToList();
+
+
+
+                StateHasChanged();
+
+            }
+
+        };
+
+
+
+        await HubService.ConnectAsync(gameId);
+
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    private async Task RefreshGameState()
+
+    {
+
+        gameState = await GameApi.GetGameState(gameId);
+
+        AllCards = gameState?.PlayerDecks?.SelectMany(p => p.Value).ToList() ?? new();
+
+        StateHasChanged();
+
+    }
+
+
+
+    private async Task DrawCivic() => await Draw("civic");
+
+    private async Task DrawMilitary() => await Draw("military");
+
+
+
+    private async Task Draw(string type)
+
+    {
+
+        await GameApi.DrawCard(gameId, playerId, type);
+
+        await RefreshGameState();
+
+    }
+
+
+
+    private async Task ShuffleDeck()
+
+    {
+
+        var move = new GameMove { PlayerId = playerId, MoveType = "ShuffleDeck" };
+
+        await GameApi.SubmitMove(gameId, move);
+
+        Console.WriteLine("[Client] Sent shuffle move");
+
+        await RefreshGameState();
+
+    }
 
 
 
@@ -292,23 +296,13 @@ else
 
 
 
-            // Commands like /shuffle
-
             if (message.StartsWith("/"))
-
-            {
 
                 await HandleChatCommand(message);
 
-            }
-
             else
 
-            {
-
-                ChatLog.Add((playerId, message)); // Just local for now
-
-            }
+                ChatLog.Add((playerId, message));
 
 
 
@@ -350,91 +344,31 @@ else
 
 
 
-
-
-    private List<BoardCard> PlayerBoard => gameState?.PlayerBoard.GetValueOrDefault(playerId) ?? new();
-
-
-
-
-
-
-
-    protected override async Task OnInitializedAsync()
+    private void ShowZoomedCard(Card card, MouseEventArgs e)
 
     {
 
-        gameState = await GameApi.GetGameState(gameId);
+        ZoomedCard = card;
 
-        AllCards = gameState?.PlayerDecks.SelectMany(p => p.Value).ToList() ?? new();
+        PreviewXpx = $"{e.ClientX + 20}px";
 
-
-
-        // SignalR Setup
-
-        hub = new HubConnectionBuilder()
-
-            .WithUrl(NavigationManager.ToAbsoluteUri("/gamehub"))
-
-            .WithAutomaticReconnect()
-
-            .Build();
-
-
-
-
-
-
-
-        hub.On<BoardPositionUpdate>("ReceiveBoardUpdate", async (update) =>
-
-        {
-
-            if (update.GameId == gameId)
-
-            {
-
-                Console.WriteLine($"🔁 Board updated by {update.PlayerId}");
-
-                await RefreshGameState();
-
-            }
-
-        });
-
-
-
-
-
-
-
-
-
-        await hub.StartAsync();
-
-        await hub.SendAsync("JoinGameGroup", gameId);
+        PreviewYpx = $"{e.ClientY + 20}px";
 
     }
 
 
 
+    private void HideZoomedCard() => ZoomedCard = null;
 
 
 
+    private Card? GetCardFromDeck(int id) =>
+
+        AllCards.FirstOrDefault(c => c.CardId == id);
 
 
 
-    private Card? GetCardFromDeck(int id) => AllCards.FirstOrDefault(c => c.CardId == id);
-
-
-
-    private void OnDragStart(int cardId)
-
-    {
-
-        draggedCardId = cardId;
-
-    }
+    private void OnDragStart(int cardId) => draggedCardId = cardId;
 
 
 
@@ -446,65 +380,49 @@ else
 
     {
 
-        if (draggedCardId.HasValue)
-
-        {
-
-            var currentBoard = PlayerBoard;
+        if (!draggedCardId.HasValue) return;
 
 
 
-            var draggedCard = new BoardCard(draggedCardId.Value);
+        var currentBoard = PlayerBoard;
 
 
 
+        // Avoid duplicates
+
+        currentBoard.RemoveAll(c => c.CardId == draggedCardId.Value);
 
 
 
+        // Add to end of board
 
-            // Hotwire: Remove if already exists (avoid duplicates)
-
-            currentBoard.RemoveAll(c => c.CardId == draggedCardId.Value);
-
-
-
-            // Snap to end of board grid
-
-            currentBoard.Add(draggedCard);
+        currentBoard.Add(new BoardCard(draggedCardId.Value));
 
 
 
-            var newOrder = currentBoard.Select(c => c.CardId).ToList();
+        // Send update
+
+        var update = new BoardPositionUpdate
+
+            {
+
+                GameId = gameId,
+
+                PlayerId = playerId,
+
+                NewOrder = currentBoard.Select(c => c.CardId).ToList()
+
+            };
 
 
 
-            // Send update to backend (you can store the order if needed later)
-
-            var update = new BoardPositionUpdate
-
-                {
-
-                    GameId = gameId,
-
-                    PlayerId = playerId,
-
-                    NewOrder = newOrder
-
-                };
+        await HubService.SendBoardUpdate(gameId, update);
 
 
 
-            if (hub is not null)
+        draggedCardId = null;
 
-                await hub.SendAsync("SendBoardUpdate", update);
-
-
-
-            draggedCardId = null;
-
-            StateHasChanged();
-
-        }
+        StateHasChanged();
 
     }
 

@@ -111,16 +111,12 @@
     private bool CanUploadDeck => selectedFile != null && !string.IsNullOrWhiteSpace(createPlayerName);
 
 
-
-    private void HandleFileChange(InputFileChangeEventArgs e)
-
-    {
-
-        selectedFile = e.File;
-
-        uploadStatus = $"📂 Selected: {selectedFile.Name}";
-
-    }
+private void HandleFileChange(InputFileChangeEventArgs e)
+{
+    selectedFile = e.File;
+    uploadStatus = $"📂 Selected: {selectedFile.Name}";
+    StateHasChanged(); // 👈 forces re-render to re-check CanUploadDeck
+}
 
 
 

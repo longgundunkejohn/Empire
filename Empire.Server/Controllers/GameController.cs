@@ -69,6 +69,34 @@ namespace Empire.Server.Controllers
 
             return Ok(previews);
         }
+        [HttpPost("join/{gameId}/{playerId}")]
+        public async Task<IActionResult> JoinGame(string gameId, string playerId, [FromBody] PlayerDeck deck)
+        {
+            var game = await _gameCollection.Find(g => g.GameId == gameId).FirstOrDefaultAsync();
+            if (game == null)
+                return NotFound("Game not found");
+
+            if (!string.IsNullOrEmpty(game.Player2))
+                return BadRequest("Game already full");
+
+            var civicCards = await _cardService.GetDeckCards(deck.CivicDeck);
+            var militaryCards = await _cardService.GetDeckCards(deck.MilitaryDeck);
+            var allCards = civicCards.Concat(militaryCards).ToList();
+
+            var hand = allCards.Take(5).Select(c => c.CardId).ToList();
+
+            game.Player2 = playerId;
+
+            game.PlayerDecks[playerId] = allCards;
+            game.PlayerHands[playerId] = hand;
+            game.PlayerBoard[playerId] = new();
+            game.PlayerGraveyards[playerId] = new();
+            game.PlayerLifeTotals[playerId] = 20;
+
+            await _gameCollection.ReplaceOneAsync(g => g.GameId == gameId, game);
+
+            return Ok(new { message = $"✅ {playerId} joined game {gameId}" });
+        }
 
         [HttpPost("{gameId}/draw/{playerId}/{type}")]
         public async Task<ActionResult<int>> DrawCard(string gameId, string playerId, string type)
