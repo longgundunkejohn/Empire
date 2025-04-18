@@ -13,7 +13,10 @@
 
     <div class="mb-3">
         <label class="form-label">Your Name</label>
-        <input type="text" class="form-control" @bind="createPlayerName" />
+        <input type="text"
+               class="form-control"
+               placeholder="Enter your name"
+               @bind="createPlayerName" />
     </div>
 
     <div class="mb-3">
@@ -90,8 +93,6 @@
 
     private string selectedDeckName = "";
 
-    private string createPlayerName = "";
-
     private string gameId = "";
 
     private string playerId = "";
@@ -108,19 +109,43 @@
 
 
 
+    private string _createPlayerName = "";
+
+    private string createPlayerName
+
+    {
+
+        get => _createPlayerName;
+
+        set
+
+        {
+
+            _createPlayerName = value;
+
+            StateHasChanged(); // 🔥 re-evaluate CanUploadDeck
+
+        }
+
+    }
+
+
+
     private bool CanUploadDeck => selectedFile != null && !string.IsNullOrWhiteSpace(createPlayerName);
 
 
-private void HandleFileChange(InputFileChangeEventArgs e)
-{
-    selectedFile = e.File;
-    uploadStatus = $"📂 Selected: {selectedFile.Name}";
-    StateHasChanged(); // 👈 forces re-render to re-check CanUploadDeck
-}
 
+    private void HandleFileChange(InputFileChangeEventArgs e)
 
+    {
 
+        selectedFile = e.File;
 
+        uploadStatus = $"📂 Selected: {selectedFile.Name}";
+
+        StateHasChanged(); // re-check upload eligibility
+
+    }
 
 
 
@@ -146,23 +171,19 @@ private void HandleFileChange(InputFileChangeEventArgs e)
 
 
 
-            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");
+            fileContent.Headers.ContentType = new MediaTypeHeaderValue("text/csv");
 
             content.Add(fileContent, "file", selectedFile.Name);
 
-
-
-            // Add form values
-
             content.Add(new StringContent(createPlayerName), "playerName");
+
+
 
             if (!string.IsNullOrWhiteSpace(uploadDeckName))
 
                 content.Add(new StringContent(uploadDeckName), "deckName");
 
 
-
-            // ALSO add them in query string
 
             var query = $"?playerName={Uri.EscapeDataString(createPlayerName)}";
 
@@ -199,10 +220,6 @@ private void HandleFileChange(InputFileChangeEventArgs e)
         }
 
     }
-
-
-
-
 
 
 
@@ -274,19 +291,9 @@ private void HandleFileChange(InputFileChangeEventArgs e)
 
 
 
-
-
-
-
         var decks = await GameApi.GetDecksForPlayer(createPlayerName);
 
         var selected = decks.FirstOrDefault(d => d.DeckName == selectedDeckName);
-
-
-
-
-
-
 
 
 
