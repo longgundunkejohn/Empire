@@ -8,7 +8,6 @@
 @using System.Net.Http.Headers
 
 <div class="container py-4">
-
     <h3>Empire Lobby</h3>
 
     <div class="mb-3">
@@ -30,7 +29,11 @@
     </div>
 
     <div class="mb-3">
-        <button class="btn btn-primary me-2" @onclick="CreateGame">Create Game</button>
+        <button class="btn btn-primary me-2"
+                @onclick="CreateGame"
+                disabled="@(string.IsNullOrWhiteSpace(createPlayerName) || string.IsNullOrWhiteSpace(selectedDeckName))">
+            Create Game
+        </button>
     </div>
 
     <hr />
@@ -48,7 +51,11 @@
                     <div>
                         <strong>@game.GameId</strong> hosted by <em>@game.HostPlayer</em>
                     </div>
-                    <button class="btn btn-success btn-sm" @onclick="() => JoinGame(game.GameId)">Join</button>
+                    <button class="btn btn-success btn-sm"
+                            @onclick="() => JoinGame(game.GameId)"
+                            disabled="@(string.IsNullOrWhiteSpace(createPlayerName) || string.IsNullOrWhiteSpace(selectedDeckName))">
+                        Join
+                    </button>
                 </li>
             }
         </ul>
@@ -73,7 +80,11 @@
     </div>
 
     <div class="mb-3">
-        <button class="btn btn-secondary" @onclick="UploadDeck" disabled="@(!CanUploadDeck)">Upload Deck</button>
+        <button class="btn btn-secondary"
+                @onclick="UploadDeck"
+                disabled="@(CanUploadDeck == false)">
+            Upload Deck
+        </button>
     </div>
 
     @if (!string.IsNullOrWhiteSpace(uploadStatus))
@@ -81,7 +92,6 @@
     {
         <div class="alert alert-info">@uploadStatus</div>
     }
-
 </div>
 
 @code {
@@ -123,7 +133,7 @@
 
             _createPlayerName = value;
 
-            StateHasChanged(); // 🔥 re-evaluate CanUploadDeck
+            StateHasChanged(); // Force re-evaluation of CanUploadDeck
 
         }
 

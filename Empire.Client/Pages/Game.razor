@@ -166,66 +166,28 @@ else
 
 
 
+   protected override async Task OnInitializedAsync()
+{
+    gameState = await GameApi.GetGameState(gameId);
+    AllCards = gameState?.PlayerDecks.SelectMany(p => p.Value).ToList() ?? new();
 
-
-
-
-
-
-    protected override async Task OnInitializedAsync()
-
+    HubService.OnBoardUpdate += async (update) =>
     {
-
-        gameState = await GameApi.GetGameState(gameId);
-
-        AllCards = gameState?.PlayerDecks.SelectMany(p => p.Value).ToList() ?? new();
-
-
-
-        HubService.OnBoardUpdate += async (update) =>
-
+        if (update.GameId == gameId)
         {
+            Console.WriteLine($"🔁 Board updated from hub by {update.PlayerId}");
 
-            if (update.GameId == gameId)
+            // Only update the *sending player's* board
+            gameState!.PlayerBoard[update.PlayerId] = update.NewOrder
+                .Select(id => new BoardCard(id)) // Use new order
+                .ToList();
 
-            {
+            StateHasChanged();
+        }
+    };
 
-                Console.WriteLine($"🔁 Board updated from hub by {update.PlayerId}");
-
-
-
-                // Only update the *sending player's* board
-
-                gameState!.PlayerBoard[update.PlayerId] = update.NewOrder
-
-                    .Select(id => new BoardCard(id)) // Use new order
-
-                    .ToList();
-
-
-
-                StateHasChanged();
-
-            }
-
-        };
-
-
-
-        await HubService.ConnectAsync(gameId);
-
-    }
-
-
-
-
-
-
-
-
-
-
-
+    await HubService.ConnectAsync(gameId);
+}
 
 
 
