@@ -4,7 +4,6 @@ using Empire.Server.Services;
 using Empire.Shared.Models;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using MongoDB.Driver;
 using System.Text.Json;
 
@@ -12,57 +11,47 @@ var builder = WebApplication.CreateBuilder(args);
 
 // ────────────── Services ──────────────
 
-// ✅ Mongo setup
+// ✅ Mongo
 builder.Services.AddSingleton<IMongoClient>(sp =>
-{
-    var config = sp.GetRequiredService<IConfiguration>();
-    return new MongoClient(config["MongoDB:ConnectionString"]);
-});
+    new MongoClient(sp.GetRequiredService<IConfiguration>()["MongoDB:ConnectionString"]));
+
 builder.Services.AddSingleton<IMongoDatabase>(sp =>
-{
-    var client = sp.GetRequiredService<IMongoClient>();
-    var config = sp.GetRequiredService<IConfiguration>();
-    return client.GetDatabase(config["MongoDB:DatabaseName"]);
-});
+    sp.GetRequiredService<IMongoClient>().GetDatabase(sp.GetRequiredService<IConfiguration>()["MongoDB:DatabaseName"]));
 
-// ✅ JSON config (camelCase)
-builder.Services.AddControllers().AddJsonOptions(options =>
-{
-    options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-});
+// ✅ JSON
+builder.Services.AddControllers().AddJsonOptions(opts =>
+    opts.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase);
 
-// ✅ Core game services
+// ✅ Game services
 builder.Services.AddScoped<IMongoDbService, MongoDbService>();
 builder.Services.AddScoped<ICardDatabaseService, CardGameDatabaseService>();
-builder.Services.AddSingleton<ICardService, CardService>(); // CardService holds card definitions in memory
-
-// ✅ Game logic services — thread-safe, shared with per-game state dictionaries
+builder.Services.AddSingleton<ICardService, CardService>();
 builder.Services.AddSingleton<GameSessionService>();
 builder.Services.AddSingleton<GameStateService>();
 builder.Services.AddSingleton<BoardService>();
 builder.Services.AddSingleton<DeckService>();
 builder.Services.AddSingleton<DeckLoaderService>();
-builder.Services.AddSingleton<CardFactory>(); // ✅ Add this to hydrate cards from Atlas
-
-builder.Services.AddMemoryCache(); // Optional caching
+builder.Services.AddSingleton<CardFactory>();
+builder.Services.AddMemoryCache();
 builder.Services.AddSwaggerGen();
-builder.Services.AddSignalR();
+
+// ✅ SignalR
+builder.Services.AddSignalR().AddJsonProtocol(opt =>
+    opt.PayloadSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase);
 
 // ✅ CORS
-builder.Services.AddCors(options =>
+builder.Services.AddCors(opt =>
 {
-    options.AddPolicy("AllowEmpireClient", policy =>
+    opt.AddPolicy("AllowEmpireClient", policy =>
     {
         policy.WithOrigins("http://localhost:5173", "https://empirecardgame.com")
               .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials(); // 👈 required for SignalR
+              .AllowCredentials();
     });
 });
 
-
-// ────────────── App Pipeline ──────────────
-
+// ────────────── Pipeline ──────────────
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -75,23 +64,23 @@ else
     app.UseHsts();
 }
 
-// ✅ Handle reverse proxy (e.g. Docker, Nginx)
+// ✅ Docker/Nginx reverse proxy headers
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 });
 
-// ✅ Force domain name in prod
+// ✅ Force domain (prod)
 app.Use((context, next) =>
 {
     context.Request.Host = new HostString("empirecardgame.com");
     return next();
 });
+
 app.UseCors("AllowEmpireClient");
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
-app.UseCors("AllowEmpireClient");
 app.MapControllers();
 app.MapHub<GameHub>("/gamehub");
 app.MapFallbackToFile("index.html");

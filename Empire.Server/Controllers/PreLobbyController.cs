@@ -49,6 +49,9 @@ namespace Empire.Server.Controllers
         [HttpPost("upload")]
         public async Task<IActionResult> UploadDeck([FromQuery] string playerName, [FromQuery] string? deckName, IFormFile file)
         {
+            if (!Request.HasFormContentType || file == null || file.Length == 0)
+                return BadRequest("Expected multipart/form-data content with a valid CSV file.");
+
             if (string.IsNullOrWhiteSpace(playerName) || file == null || file.Length == 0)
                 return BadRequest("Player name and CSV file are required.");
 
@@ -87,13 +90,16 @@ namespace Empire.Server.Controllers
             bool exists = await _deckService.HasDeckAsync(playerName);
             return Ok(new { player = playerName, hasDeck = exists });
         }
-
         [HttpGet("deck/{playerName}")]
         public async Task<IActionResult> GetDeck(string playerName)
         {
             var deck = await _deckService.GetDeckAsync(playerName);
+            if (deck == null)
+                return NotFound($"No deck found for {playerName}");
+
             return Ok(deck);
         }
+
 
         [HttpDelete("deck/{playerName}")]
         public async Task<IActionResult> DeleteDeck(string playerName)
