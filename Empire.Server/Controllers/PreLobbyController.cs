@@ -1,4 +1,5 @@
-﻿using Empire.Server.Services;
+﻿// === FILE: PreLobbyController.cs ===
+using Empire.Server.Services;
 using Empire.Shared.Models.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using CsvHelper;
@@ -28,9 +29,10 @@ namespace Empire.Server.Controllers
         public async Task<ActionResult<List<string>>> GetAllDeckNames()
         {
             var decks = await _deckCollection.Find(_ => true).ToListAsync();
+
             var names = decks
                 .Where(d => !string.IsNullOrWhiteSpace(d.DeckName))
-                .Select(d => d.DeckName)
+                .Select(d => d.DeckName!)
                 .Distinct()
                 .OrderBy(n => n)
                 .ToList();
@@ -52,23 +54,28 @@ namespace Empire.Server.Controllers
             if (!Request.HasFormContentType || file == null || file.Length == 0)
                 return BadRequest("Expected multipart/form-data content with a valid CSV file.");
 
-            if (string.IsNullOrWhiteSpace(playerName) || file == null || file.Length == 0)
-                return BadRequest("Player name and CSV file are required.");
+            if (string.IsNullOrWhiteSpace(playerName))
+                return BadRequest("Player name is required.");
 
-            using var stream = file.OpenReadStream();
-            var rawDeck = _deckLoader.ParseDeckFromCsv(stream);
+            List<RawDeckEntry> rawDeck;
+            try
+            {
+                using var stream = file.OpenReadStream();
+                rawDeck = _deckLoader.ParseDeckFromCsv(stream);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest($"CSV parsing failed: {ex.Message}");
+            }
 
             if (!rawDeck.Any())
                 return BadRequest("Parsed deck is empty.");
 
-            // Save raw deck
             _deckLoader.SaveDeckToDatabase(playerName, rawDeck);
 
-            // Hydrate and assign deck name
             var playerDeck = await _deckService.ParseAndSaveDeckAsync(playerName);
-            playerDeck.DeckName = string.IsNullOrWhiteSpace(deckName) ? "Untitled" : deckName;
+            playerDeck.DeckName = string.IsNullOrWhiteSpace(deckName) ? $"Deck_{Guid.NewGuid().ToString("N")[..6]}" : deckName;
 
-            // Fix: allow multiple decks per player
             var filter = Builders<PlayerDeck>.Filter.And(
                 Builders<PlayerDeck>.Filter.Eq(d => d.PlayerName, playerName),
                 Builders<PlayerDeck>.Filter.Eq(d => d.DeckName, playerDeck.DeckName)
@@ -79,17 +86,13 @@ namespace Empire.Server.Controllers
             return Ok(new { message = "✅ Deck uploaded and saved.", deckId = playerDeck.Id });
         }
 
-
-
-
-
-
         [HttpGet("hasdeck/{playerName}")]
         public async Task<IActionResult> HasDeck(string playerName)
         {
             bool exists = await _deckService.HasDeckAsync(playerName);
             return Ok(new { player = playerName, hasDeck = exists });
         }
+
         [HttpGet("deck/{playerName}")]
         public async Task<IActionResult> GetDeck(string playerName)
         {
@@ -99,7 +102,6 @@ namespace Empire.Server.Controllers
 
             return Ok(deck);
         }
-
 
         [HttpDelete("deck/{playerName}")]
         public async Task<IActionResult> DeleteDeck(string playerName)
