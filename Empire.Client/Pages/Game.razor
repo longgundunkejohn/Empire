@@ -51,7 +51,7 @@ else
 
             {
                 <img src="@card.ImagePath"
-                     class="card-image"
+                     class="card-image small"
                      draggable="true"
                      @ondragstart="(e) => OnDragStart(card.CardId)"
                 @oncontextmenu:preventDefault
@@ -62,21 +62,21 @@ else
         </div>
     </div>
 
-    <section class="draw-decks" style="display: flex; justify-content: center; gap: 1rem; margin-top: 1rem;">
-        <CardBackImage DeckCount="@CivicDeckCount" BackType="civic" OnDraw="DrawCivic" />
-        <CardBackImage DeckCount="@MilitaryDeckCount" BackType="military" OnDraw="DrawMilitary" />
+    <!-- Deck Drawing Section -->
+    <section class="draw-decks">
+        <CardBackImage DeckCount="@CivicDeckCount" CardBackPath="images/Cards/civicCardback.jpg" OnDraw="DrawCivic" />
+        <CardBackImage DeckCount="@MilitaryDeckCount" CardBackPath="images/Cards/armyCardback.jpg" OnDraw="DrawMilitary" />
     </section>
 
     <!-- Chat UI -->
-    <div class="chat-container" style="margin-top: 2rem;">
-        <div class="chat-log" style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 8px;">
+    <div class="chat-container">
+        <div class="chat-log">
             @foreach (var msg in ChatLog)
 
             {
                 <div><strong>@msg.PlayerId:</strong> @msg.Message</div>
             }
         </div>
-
         <input class="form-control mt-2"
                @bind="chatInput"
                @bind:event="oninput"
@@ -106,8 +106,6 @@ else
 
     private HubConnection? hub;
 
-
-
     private Card? ZoomedCard = null;
 
     private string PreviewXpx = "0px";
@@ -124,77 +122,51 @@ else
 
     private List<int> HandCardIds => gameState?.PlayerHands?.GetValueOrDefault(playerId) ?? new();
 
-    private List<Card> PlayerHand => HandCardIds
+    private List<Card> PlayerHand => HandCardIds.Select(id => GetCardFromDeck(id)).Where(c => c != null).ToList()!;
 
-        .Select(id => GetCardFromDeck(id))
+    private List<Card> OpponentHand => gameState?.PlayerHands?.FirstOrDefault(p => p.Key != playerId).Value?.Select(id => new Card { CardId = id })?.ToList() ?? new();
 
-        .Where(c => c != null)
-
-        .ToList()!;
+    private List<BoardCard> PlayerBoard => gameState?.PlayerBoard?.GetValueOrDefault(playerId) ?? new();
 
 
 
-    private List<Card> OpponentHand =>
+    private int CivicDeckCount => gameState?.PlayerDecks?.GetValueOrDefault(playerId)?.Count(c => c.Type?.ToLowerInvariant() is "villager" or "settlement") ?? 0;
 
-        gameState?.PlayerHands?.FirstOrDefault(p => p.Key != playerId).Value?
-
-            .Select(id => new Card { CardId = id })?.ToList() ?? new();
+    private int MilitaryDeckCount => gameState?.PlayerDecks?.GetValueOrDefault(playerId)?.Count(c => c.Type?.ToLowerInvariant() is not ("villager" or "settlement")) ?? 0;
 
 
 
-    private List<BoardCard> PlayerBoard =>
+    protected override async Task OnInitializedAsync()
 
-        gameState?.PlayerBoard?.GetValueOrDefault(playerId) ?? new();
-
-
-
-    private int CivicDeckCount => gameState?.PlayerDecks?
-
-        .GetValueOrDefault(playerId)?
-
-        .Count(c => c.Type?.ToLowerInvariant() is "villager" or "settlement") ?? 0;
-
-
-
-    private int MilitaryDeckCount => gameState?.PlayerDecks?
-
-        .GetValueOrDefault(playerId)?
-
-        .Count(c => c.Type?.ToLowerInvariant() is not ("villager" or "settlement")) ?? 0;
-
-
-
-
-
-   protected override async Task OnInitializedAsync()
-{
-    gameState = await GameApi.GetGameState(gameId);
-    AllCards = gameState?.PlayerDecks.SelectMany(p => p.Value).ToList() ?? new();
-
-    HubService.OnBoardUpdate += async (update) =>
     {
-        if (update.GameId == gameId)
+
+        gameState = await GameApi.GetGameState(gameId);
+
+        AllCards = gameState?.PlayerDecks.SelectMany(p => p.Value).ToList() ?? new();
+
+
+
+        HubService.OnBoardUpdate += async (update) =>
+
         {
-            Console.WriteLine($"🔁 Board updated from hub by {update.PlayerId}");
 
-            // Only update the *sending player's* board
-            gameState!.PlayerBoard[update.PlayerId] = update.NewOrder
-                .Select(id => new BoardCard(id)) // Use new order
-                .ToList();
+            if (update.GameId == gameId)
 
-            StateHasChanged();
-        }
-    };
+            {
 
-    await HubService.ConnectAsync(gameId);
-}
+                gameState!.PlayerBoard[update.PlayerId] = update.NewOrder.Select(id => new BoardCard(id)).ToList();
 
+                StateHasChanged();
+
+            }
+
+        };
 
 
 
+        await HubService.ConnectAsync(gameId);
 
-
-
+    }
 
 
 
@@ -238,7 +210,7 @@ else
 
         await GameApi.SubmitMove(gameId, move);
 
-        Console.WriteLine("[Client] Sent shuffle move");
+        ChatLog.Add((playerId, "🔀 shuffled their deck."));
 
         await RefreshGameState();
 
@@ -255,8 +227,6 @@ else
         {
 
             var message = chatInput.Trim();
-
-
 
             if (message.StartsWith("/"))
 
@@ -290,8 +260,6 @@ else
 
                 await ShuffleDeck();
 
-                ChatLog.Add((playerId, "🔀 shuffled their deck."));
-
                 break;
 
             default:
@@ -324,17 +292,9 @@ else
 
 
 
-    private Card? GetCardFromDeck(int id) =>
-
-        AllCards.FirstOrDefault(c => c.CardId == id);
-
-
+    private Card? GetCardFromDeck(int id) => AllCards.FirstOrDefault(c => c.CardId == id);
 
     private void OnDragStart(int cardId) => draggedCardId = cardId;
-
-
-
-
 
 
 
@@ -344,25 +304,13 @@ else
 
         if (!draggedCardId.HasValue) return;
 
-
-
         var currentBoard = PlayerBoard;
 
-
-
-        // Avoid duplicates
-
         currentBoard.RemoveAll(c => c.CardId == draggedCardId.Value);
-
-
-
-        // Add to end of board
 
         currentBoard.Add(new BoardCard(draggedCardId.Value));
 
 
-
-        // Send update
 
         var update = new BoardPositionUpdate
 
@@ -380,12 +328,9 @@ else
 
         await HubService.SendBoardUpdate(gameId, update);
 
-
-
         draggedCardId = null;
 
         StateHasChanged();
 
     }
-
 }
