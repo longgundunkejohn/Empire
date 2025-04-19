@@ -59,23 +59,35 @@
         // Parse RawDeckEntries and save the final PlayerDeck
         public async Task<PlayerDeck> ParseAndSaveDeckAsync(string playerName)
         {
-            // Retrieve raw deck entries from MongoDB
             var rawDeckEntries = await _rawDeckCollection.Find(d => d.Player == playerName).ToListAsync();
 
             if (!rawDeckEntries.Any())
             {
                 _logger.LogWarning("No raw deck found for player {Player}.", playerName);
-                return null; // No deck found for the player
+                return null;
             }
 
-            // Split into Civic and Military Decks
-            var civicDeck = rawDeckEntries.Where(d => d.DeckType == "Civic").SelectMany(d => Enumerable.Repeat(d.CardId, d.Count)).ToList();
-            var militaryDeck = rawDeckEntries.Where(d => d.DeckType == "Military").SelectMany(d => Enumerable.Repeat(d.CardId, d.Count)).ToList();
+            var civicDeck = rawDeckEntries
+                .Where(d => d.DeckType?.ToLowerInvariant() == "civic")
+                .SelectMany(d => Enumerable.Repeat(d.CardId, d.Count))
+                .ToList();
 
-            // Create final PlayerDeck object
-            var playerDeck = new PlayerDeck(playerName, civicDeck, militaryDeck);
+            var militaryDeck = rawDeckEntries
+                .Where(d => d.DeckType?.ToLowerInvariant() == "military")
+                .SelectMany(d => Enumerable.Repeat(d.CardId, d.Count))
+                .ToList();
 
-            // Save the PlayerDeck in the PlayerDecks collection
+            // Check if deck already exists to preserve its _id
+            var existingDeck = await _deckCollection
+                .Find(d => d.PlayerName == playerName)
+                .FirstOrDefaultAsync();
+
+            var playerDeck = new PlayerDeck(playerName, civicDeck, militaryDeck)
+            {
+                Id = existingDeck?.Id ?? ObjectId.GenerateNewId().ToString(),
+                DeckName = existingDeck?.DeckName ?? "Untitled"
+            };
+
             await SaveDeckAsync(playerDeck);
 
             _logger.LogInformation("✅ Deck for player {PlayerName} saved successfully.", playerName);

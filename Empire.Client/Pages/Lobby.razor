@@ -17,7 +17,7 @@
         <input type="text"
                class="form-control"
                placeholder="Enter your name"
-               @bind="CreatePlayerName"
+               @bind="PlayerName"
                @bind:event="oninput" />
     </div>
 
@@ -36,22 +36,21 @@
         </div>
     }
 
-    else if (!string.IsNullOrWhiteSpace(CreatePlayerName))
+    else if (!string.IsNullOrWhiteSpace(PlayerName))
 
     {
         <div class="mb-3">
-            <p><em>No decks found for @CreatePlayerName</em></p>
+            <p><em>No decks found for @PlayerName</em></p>
         </div>
     }
 
     <div class="mb-3">
-        <button class="btn btn-primary me-2" @onclick="CreateGame" disabled="@(string.IsNullOrWhiteSpace(CreatePlayerName) || string.IsNullOrWhiteSpace(SelectedDeckName))">Create Game</button>
+        <button class="btn btn-primary me-2" @onclick="CreateGame" disabled="@(string.IsNullOrWhiteSpace(PlayerName) || string.IsNullOrWhiteSpace(SelectedDeckName))">Create Game</button>
     </div>
 
     <hr />
 
     <h4>Open Games</h4>
-
     @if (Games?.Any() == true)
 
     {
@@ -78,7 +77,6 @@
     <hr />
 
     <h4>Upload New Deck</h4>
-
     <div class="mb-3">
         <InputFile OnChange="HandleFileChange" accept=".csv" class="form-control" />
     </div>
@@ -106,6 +104,8 @@
 
 
 
+    private string PlayerName = string.Empty;
+
     private string SelectedDeckName = string.Empty;
 
     private string GameId = string.Empty;
@@ -124,61 +124,7 @@
 
 
 
-    private string _createPlayerName = string.Empty;
-
-    private string CreatePlayerName
-
-    {
-
-        get => _createPlayerName;
-
-        set
-
-        {
-
-            _createPlayerName = value;
-
-            _ = LoadDecksForPlayer();
-
-            StateHasChanged();
-
-        }
-
-    }
-
-
-
-    private bool CanUploadDeck => SelectedFile != null && !string.IsNullOrWhiteSpace(CreatePlayerName);
-
-
-
-    private async Task LoadDecksForPlayer()
-
-    {
-
-        if (string.IsNullOrWhiteSpace(CreatePlayerName)) return;
-
-
-
-        try
-
-        {
-
-            DeckList = await GameApi.GetDecksForPlayer(CreatePlayerName);
-
-            SelectedDeckName = DeckList.FirstOrDefault()?.DeckName ?? string.Empty;
-
-        }
-
-        catch (Exception ex)
-
-        {
-
-            Console.WriteLine($"[Lobby] ❌ Failed to load decks for {CreatePlayerName}: {ex.Message}");
-
-        }
-
-    }
+    private bool CanUploadDeck => SelectedFile != null && !string.IsNullOrWhiteSpace(PlayerName);
 
 
 
@@ -190,8 +136,6 @@
 
         UploadStatus = $"📂 Selected: {SelectedFile.Name}";
 
-        StateHasChanged();
-
     }
 
 
@@ -200,9 +144,7 @@
 
     {
 
-        if (SelectedFile == null || string.IsNullOrWhiteSpace(CreatePlayerName))
-
-            return;
+        if (SelectedFile == null || string.IsNullOrWhiteSpace(PlayerName)) return;
 
 
 
@@ -222,7 +164,7 @@
 
             content.Add(fileContent, "file", SelectedFile.Name);
 
-            content.Add(new StringContent(CreatePlayerName), "playerName");
+            content.Add(new StringContent(PlayerName), "playerName");
 
 
 
@@ -232,7 +174,7 @@
 
 
 
-            var query = $"?playerName={Uri.EscapeDataString(CreatePlayerName)}";
+            var query = $"?playerName={Uri.EscapeDataString(PlayerName)}";
 
             if (!string.IsNullOrWhiteSpace(UploadDeckName))
 
@@ -252,7 +194,7 @@
 
 
 
-            await LoadDecksForPlayer();
+            await LoadDecksForPlayer(PlayerName);
 
         }
 
@@ -261,6 +203,38 @@
         {
 
             UploadStatus = $"❌ Upload failed: {ex.Message}";
+
+        }
+
+    }
+
+
+
+    private async Task LoadDecksForPlayer(string player)
+
+    {
+
+        if (string.IsNullOrWhiteSpace(player)) return;
+
+
+
+        try
+
+        {
+
+            DeckList = await GameApi.GetDecksForPlayer(player);
+
+            SelectedDeckName = DeckList.FirstOrDefault()?.DeckName ?? string.Empty;
+
+            StateHasChanged();
+
+        }
+
+        catch (Exception ex)
+
+        {
+
+            Console.WriteLine($"[Lobby] ❌ Failed to load decks for {player}: {ex.Message}");
 
         }
 
@@ -296,13 +270,11 @@
 
     {
 
-        if (string.IsNullOrWhiteSpace(CreatePlayerName) || string.IsNullOrWhiteSpace(SelectedDeckName))
-
-            return;
+        if (string.IsNullOrWhiteSpace(PlayerName) || string.IsNullOrWhiteSpace(SelectedDeckName)) return;
 
 
 
-        var id = await GameApi.CreateGame(CreatePlayerName, SelectedDeckName);
+        var id = await GameApi.CreateGame(PlayerName, SelectedDeckName);
 
         if (string.IsNullOrWhiteSpace(id)) return;
 
@@ -310,7 +282,7 @@
 
         GameId = id;
 
-        PlayerId = CreatePlayerName;
+        PlayerId = PlayerName;
 
 
 
@@ -326,17 +298,11 @@
 
     {
 
-        if (string.IsNullOrWhiteSpace(CreatePlayerName) || string.IsNullOrWhiteSpace(SelectedDeckName))
-
-            return;
+        if (string.IsNullOrWhiteSpace(PlayerName) || string.IsNullOrWhiteSpace(SelectedDeckName)) return;
 
 
 
-        var decks = await GameApi.GetDecksForPlayer(CreatePlayerName);
-
-        var selected = decks.FirstOrDefault(d => d.DeckName == SelectedDeckName);
-
-
+        var selected = DeckList.FirstOrDefault(d => d.DeckName == SelectedDeckName);
 
         if (selected == null)
 
@@ -350,7 +316,7 @@
 
 
 
-        var success = await GameApi.JoinGame(id, CreatePlayerName, selected.CivicDeck, selected.MilitaryDeck);
+        var success = await GameApi.JoinGame(id, PlayerName, selected.CivicDeck, selected.MilitaryDeck);
 
 
 
@@ -360,7 +326,7 @@
 
             GameId = id;
 
-            PlayerId = CreatePlayerName;
+            PlayerId = PlayerName;
 
             await RefreshGameState();
 
