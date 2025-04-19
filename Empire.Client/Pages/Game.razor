@@ -45,8 +45,16 @@ else
             }
         </div>
 
-        <!-- Your Hand -->
-        <div class="hand player-hand">
+        <!-- Heartland Area (draw + drop zone) -->
+        <div class="heartland">
+            <div class="draw-area">
+                <CardBackImage DeckCount="@CivicDeckCount" CardBackPath="Cardbacks/civicCardback.png" OnDraw="DrawCivic" />
+                <CardBackImage DeckCount="@MilitaryDeckCount" CardBackPath="Cardbacks/armyCardback.png" OnDraw="DrawMilitary" />
+            </div>
+        </div>
+
+        <!-- Your Hand (Bottom fixed) -->
+        <div class="hand player-hand fixed-hand">
             @foreach (var card in PlayerHand)
 
             {
@@ -60,38 +68,31 @@ else
                      alt="@card.Name" />
             }
         </div>
-    </div>
 
-    <!-- Deck Drawing Section -->
-    <section class="draw-decks">
-        <CardBackImage DeckCount="@CivicDeckCount" CardBackPath="Cardbacks/civicCardback.png" OnDraw="DrawCivic" />
-        <CardBackImage DeckCount="@MilitaryDeckCount" CardBackPath="Cardbacks/armyCardback.png" OnDraw="DrawMilitary" />
+        <!-- Chat UI -->
+        <div class="chat-container">
+            <div class="chat-log">
+                @foreach (var msg in ChatLog)
 
-    </section>
-
-    <!-- Chat UI -->
-    <div class="chat-container">
-        <div class="chat-log">
-            @foreach (var msg in ChatLog)
-
-            {
-                <div><strong>@msg.PlayerId:</strong> @msg.Message</div>
-            }
+                {
+                    <div><strong>@msg.PlayerId:</strong> @msg.Message</div>
+                }
+            </div>
+            <input class="form-control mt-2"
+                   @bind="chatInput"
+                   @bind:event="oninput"
+                   @onkeydown="HandleChatKey"
+                   placeholder="Type message or /shuffle..." />
         </div>
-        <input class="form-control mt-2"
-               @bind="chatInput"
-               @bind:event="oninput"
-               @onkeydown="HandleChatKey"
-               placeholder="Type message or /shuffle..." />
+
+        @if (ZoomedCard != null)
+
+        {
+            <div class="card-preview" style="top:@PreviewYpx; left:@PreviewXpx;">
+                <img src="@ZoomedCard.ImagePath" alt="@ZoomedCard.Name" class="card-image" />
+            </div>
+        }
     </div>
-
-    @if (ZoomedCard != null)
-
-    {
-        <div class="card-preview" style="top:@PreviewYpx; left:@PreviewXpx;">
-            <img src="@ZoomedCard.ImagePath" alt="@ZoomedCard.Name" class="card-image" />
-        </div>
-    }
 }
 
 @code {
@@ -295,6 +296,8 @@ else
 
     private Card? GetCardFromDeck(int id) => AllCards.FirstOrDefault(c => c.CardId == id);
 
+
+
     private void OnDragStart(int cardId) => draggedCardId = cardId;
 
 
@@ -304,6 +307,8 @@ else
     {
 
         if (!draggedCardId.HasValue) return;
+
+
 
         var currentBoard = PlayerBoard;
 
