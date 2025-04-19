@@ -21,7 +21,7 @@ namespace Empire.Server.Controllers
         {
             _deckService = deckService;
             _cardService = cardService;
-            _gameCollection = mongoDb.GetCollection<GameState>("games");
+            _gameCollection = mongoDb.GetCollection<GameState>("GameSessions");
         }
 
         [HttpPost("create")]
@@ -47,6 +47,7 @@ namespace Empire.Server.Controllers
                 PlayerBoard = new Dictionary<string, List<BoardCard>> { [request.Player1] = new() },
                 PlayerGraveyards = new Dictionary<string, List<int>> { [request.Player1] = new() },
                 PlayerLifeTotals = new Dictionary<string, int> { [request.Player1] = 20 }
+                PlayerSealedZones = new Dictionary<string, List<int>> { [request.Player1] = new() }
             };
 
             await _gameCollection.InsertOneAsync(game);
@@ -92,6 +93,7 @@ namespace Empire.Server.Controllers
             game.PlayerBoard[playerId] = new();
             game.PlayerGraveyards[playerId] = new();
             game.PlayerLifeTotals[playerId] = 20;
+            game.PlayerSealedZones[playerId] = new();
 
             await _gameCollection.ReplaceOneAsync(g => g.GameId == gameId, game);
 

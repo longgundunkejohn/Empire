@@ -13,6 +13,7 @@ namespace Empire.Shared.Models
         [BsonId]
         [BsonRepresentation(BsonType.ObjectId)] // ✅ Add this line
         public string GameId { get; set; } = string.Empty;
+        public Dictionary<string, List<int>> PlayerSealedZones { get; set; } = new();
 
         public string Player1 { get; set; } = string.Empty;
         public string? Player2 { get; set; }
