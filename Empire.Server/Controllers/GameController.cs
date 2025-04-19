@@ -70,7 +70,7 @@ namespace Empire.Server.Controllers
             return Ok(previews);
         }
         [HttpPost("join/{gameId}/{playerId}")]
-        public async Task<IActionResult> JoinGame(string gameId, string playerId, [FromBody] PlayerDeck deck)
+        public async Task<IActionResult> JoinGame(string gameId, string playerId, [FromBody] JoinGameRequest deck)
         {
             var game = await _gameCollection.Find(g => g.GameId == gameId).FirstOrDefaultAsync();
             if (game == null)
@@ -97,6 +97,7 @@ namespace Empire.Server.Controllers
 
             return Ok(new { message = $"✅ {playerId} joined game {gameId}" });
         }
+
 
         [HttpPost("{gameId}/draw/{playerId}/{type}")]
         public async Task<ActionResult<int>> DrawCard(string gameId, string playerId, string type)
