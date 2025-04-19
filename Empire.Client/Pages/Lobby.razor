@@ -17,8 +17,9 @@
         <input type="text"
                class="form-control"
                placeholder="Enter your name"
-               @bind="_createPlayerName"
-               @bind:event="oninput" />
+               value="@_createPlayerName"
+               @oninput="OnNameChanged" />
+
     </div>
 
     @if (deckList?.Any() == true)
@@ -265,11 +266,45 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     private async Task CreateGame()
 
     {
 
-        var id = await GameApi.CreateGame(_createPlayerName, selectedDeckName);
+        var selectedDeck = deckList.FirstOrDefault(d => d.DeckName == selectedDeckName);
+
+        if (selectedDeck == null) return;
+
+
+
+        var id = await GameApi.CreateGame(_createPlayerName, selectedDeck.Id);
 
         if (string.IsNullOrWhiteSpace(id)) return;
 
@@ -286,6 +321,40 @@
         Nav.NavigateTo($"/game/{gameId}/{playerId}");
 
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -348,4 +417,5 @@
         await LoadDecksForPlayer();
 
     }
+
 }

@@ -37,9 +37,14 @@
 
 
         // Get the final deck for the player
-        public async Task<PlayerDeck> GetDeckAsync(string playerName)
+        public async Task<PlayerDeck?> GetDeckAsync(string playerName, string deckId)
         {
-            return await _deckCollection.Find(d => d.PlayerName == playerName).FirstOrDefaultAsync();
+            var filter = Builders<PlayerDeck>.Filter.And(
+                Builders<PlayerDeck>.Filter.Eq(d => d.PlayerName, playerName),
+                Builders<PlayerDeck>.Filter.Eq(d => d.Id, deckId)
+            );
+
+            return await _deckCollection.Find(filter).FirstOrDefaultAsync();
         }
 
         // Check if the player has a deck

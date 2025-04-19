@@ -27,7 +27,7 @@ namespace Empire.Server.Controllers
         [HttpPost("create")]
         public async Task<IActionResult> CreateGame([FromBody] GameStartRequest request)
         {
-            var playerDeck = await _deckService.GetDeckAsync(request.Player1);
+            var playerDeck = await _deckService.GetDeckAsync(request.Player1, request.DeckId);
             if (playerDeck == null)
                 return NotFound("No deck found for this player.");
 
