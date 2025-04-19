@@ -70,7 +70,7 @@ namespace Empire.Server.Controllers
 
             return Ok(previews);
         }
-        [HttpPost("join/{gameId}/{playerId}")]
+        [HttpPost("{gameId}/join/{playerId}")]
         public async Task<IActionResult> JoinGame(string gameId, string playerId, [FromBody] JoinGameRequest deck)
         {
             var game = await _gameCollection.Find(g => g.GameId == gameId).FirstOrDefaultAsync();
