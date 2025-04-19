@@ -57,7 +57,7 @@
         }
 
         // Parse RawDeckEntries and save the final PlayerDeck
-        public async Task<PlayerDeck> ParseAndSaveDeckAsync(string playerName)
+        public async Task<PlayerDeck> ParseAndSaveDeckAsync(string playerName, string? deckName = null)
         {
             var rawDeckEntries = await _rawDeckCollection.Find(d => d.Player == playerName).ToListAsync();
 
@@ -77,23 +77,32 @@
                 .SelectMany(d => Enumerable.Repeat(d.CardId, d.Count))
                 .ToList();
 
-            // Check if deck already exists to preserve its _id
-            var existingDeck = await _deckCollection
-                .Find(d => d.PlayerName == playerName)
-                .FirstOrDefaultAsync();
+            // Ensure deckName fallback
+            var finalDeckName = string.IsNullOrWhiteSpace(deckName)
+                ? $"Deck_{Guid.NewGuid().ToString("N")[..6]}"
+                : deckName;
 
-            var playerDeck = new PlayerDeck(playerName, civicDeck, militaryDeck)
+            // Lookup existing deck by player + deck name
+            var filter = Builders<PlayerDeck>.Filter.And(
+                Builders<PlayerDeck>.Filter.Eq(d => d.PlayerName, playerName),
+                Builders<PlayerDeck>.Filter.Eq(d => d.DeckName, finalDeckName)
+            );
+
+            var existingDeck = await _deckCollection.Find(filter).FirstOrDefaultAsync();
+
+            var playerDeck = new PlayerDeck(playerName, civicDeck, militaryDeck, finalDeckName)
             {
                 Id = existingDeck?.Id ?? ObjectId.GenerateNewId().ToString(),
-                DeckName = existingDeck?.DeckName ?? "Untitled"
+                DeckName = finalDeckName
             };
 
             await SaveDeckAsync(playerDeck);
 
-            _logger.LogInformation("✅ Deck for player {PlayerName} saved successfully.", playerName);
+            _logger.LogInformation("✅ Deck for player {PlayerName} saved successfully. DeckName: {DeckName}", playerName, finalDeckName);
 
             return playerDeck;
         }
+
         public async Task<List<PlayerDeck>> GetAllDecksAsync()
         {
             return await _deckCollection.Find(_ => true).ToListAsync();
