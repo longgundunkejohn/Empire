@@ -50,67 +50,67 @@ namespace Empire.Server.Controllers
             return Ok(decks);
         }
 
-        [HttpPost("upload")]
-        public async Task<IActionResult> UploadDeck([FromQuery] string playerName, [FromQuery] string? deckName, IFormFile file)
-        {
-            if (!Request.HasFormContentType || file == null || file.Length == 0)
-                return BadRequest("Expected multipart/form-data content with a valid CSV file.");
+      [HttpPost("upload")]
+public async Task<IActionResult> UploadDeck([FromQuery] string playerName, [FromQuery] string? deckName, IFormFile file)
+{
+    if (!Request.HasFormContentType || file == null || file.Length == 0)
+        return BadRequest("Expected multipart/form-data content with a valid CSV file.");
 
-            if (string.IsNullOrWhiteSpace(playerName))
-                return BadRequest("Player name is required.");
+    if (string.IsNullOrWhiteSpace(playerName))
+        return BadRequest("Player name is required.");
 
-            List<RawDeckEntry> rawDeck;
-            try
-            {
-                using var stream = file.OpenReadStream();
-                rawDeck = _deckLoader.ParseDeckFromCsv(stream);
-            }
-            catch (Exception ex)
-            {
-                return BadRequest($"CSV parsing failed: {ex.Message}");
-            }
+    List<RawDeckEntry> rawDeck;
+    try
+    {
+        using var stream = file.OpenReadStream();
+        rawDeck = _deckLoader.ParseDeckFromCsv(stream);
+    }
+    catch (Exception ex)
+    {
+        return BadRequest($"CSV parsing failed: {ex.Message}");
+    }
 
-            if (!rawDeck.Any())
-                return BadRequest("Parsed deck is empty.");
+    if (!rawDeck.Any())
+        return BadRequest("Parsed deck is empty.");
 
-            foreach (var entry in rawDeck)
-            {
-                entry.Player = playerName;
-                entry.DeckType = entry.DeckType?.Trim();
-            }
+    foreach (var entry in rawDeck)
+    {
+        entry.Player = playerName;
+        entry.DeckType = entry.DeckType?.Trim();
+    }
 
-            var rawCollection = _deckLoader.GetRawDeckCollection();
-            var filter = Builders<RawDeckEntry>.Filter.Eq("Player", playerName);
-            await rawCollection.DeleteManyAsync(filter);
-            await rawCollection.InsertManyAsync(rawDeck);
+    var rawCollection = _deckLoader.GetRawDeckCollection();
+    var filter = Builders<RawDeckEntry>.Filter.Eq("Player", playerName);
+    await rawCollection.DeleteManyAsync(filter);
+    await rawCollection.InsertManyAsync(rawDeck);
 
-            // ✅ Hydrate decks here directly
-            var civic = rawDeck
-                .Where(d => (d.DeckType?.ToLowerInvariant() ?? "").Trim() == "civic" || DeckUtils.IsCivicCard(d.CardId))
-                .SelectMany(d => Enumerable.Repeat(d.CardId, d.Count))
-                .ToList();
+    // ✅ Hydrate decks here directly
+    var civic = rawDeck
+        .Where(d => (d.DeckType?.ToLowerInvariant() ?? "").Trim() == "civic" || DeckUtils.IsCivicCard(d.CardId))
+        .SelectMany(d => Enumerable.Repeat(d.CardId, d.Count))
+        .ToList();
 
-            var military = rawDeck
-                .Where(d => (d.DeckType?.ToLowerInvariant() ?? "").Trim() == "military" || !DeckUtils.IsCivicCard(d.CardId))
-                .SelectMany(d => Enumerable.Repeat(d.CardId, d.Count))
-                .ToList();
+    var military = rawDeck
+        .Where(d => (d.DeckType?.ToLowerInvariant() ?? "").Trim() == "military" || !DeckUtils.IsCivicCard(d.CardId))
+        .SelectMany(d => Enumerable.Repeat(d.CardId, d.Count))
+        .ToList();
 
-            var playerDeck = new PlayerDeck(playerName, civic, military)
-            {
-                DeckName = string.IsNullOrWhiteSpace(deckName)
-                    ? $"Deck_{Guid.NewGuid().ToString("N")[..6]}"
-                    : deckName
-            };
+    var playerDeck = new PlayerDeck(playerName, civic, military)
+    {
+        DeckName = string.IsNullOrWhiteSpace(deckName)
+            ? $"Deck_{Guid.NewGuid().ToString("N")[..6]}"
+            : deckName
+    };
 
-            var deckFilter = Builders<PlayerDeck>.Filter.And(
-                Builders<PlayerDeck>.Filter.Eq(d => d.PlayerName, playerName),
-                Builders<PlayerDeck>.Filter.Eq(d => d.DeckName, playerDeck.DeckName)
-            );
+    var deckFilter = Builders<PlayerDeck>.Filter.And(
+        Builders<PlayerDeck>.Filter.Eq(d => d.PlayerName, playerName),
+        Builders<PlayerDeck>.Filter.Eq(d => d.DeckName, playerDeck.DeckName)
+    );
 
-            await _deckCollection.ReplaceOneAsync(deckFilter, playerDeck, new ReplaceOptions { IsUpsert = true });
+    await _deckCollection.ReplaceOneAsync(deckFilter, playerDeck, new ReplaceOptions { IsUpsert = true });
 
-            return Ok(new { message = "✅ Deck uploaded and saved.", deckId = playerDeck.Id });
-        }
+    return Ok(new { message = "✅ Deck uploaded and saved.", deckId = playerDeck.Id });
+}
 
 
         [HttpGet("hasdeck/{playerName}")]
@@ -120,12 +120,12 @@ namespace Empire.Server.Controllers
             return Ok(new { player = playerName, hasDeck = exists });
         }
 
-        [HttpGet("deck/{playerName}")]
-        public async Task<IActionResult> GetDeck(string playerName)
+        [HttpGet("deck/{playerName}/{deckId}")]
+        public async Task<IActionResult> GetSpecificDeck(string playerName, string deckId)
         {
-            var deck = await _deckService.GetDeckAsync(playerName);
+            var deck = await _deckService.GetDeckAsync(playerName, deckId);
             if (deck == null)
-                return NotFound($"No deck found for {playerName}");
+                return NotFound($"No deck found for {playerName} with ID {deckId}");
 
             return Ok(deck);
         }
