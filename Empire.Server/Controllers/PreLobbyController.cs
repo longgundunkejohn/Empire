@@ -31,11 +31,12 @@ namespace Empire.Server.Controllers
             var decks = await _deckCollection.Find(_ => true).ToListAsync();
 
             var names = decks
-                .Where(d => !string.IsNullOrWhiteSpace(d.DeckName))
-                .Select(d => d.DeckName!)
+                .Select(d => d.DeckName ?? "")
+                .Where(name => !string.IsNullOrWhiteSpace(name))
                 .Distinct()
                 .OrderBy(n => n)
                 .ToList();
+
 
             return Ok(names);
         }
@@ -71,11 +72,18 @@ namespace Empire.Server.Controllers
             if (!rawDeck.Any())
                 return BadRequest("Parsed deck is empty.");
 
+            // Save raw entries to DB (used to hydrate final deck)
             _deckLoader.SaveDeckToDatabase(playerName, rawDeck);
 
+            // Hydrate full deck
             var playerDeck = await _deckService.ParseAndSaveDeckAsync(playerName);
-            playerDeck.DeckName = string.IsNullOrWhiteSpace(deckName) ? $"Deck_{Guid.NewGuid().ToString("N")[..6]}" : deckName;
 
+            // Set name BEFORE storing
+            playerDeck.DeckName = string.IsNullOrWhiteSpace(deckName)
+                ? $"Deck_{Guid.NewGuid().ToString("N")[..6]}"
+                : deckName;
+
+            // Upsert using PlayerName + DeckName
             var filter = Builders<PlayerDeck>.Filter.And(
                 Builders<PlayerDeck>.Filter.Eq(d => d.PlayerName, playerName),
                 Builders<PlayerDeck>.Filter.Eq(d => d.DeckName, playerDeck.DeckName)
@@ -85,7 +93,7 @@ namespace Empire.Server.Controllers
 
             return Ok(new { message = "✅ Deck uploaded and saved.", deckId = playerDeck.Id });
         }
-
+ 
         [HttpGet("hasdeck/{playerName}")]
         public async Task<IActionResult> HasDeck(string playerName)
         {
