@@ -9,6 +9,7 @@ namespace Empire.Server.Services
 {
     public class DeckLoaderService
     {
+        private readonly IMongoCollection<RawDeckEntry> _rawDeckCollection;
         private readonly ILogger<DeckLoaderService> _logger;
         private readonly ICardDatabaseService _cardDatabase;
         private readonly IMongoCollection<RawDeckEntry> _deckCollection;
@@ -25,7 +26,9 @@ namespace Empire.Server.Services
             _logger = logger;
             _cardDatabase = cardDatabase;
             _imagePath = Path.Combine(env.ContentRootPath, "wwwroot", "images", "Cards");
+
             _deckCollection = mongo.DeckDatabase.GetCollection<RawDeckEntry>("PlayerDecks");
+            _rawDeckCollection = mongo.DeckDatabase.GetCollection<RawDeckEntry>("RawDeckEntries");
 
             LoadImageMappings();
             _logger.LogInformation("✅ DeckLoaderService initialized with {Count} image mappings.", CardDictionary.Count);
@@ -156,5 +159,12 @@ namespace Empire.Server.Services
                 ? Path.GetFileNameWithoutExtension(fileName).Split(" ", 2).Last()
                 : "Unknown Card";
         }
+
+        public IMongoCollection<RawDeckEntry> GetRawDeckCollection()
+        {
+            return _rawDeckCollection;
+        }
+
+
     }
 }

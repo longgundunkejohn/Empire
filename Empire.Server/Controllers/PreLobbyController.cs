@@ -72,28 +72,38 @@ namespace Empire.Server.Controllers
             if (!rawDeck.Any())
                 return BadRequest("Parsed deck is empty.");
 
-            // Save raw entries to DB (used to hydrate final deck)
-            _deckLoader.SaveDeckToDatabase(playerName, rawDeck);
+            // ✅ Save to the *correct* collection with proper Player prop
+            foreach (var entry in rawDeck)
+            {
+                entry.Player = playerName;
+                entry.DeckType = entry.DeckType?.Trim();
+            }
 
-            // Hydrate full deck
+            var rawCollection = _deckLoader.GetRawDeckCollection();
+            var filter = Builders<RawDeckEntry>.Filter.Eq("Player", playerName);
+            await rawCollection.DeleteManyAsync(filter);
+            await rawCollection.InsertManyAsync(rawDeck);
+
+            // ✅ Now try hydrating
             var playerDeck = await _deckService.ParseAndSaveDeckAsync(playerName);
+            if (playerDeck == null)
+                return StatusCode(500, "Failed to parse deck. Check CSV formatting.");
 
-            // Set name BEFORE storing
             playerDeck.DeckName = string.IsNullOrWhiteSpace(deckName)
                 ? $"Deck_{Guid.NewGuid().ToString("N")[..6]}"
                 : deckName;
 
-            // Upsert using PlayerName + DeckName
-            var filter = Builders<PlayerDeck>.Filter.And(
+            var deckFilter = Builders<PlayerDeck>.Filter.And(
                 Builders<PlayerDeck>.Filter.Eq(d => d.PlayerName, playerName),
                 Builders<PlayerDeck>.Filter.Eq(d => d.DeckName, playerDeck.DeckName)
             );
 
-            await _deckCollection.ReplaceOneAsync(filter, playerDeck, new ReplaceOptions { IsUpsert = true });
+            await _deckCollection.ReplaceOneAsync(deckFilter, playerDeck, new ReplaceOptions { IsUpsert = true });
 
             return Ok(new { message = "✅ Deck uploaded and saved.", deckId = playerDeck.Id });
         }
- 
+
+
         [HttpGet("hasdeck/{playerName}")]
         public async Task<IActionResult> HasDeck(string playerName)
         {
