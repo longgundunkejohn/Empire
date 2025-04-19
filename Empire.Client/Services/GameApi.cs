@@ -28,14 +28,21 @@ namespace Empire.Client.Services
             return await _http.GetFromJsonAsync<List<PlayerDeck>>($"api/prelobby/decks/{playerName}") ?? new();
         }
 
-        public async Task<string> CreateGame(string playerName, string deckName)
+        public async Task<string> CreateGame(string playerName, string deckId)
         {
-            var response = await _http.PostAsJsonAsync("api/game/create", new { PlayerName = playerName, DeckName = deckName });
+            var request = new GameStartRequest
+            {
+                Player1 = playerName,
+                DeckId = deckId
+            };
+
+            var response = await _http.PostAsJsonAsync("api/game/create", request);
             if (!response.IsSuccessStatusCode)
                 return string.Empty;
 
             return await response.Content.ReadAsStringAsync();
         }
+
 
         public async Task<bool> JoinGame(string gameId, string playerName, List<int> civicDeck, List<int> militaryDeck)
         {
