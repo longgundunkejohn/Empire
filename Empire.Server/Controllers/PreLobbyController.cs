@@ -7,6 +7,7 @@ using System.Globalization;
 using Empire.Server.Interfaces;
 using Empire.Shared.Models;
 using MongoDB.Driver;
+using MongoDB.Bson;
 
 namespace Empire.Server.Controllers
 {
@@ -72,33 +73,49 @@ namespace Empire.Server.Controllers
             if (!rawDeck.Any())
                 return BadRequest("Parsed deck is empty.");
 
-            // ✅ Save to the *correct* collection with proper Player prop
+            // ✅ Tag each entry with Player and trimmed type
             foreach (var entry in rawDeck)
             {
                 entry.Player = playerName;
                 entry.DeckType = entry.DeckType?.Trim();
             }
 
+            // ✅ Store raw deck entries
             var rawCollection = _deckLoader.GetRawDeckCollection();
             var filter = Builders<RawDeckEntry>.Filter.Eq("Player", playerName);
             await rawCollection.DeleteManyAsync(filter);
             await rawCollection.InsertManyAsync(rawDeck);
 
-            // ✅ Now try hydrating
-            var playerDeck = await _deckService.ParseAndSaveDeckAsync(playerName);
-            if (playerDeck == null)
-                return StatusCode(500, "Failed to parse deck. Check CSV formatting.");
-
-            playerDeck.DeckName = string.IsNullOrWhiteSpace(deckName)
-                ? $"Deck_{Guid.NewGuid().ToString("N")[..6]}"
+            // ✅ Assign DeckName before hydration
+            string finalDeckName = string.IsNullOrWhiteSpace(deckName)
+                ? $"Deck_{Guid.NewGuid():N}".Substring(0, 6)
                 : deckName;
 
-            var deckFilter = Builders<PlayerDeck>.Filter.And(
-                Builders<PlayerDeck>.Filter.Eq(d => d.PlayerName, playerName),
-                Builders<PlayerDeck>.Filter.Eq(d => d.DeckName, playerDeck.DeckName)
-            );
+            // ✅ Hydrate + preserve existing ID if needed
+            var civicDeck = rawDeck
+                .Where(e => e.DeckType?.ToLowerInvariant() == "civic")
+                .SelectMany(e => Enumerable.Repeat(e.CardId, e.Count))
+                .ToList();
 
-            await _deckCollection.ReplaceOneAsync(deckFilter, playerDeck, new ReplaceOptions { IsUpsert = true });
+            var militaryDeck = rawDeck
+                .Where(e => e.DeckType?.ToLowerInvariant() == "military")
+                .SelectMany(e => Enumerable.Repeat(e.CardId, e.Count))
+                .ToList();
+
+            var existing = await _deckCollection.Find(d =>
+                d.PlayerName == playerName && d.DeckName == finalDeckName
+            ).FirstOrDefaultAsync();
+
+            var playerDeck = new PlayerDeck(playerName, civicDeck, militaryDeck, finalDeckName)
+            {
+                Id = existing?.Id ?? ObjectId.GenerateNewId().ToString()
+            };
+
+            await _deckCollection.ReplaceOneAsync(
+                Builders<PlayerDeck>.Filter.Eq(d => d.Id, playerDeck.Id),
+                playerDeck,
+                new ReplaceOptions { IsUpsert = true }
+            );
 
             return Ok(new { message = "✅ Deck uploaded and saved.", deckId = playerDeck.Id });
         }

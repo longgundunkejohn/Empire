@@ -80,17 +80,18 @@ namespace Empire.Server.Services
         public void SaveDeckToDatabase(string player, List<RawDeckEntry> rawDeck)
         {
             var filter = Builders<RawDeckEntry>.Filter.Eq("Player", player);
-            _deckCollection.DeleteMany(filter);
+            _rawDeckCollection.DeleteMany(filter);
 
             foreach (var entry in rawDeck)
             {
                 entry.DeckType = entry.DeckType?.Trim();
-                entry.GetType().GetProperty("Player")?.SetValue(entry, player);
+                entry.Player = player;
             }
 
-            _deckCollection.InsertMany(rawDeck);
-            _logger.LogInformation("💾 Saved deck for player {Player} with {Count} entries.", player, rawDeck.Count);
+            _rawDeckCollection.InsertMany(rawDeck);
+            _logger.LogInformation("💾 Saved raw deck for player {Player} with {Count} entries.", player, rawDeck.Count);
         }
+
 
         public PlayerDeck LoadDeck(string player)
         {
