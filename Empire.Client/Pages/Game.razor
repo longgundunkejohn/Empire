@@ -45,16 +45,8 @@ else
             }
         </div>
 
-        <!-- Heartland Area (draw + drop zone) -->
-        <div class="heartland">
-            <div class="draw-area">
-                <CardBackImage DeckCount="@CivicDeckCount" CardBackPath="Cardbacks/civicCardback.png" OnDraw="DrawCivic" />
-                <CardBackImage DeckCount="@MilitaryDeckCount" CardBackPath="Cardbacks/armyCardback.png" OnDraw="DrawMilitary" />
-            </div>
-        </div>
-
-        <!-- Your Hand (Bottom fixed) -->
-        <div class="hand player-hand fixed-hand">
+        <!-- Your Hand -->
+        <div class="hand player-hand">
             @foreach (var card in PlayerHand)
 
             {
@@ -68,31 +60,38 @@ else
                      alt="@card.Name" />
             }
         </div>
-
-        <!-- Chat UI -->
-        <div class="chat-container">
-            <div class="chat-log">
-                @foreach (var msg in ChatLog)
-
-                {
-                    <div><strong>@msg.PlayerId:</strong> @msg.Message</div>
-                }
-            </div>
-            <input class="form-control mt-2"
-                   @bind="chatInput"
-                   @bind:event="oninput"
-                   @onkeydown="HandleChatKey"
-                   placeholder="Type message or /shuffle..." />
-        </div>
-
-        @if (ZoomedCard != null)
-
-        {
-            <div class="card-preview" style="top:@PreviewYpx; left:@PreviewXpx;">
-                <img src="@ZoomedCard.ImagePath" alt="@ZoomedCard.Name" class="card-image" />
-            </div>
-        }
     </div>
+
+    <!-- Deck Drawing Section -->
+    <section class="draw-decks">
+        <CardBackImage DeckCount="@CivicDeckCount" CardBackPath="images/Cards/civicCardback.jpg" OnDraw="DrawCivic" />
+        <CardBackImage DeckCount="@MilitaryDeckCount" CardBackPath="images/Cards/armyCardback.jpg" OnDraw="DrawMilitary" />
+    </section>
+
+    <!-- Chat UI -->
+    <div class="chat-container">
+        <div class="chat-log">
+            @foreach (var msg in ChatLog)
+
+            {
+                <div><strong>@msg.PlayerId:</strong> @msg.Message</div>
+            }
+        </div>
+        <input class="form-control mt-2"
+               @bind="chatInput"
+               @bind:event="oninput"
+               @onkeydown="HandleChatKey"
+               placeholder="Type message or /shuffle..." />
+    </div>
+
+    @if (ZoomedCard != null && !string.IsNullOrWhiteSpace(ZoomedCard.ImagePath))
+
+    {
+        <div class="card-preview" style="top:@PreviewYpx; left:@PreviewXpx;">
+            <img src="@ZoomedCard.ImagePath" alt="@ZoomedCard.Name" class="card-image" />
+        </div>
+    }
+
 }
 
 @code {
@@ -124,7 +123,23 @@ else
 
     private List<int> HandCardIds => gameState?.PlayerHands?.GetValueOrDefault(playerId) ?? new();
 
-    private List<Card> PlayerHand => HandCardIds.Select(id => GetCardFromDeck(id)).Where(c => c != null).ToList()!;
+
+
+    private List<Card> PlayerHand =>
+
+        HandCardIds
+
+            .Distinct() // Avoid duplicates
+
+            .Select(id => GetCardFromDeck(id))
+
+            .Where(c => c != null)
+
+            .ToList()!;
+
+
+
+
 
     private List<Card> OpponentHand => gameState?.PlayerHands?.FirstOrDefault(p => p.Key != playerId).Value?.Select(id => new Card { CardId = id })?.ToList() ?? new();
 
@@ -172,17 +187,39 @@ else
 
 
 
+
+
+
+
     private async Task RefreshGameState()
 
     {
 
         gameState = await GameApi.GetGameState(gameId);
 
-        AllCards = gameState?.PlayerDecks?.SelectMany(p => p.Value).ToList() ?? new();
+
+
+        // Flatten ALL cards from all decks
+
+        AllCards = gameState?.PlayerDecks
+
+            .SelectMany(kv => kv.Value)
+
+            .DistinctBy(c => c.CardId) // Optional dedupe
+
+            .ToList() ?? new();
+
+
 
         StateHasChanged();
 
     }
+
+
+
+
+
+
 
 
 
@@ -276,17 +313,35 @@ else
 
 
 
+
+
+
+
     private void ShowZoomedCard(Card card, MouseEventArgs e)
 
     {
 
-        ZoomedCard = card;
+        var fullCard = GetCardFromDeck(card.CardId);
 
-        PreviewXpx = $"{e.ClientX + 20}px";
+        if (fullCard != null)
 
-        PreviewYpx = $"{e.ClientY + 20}px";
+        {
+
+            ZoomedCard = fullCard;
+
+            PreviewXpx = $"{e.ClientX + 20}px";
+
+            PreviewYpx = $"{e.ClientY + 20}px";
+
+        }
 
     }
+
+
+
+
+
+
 
 
 
@@ -295,8 +350,6 @@ else
 
 
     private Card? GetCardFromDeck(int id) => AllCards.FirstOrDefault(c => c.CardId == id);
-
-
 
     private void OnDragStart(int cardId) => draggedCardId = cardId;
 
@@ -307,8 +360,6 @@ else
     {
 
         if (!draggedCardId.HasValue) return;
-
-
 
         var currentBoard = PlayerBoard;
 
