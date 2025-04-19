@@ -46,7 +46,7 @@ namespace Empire.Server.Controllers
                 PlayerHands = new Dictionary<string, List<int>> { [request.Player1] = hand },
                 PlayerBoard = new Dictionary<string, List<BoardCard>> { [request.Player1] = new() },
                 PlayerGraveyards = new Dictionary<string, List<int>> { [request.Player1] = new() },
-                PlayerLifeTotals = new Dictionary<string, int> { [request.Player1] = 20 }
+                PlayerLifeTotals = new Dictionary<string, int> { [request.Player1] = 20 },
                 PlayerSealedZones = new Dictionary<string, List<int>> { [request.Player1] = new() }
             };
 
