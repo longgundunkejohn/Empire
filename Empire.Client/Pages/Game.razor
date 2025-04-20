@@ -8,15 +8,19 @@
 @inject GameHubService HubService
 
 @if (gameState == null)
+
 {
     <p>Loading game...</p>
 }
+
 else
+
 {
     <div class="game-container">
         <!-- Enemy Hand -->
         <div class="hand enemy-hand">
             @foreach (var _ in OpponentHand)
+
             {
                 <img src="images/Cards/cardback.png" class="card-image small" alt="Hidden card" />
             }
@@ -25,14 +29,19 @@ else
         <!-- Board (middle section) -->
         <div class="board" @ondragover:preventDefault="true" @ondrop="OnCardDrop">
             @foreach (var boardCard in PlayerBoard)
+
             {
+
                 var card = GetCardFromDeck(boardCard.CardId);
+
                 if (card != null)
+
                 {
                     <div class="card-slot">
                         <CardImage Card="card" />
                     </div>
                 }
+
             }
         </div>
 
@@ -42,4 +51,294 @@ else
             <CardBackImage DeckCount="@MilitaryDeckCount" CardBackPath="Cardbacks/armyCardback.png" OnDraw="DrawMilitary" />
         </div>
 
-        <!-- Player Hand
+        <!-- Player Hand -->
+        <div class="hand player-hand fixed-hand">
+            @foreach (var card in PlayerHand)
+
+            {
+                <img src="@card.ImagePath"
+                     class="card-image small"
+                     draggable="true"
+                     @ondragstart="(e) => OnDragStart(card.CardId)"
+                @oncontextmenu:preventDefault
+                     @oncontextmenu="e => ShowZoomedCard(card, e)"
+                     @onmousedown="e => { if (e.Button == 0 || e.Button == 2) HideZoomedCard(); }"
+                     alt="@card.Name" />
+            }
+        </div>
+
+        <!-- Chat UI -->
+        <div class="chat-container">
+            <div class="chat-log">
+                @foreach (var msg in ChatLog)
+
+                {
+                    <div><strong>@msg.PlayerId:</strong> @msg.Message</div>
+                }
+            </div>
+            <input class="form-control mt-2"
+                   @bind="chatInput"
+                   @bind:event="oninput"
+                   @onkeydown="HandleChatKey"
+                   placeholder="Type message or /shuffle..." />
+        </div>
+
+        @if (ZoomedCard != null)
+
+        {
+            <div class="card-preview" style="top:@PreviewYpx; left:@PreviewXpx;">
+                <img src="@ZoomedCard.ImagePath" alt="@ZoomedCard.Name" class="card-image" />
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string gameId { get; set; } = string.Empty;
+
+    [Parameter] public string playerId { get; set; } = string.Empty;
+
+
+
+    private GameState? gameState;
+
+    private List<Card> AllCards = new();
+
+    private HubConnection? hub;
+
+    private Card? ZoomedCard = null;
+
+    private string PreviewXpx = "0px";
+
+    private string PreviewYpx = "0px";
+
+    private string chatInput = string.Empty;
+
+    private List<(string PlayerId, string Message)> ChatLog = new();
+
+    private int? draggedCardId = null;
+
+
+
+    private List<int> HandCardIds => gameState?.PlayerHands?.GetValueOrDefault(playerId) ?? new();
+
+    private List<Card> PlayerHand => HandCardIds.Select(id => GetCardFromDeck(id)).Where(c => c != null).ToList()!;
+
+    private List<Card> OpponentHand => gameState?.PlayerHands?.FirstOrDefault(p => p.Key != playerId).Value?.Select(id => new Card { CardId = id })?.ToList() ?? new();
+
+    private List<BoardCard> PlayerBoard => gameState?.PlayerBoard?.GetValueOrDefault(playerId) ?? new();
+
+
+
+    private int CivicDeckCount =>
+
+        gameState?.PlayerDecks?.GetValueOrDefault(playerId)?.Count(c => c.Type?.ToLowerInvariant() is "villager" or "settlement") ?? 0;
+
+    private int MilitaryDeckCount =>
+
+        gameState?.PlayerDecks?.GetValueOrDefault(playerId)?.Count(c => c.Type?.ToLowerInvariant() is not ("villager" or "settlement")) ?? 0;
+
+
+
+    protected override async Task OnInitializedAsync()
+
+    {
+
+        gameState = await GameApi.GetGameState(gameId);
+
+        AllCards = gameState?.PlayerDecks.SelectMany(p => p.Value).ToList() ?? new();
+
+
+
+        HubService.OnBoardUpdate += async (update) =>
+
+        {
+
+            if (update.GameId == gameId)
+
+            {
+
+                gameState!.PlayerBoard[update.PlayerId] = update.NewOrder.Select(id => new BoardCard(id)).ToList();
+
+                StateHasChanged();
+
+            }
+
+        };
+
+
+
+        await HubService.ConnectAsync(gameId);
+
+    }
+
+
+
+    private async Task RefreshGameState()
+
+    {
+
+        gameState = await GameApi.GetGameState(gameId);
+
+        AllCards = gameState?.PlayerDecks?.SelectMany(p => p.Value).ToList() ?? new();
+
+        StateHasChanged();
+
+    }
+
+
+
+    private async Task DrawCivic() => await Draw("civic");
+
+    private async Task DrawMilitary() => await Draw("military");
+
+
+
+    private async Task Draw(string type)
+
+    {
+
+        await GameApi.DrawCard(gameId, playerId, type);
+
+        await RefreshGameState();
+
+    }
+
+
+
+    private async Task ShuffleDeck()
+
+    {
+
+        var move = new GameMove { PlayerId = playerId, MoveType = "ShuffleDeck" };
+
+        await GameApi.SubmitMove(gameId, move);
+
+        ChatLog.Add((playerId, "🔀 shuffled their deck."));
+
+        await RefreshGameState();
+
+    }
+
+
+
+    private async Task HandleChatKey(KeyboardEventArgs e)
+
+    {
+
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(chatInput))
+
+        {
+
+            var message = chatInput.Trim();
+
+            if (message.StartsWith("/"))
+
+                await HandleChatCommand(message);
+
+            else
+
+                ChatLog.Add((playerId, message));
+
+
+
+            chatInput = string.Empty;
+
+            StateHasChanged();
+
+        }
+
+    }
+
+
+
+    private async Task HandleChatCommand(string command)
+
+    {
+
+        switch (command.ToLowerInvariant())
+
+        {
+
+            case "/shuffle":
+
+                await ShuffleDeck();
+
+                break;
+
+            default:
+
+                ChatLog.Add((playerId, $"❓ Unknown command: {command}"));
+
+                break;
+
+        }
+
+    }
+
+
+
+    private void ShowZoomedCard(Card card, MouseEventArgs e)
+
+    {
+
+        ZoomedCard = card;
+
+        PreviewXpx = $"{e.ClientX + 20}px";
+
+        PreviewYpx = $"{e.ClientY + 20}px";
+
+    }
+
+
+
+    private void HideZoomedCard() => ZoomedCard = null;
+
+
+
+    private Card? GetCardFromDeck(int id) => AllCards.FirstOrDefault(c => c.CardId == id);
+
+
+
+    private void OnDragStart(int cardId) => draggedCardId = cardId;
+
+
+
+    private async Task OnCardDrop()
+
+    {
+
+        if (!draggedCardId.HasValue) return;
+
+
+
+        var currentBoard = PlayerBoard;
+
+        currentBoard.RemoveAll(c => c.CardId == draggedCardId.Value);
+
+        currentBoard.Add(new BoardCard(draggedCardId.Value));
+
+
+
+        var update = new BoardPositionUpdate
+
+            {
+
+                GameId = gameId,
+
+                PlayerId = playerId,
+
+                NewOrder = currentBoard.Select(c => c.CardId).ToList()
+
+            };
+
+
+
+        await HubService.SendBoardUpdate(gameId, update);
+
+        draggedCardId = null;
+
+        StateHasChanged();
+
+    }
+}
