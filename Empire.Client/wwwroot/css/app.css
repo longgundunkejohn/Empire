@@ -1,9 +1,76 @@
 /* =========================================
-   Empire TCG - Game UI Styles
-   Applies to /game route only
+   Empire TCG - Game Scene Styles
+   Applies to /game layout
    ========================================= */
 
-/* === Card Styling === */
+/* === Layout === */
+.game-layout {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: stretch;
+    height: 100vh;
+    padding: 1rem;
+    gap: 1rem;
+    background-color: #121212;
+}
+
+/* === Opponent Zone === */
+.opponent-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.zone-label {
+    font-size: 0.9rem;
+    color: #aaa;
+}
+
+.opponent-hand {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+/* === Board Zone === */
+.board-zone {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 1rem;
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 2px dashed #444;
+    border-radius: 10px;
+    min-height: 180px;
+}
+
+/* === Player Hand + Decks === */
+.player-zone {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 2rem;
+}
+
+.decks {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-items: center;
+}
+
+.hand-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    flex: 1;
+}
+
+/* === Card Basics === */
 .card {
     aspect-ratio: 0.715;
     border-radius: 8px;
@@ -35,6 +102,7 @@
         opacity: 0.5;
     }
 
+/* === Card Overlay === */
 .card-overlay {
     position: absolute;
     bottom: 0;
@@ -48,18 +116,7 @@
     border-bottom-right-radius: 8px;
 }
 
-/* === Board & Layout Zones === */
-.board {
-    display: grid;
-    grid-template-columns: repeat(5, 120px);
-    grid-auto-rows: 180px;
-    gap: 12px;
-    justify-content: center;
-    padding: 1rem;
-    border: 2px dashed #ccc;
-    background-color: #f9f9f9;
-}
-
+/* === Card Slot for Board === */
 .card-slot {
     width: 120px;
     height: 168px;
@@ -72,64 +129,7 @@
         object-fit: contain;
     }
 
-.enemy-hand {
-    display: flex;
-    justify-content: center;
-    gap: 8px;
-    margin-bottom: 2rem;
-}
-
-.hand {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 8px;
-}
-
-    .hand .card {
-        width: 120px;
-    }
-
-/* === Player Hand === */
-.fixed-hand {
-    position: fixed;
-    bottom: 0;
-    width: 100%;
-    background: rgba(0, 0, 0, 0.85);
-    padding: 0.75rem;
-    z-index: 40;
-    display: flex;
-    justify-content: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    border-top: 1px solid #333;
-}
-
-/* === Draw Deck Buttons === */
-.draw-decks {
-    position: fixed;
-    bottom: 110px; /* sits above fixed-hand */
-    left: 0;
-    width: 100%;
-    padding: 0.75rem;
-    background: rgba(0, 0, 0, 0.85);
-    display: flex;
-    justify-content: center;
-    gap: 1.5rem;
-    z-index: 50;
-}
-
-    .draw-decks .card-image {
-        width: 80px;
-        height: auto;
-        aspect-ratio: 0.715;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-        transition: transform 0.2s ease;
-    }
-
-/* === Card Preview (Zoomed) === */
+/* === Card Zoom Preview === */
 .card-preview {
     position: fixed;
     width: 300px;
@@ -142,21 +142,23 @@
     box-shadow: 0 0 12px rgba(0, 0, 0, 0.8);
 }
 
-/* === Optional Zones === */
-.heartland {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 160px;
-    background-color: rgba(255, 255, 255, 0.03);
-    border-top: 1px solid #444;
-    border-bottom: 1px solid #444;
-    margin-top: 1rem;
-    gap: 2rem;
+/* === Chat === */
+.chat-box {
+    max-width: 600px;
+    margin: 0 auto;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 0.75rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
 }
 
-.draw-area {
-    display: flex;
-    justify-content: center;
-    gap: 2rem;
+.chat-log {
+    max-height: 120px;
+    overflow-y: auto;
+    margin-bottom: 0.5rem;
+    padding-right: 0.25rem;
 }
+
+    .chat-log div {
+        margin-bottom: 0.25rem;
+    }
