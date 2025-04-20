@@ -16,18 +16,22 @@
 else
 
 {
-    <div class="game-container">
-        <!-- Enemy Hand -->
-        <div class="hand enemy-hand">
-            @foreach (var _ in OpponentHand)
+    <div class="game-battlefield">
 
-            {
-                <img src="images/Cards/cardback.png" class="card-image small" alt="Hidden card" />
-            }
+        <!-- Top: Opponent -->
+        <div class="zone opponent-zone">
+            <div class="zone-label">Opponent Hand</div>
+            <div class="hand-row">
+                @foreach (var _ in OpponentHand)
+
+                {
+                    <img src="images/Cards/cardback.png" class="card-image small" alt="Hidden card" />
+                }
+            </div>
         </div>
 
-        <!-- Board (middle section) -->
-        <div class="board" @ondragover:preventDefault="true" @ondrop="OnCardDrop">
+        <!-- Center: Board -->
+        <div class="zone board-zone" @ondragover:preventDefault="true" @ondrop="OnCardDrop">
             @foreach (var boardCard in PlayerBoard)
 
             {
@@ -45,30 +49,34 @@ else
             }
         </div>
 
-        <!-- Draw Deck Area -->
-        <div class="draw-decks">
-            <CardBackImage DeckCount="@CivicDeckCount" CardBackPath="Cardbacks/civicCardback.png" OnDraw="DrawCivic" />
-            <CardBackImage DeckCount="@MilitaryDeckCount" CardBackPath="Cardbacks/armyCardback.png" OnDraw="DrawMilitary" />
+        <!-- Bottom: Player -->
+        <div class="zone player-zone">
+            <div class="deck-hand-wrapper">
+
+                <div class="deck-zone">
+                    <CardBackImage DeckCount="@CivicDeckCount" CardBackPath="Cardbacks/civicCardback.png" OnDraw="DrawCivic" />
+                    <CardBackImage DeckCount="@MilitaryDeckCount" CardBackPath="Cardbacks/armyCardback.png" OnDraw="DrawMilitary" />
+                </div>
+
+                <div class="hand-row">
+                    @foreach (var card in PlayerHand)
+                    {
+                        <img src="@card.ImagePath"
+                             class="card-image small"
+                             draggable="true"
+                             @ondragstart="(e) => OnDragStart(card.CardId)"
+                        @oncontextmenu:preventDefault
+                             @oncontextmenu="e => ShowZoomedCard(card, e)"
+                             @onmousedown="e => { if (e.Button == 0 || e.Button == 2) HideZoomedCard(); }"
+                             alt="@card.Name" />
+                    }
+                </div>
+
+            </div>
         </div>
 
-        <!-- Player Hand -->
-        <div class="hand player-hand fixed-hand">
-            @foreach (var card in PlayerHand)
-
-            {
-                <img src="@card.ImagePath"
-                     class="card-image small"
-                     draggable="true"
-                     @ondragstart="(e) => OnDragStart(card.CardId)"
-                @oncontextmenu:preventDefault
-                     @oncontextmenu="e => ShowZoomedCard(card, e)"
-                     @onmousedown="e => { if (e.Button == 0 || e.Button == 2) HideZoomedCard(); }"
-                     alt="@card.Name" />
-            }
-        </div>
-
-        <!-- Chat UI -->
-        <div class="chat-container">
+        <!-- Chat -->
+        <div class="zone chat-zone">
             <div class="chat-log">
                 @foreach (var msg in ChatLog)
 
@@ -83,6 +91,7 @@ else
                    placeholder="Type message or /shuffle..." />
         </div>
 
+        <!-- Zoom Preview -->
         @if (ZoomedCard != null)
 
         {
@@ -92,6 +101,7 @@ else
         }
     </div>
 }
+
 
 @code {
     [Parameter] public string gameId { get; set; } = string.Empty;

@@ -1,9 +1,13 @@
+/* =========================================
+   Empire TCG - Game UI Styles
+   Applies to /game route only
+   ========================================= */
 
 /* === Card Styling === */
 .card {
     aspect-ratio: 0.715;
     border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
     cursor: pointer;
     transition: transform 0.2s;
 }
@@ -35,7 +39,7 @@
     position: absolute;
     bottom: 0;
     width: 100%;
-    background: rgba(0,0,0,0.7);
+    background: rgba(0, 0, 0, 0.7);
     color: white;
     padding: 4px;
     font-size: 0.75rem;
@@ -44,25 +48,7 @@
     border-bottom-right-radius: 8px;
 }
 
-/* === Layout Zones === */
-.hand {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 8px;
-    border: 1px solid #ccc;
-    margin: 1rem;
-}
-
-    .hand .card {
-        width: 120px;
-    }
-
-.enemy-hand {
-    margin-bottom: 2rem;
-}
-
+/* === Board & Layout Zones === */
 .board {
     display: grid;
     grid-template-columns: repeat(5, 120px);
@@ -86,22 +72,44 @@
         object-fit: contain;
     }
 
-.card-preview {
+.enemy-hand {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 2rem;
+}
+
+.hand {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px;
+}
+
+    .hand .card {
+        width: 120px;
+    }
+
+/* === Player Hand === */
+.fixed-hand {
     position: fixed;
-    width: 300px;
-    aspect-ratio: 0.715;
-    pointer-events: none;
-    z-index: 9999;
-    border: 2px solid #000;
-    background-color: white;
-    border-radius: 10px;
-    box-shadow: 0 0 12px rgba(0,0,0,0.8);
+    bottom: 0;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    padding: 0.75rem;
+    z-index: 40;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    border-top: 1px solid #333;
 }
 
 /* === Draw Deck Buttons === */
 .draw-decks {
     position: fixed;
-    bottom: 0;
+    bottom: 110px; /* sits above fixed-hand */
     left: 0;
     width: 100%;
     padding: 0.75rem;
@@ -117,9 +125,24 @@
         height: auto;
         aspect-ratio: 0.715;
         border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
         transition: transform 0.2s ease;
     }
+
+/* === Card Preview (Zoomed) === */
+.card-preview {
+    position: fixed;
+    width: 300px;
+    aspect-ratio: 0.715;
+    pointer-events: none;
+    z-index: 9999;
+    border: 2px solid #000;
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 0 12px rgba(0, 0, 0, 0.8);
+}
+
+/* === Optional Zones === */
 .heartland {
     display: flex;
     justify-content: center;
@@ -137,38 +160,3 @@
     justify-content: center;
     gap: 2rem;
 }
-
-.fixed-hand {
-    position: fixed;
-    bottom: 0;
-    width: 100%;
-    background: rgba(0,0,0,0.85);
-    padding: 0.75rem;
-    z-index: 40;
-    display: flex;
-    justify-content: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    border-top: 1px solid #333;
-}
-.draw-decks {
-    position: fixed;
-    bottom: 110px; /* <- moves it above the hand */
-    left: 0;
-    width: 100%;
-    padding: 0.75rem;
-    background: rgba(0, 0, 0, 0.85);
-    display: flex;
-    justify-content: center;
-    gap: 1.5rem;
-    z-index: 50;
-}
-
-    .draw-decks .card-image {
-        width: 80px;
-        height: auto;
-        aspect-ratio: 0.715;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-        transition: transform 0.2s ease;
-    }
