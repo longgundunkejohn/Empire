@@ -81,25 +81,31 @@ else
             </div>
         </div>
 
-        <!-- Decks and Hand -->
-        <div class="row">
-            <div class="stack">
-                <div class="zone-label">Decks</div>
-                <div class="card-row">
-                    <CardBackImage DeckCount="@MilitaryDeckCount" CardBackPath="Cardbacks/armyCardback.png" OnDraw="DrawMilitary" />
-                    <CardBackImage DeckCount="@CivicDeckCount" CardBackPath="Cardbacks/civicCardback.png" OnDraw="DrawCivic" />
-                </div>
-            </div>
-            <div class="stack">
-                <div class="zone-label">Hand</div>
-                <div class="card-row">
-                    @foreach (var card in PlayerHand)
-                    {
-                        <CardComponent Card="card" OnClick="() => HandleCardClick(card)" OnDoubleClick="() => HandleCardDoubleClick(card)" />
-                    }
-                </div>
-            </div>
+<!-- Hand and Decks (Swapped) -->
+<div class="row">
+    <div class="stack">
+        <div class="zone-label">Hand</div>
+                <div @ondragover:preventDefault="true"
+                     @ondragenter="() => isDragging = true"
+                     @ondragleave="() => isDragging = false"
+                     @ondrop="OnCardDrop"
+                     class="card-row @(isDragging ? "drag-over" : "")">
+
+            @foreach (var card in PlayerHand)
+            {
+                <CardComponent Card="card" OnClick="() => HandleCardClick(card)" OnDoubleClick="() => HandleCardDoubleClick(card)" />
+            }
         </div>
+    </div>
+    <div class="stack">
+        <div class="zone-label">Decks</div>
+        <div class="card-row">
+            <CardBackImage DeckCount="@MilitaryDeckCount" CardBackPath="Cardbacks/armyCardback.png" OnDraw="DrawMilitary" />
+            <CardBackImage DeckCount="@CivicDeckCount" CardBackPath="Cardbacks/civicCardback.png" OnDraw="DrawCivic" />
+        </div>
+    </div>
+</div>
+
 
         <!-- Chat -->
         <div class="chat-box">
@@ -128,6 +134,12 @@ else
     [Parameter] public string gameId { get; set; } = string.Empty;
 
     [Parameter] public string playerId { get; set; } = string.Empty;
+
+
+
+    private bool isDragging = false;
+
+
 
 
 

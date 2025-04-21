@@ -121,5 +121,27 @@ body {
     .card-preview.show {
         display: block;
     }
+.card-row {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem;
+    min-height: 100px;
+    border: 2px dashed rgba(255,255,255,0.2);
+    border-radius: 8px;
+    transition: background 0.2s ease;
+}
+
+    .card-row.drag-over {
+        background: rgba(255, 255, 255, 0.1);
+    }
+.drag-over {
+    outline: 2px dashed #3b82f6;
+    background-color: rgba(59, 130, 246, 0.1); /* blue highlight */
+    border-radius: 8px;
+}
+
 
 </style>
