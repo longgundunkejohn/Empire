@@ -1,137 +1,91 @@
-/* =========================================
-   Empire TCG - Grid-based Game Layout
-   Based on hand-drawn wireframe layout
-   ========================================= */
-
-body, html {
+body {
     margin: 0;
     padding: 0;
+    box-sizing: border-box;
+    background-color: #1b1b1b;
     font-family: 'Inter', sans-serif;
-    background-color: #121212;
+}
+
+/* === Main Layout === */
+.game-layout {
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+    gap: 1rem;
     color: #f0f0f0;
 }
 
-.game-layout {
-    display: grid;
-    grid-template-areas:
-        "morale board board board initiative"
-        "villagers units units units chat"
-        "decks hand hand hand chat";
-    grid-template-columns: 80px 1fr 1fr 1fr 220px;
-    grid-template-rows: auto auto auto;
-    gap: 0.5rem;
-    height: 100vh;
-    padding: 0.5rem;
-    box-sizing: border-box;
-}
-
 /* === Zones === */
-.morale-box {
-    grid-area: morale;
-    background-color: #1e1e1e;
-    border: 1px solid #333;
-    border-radius: 6px;
-    padding: 0.5rem;
-    text-align: center;
-    font-weight: bold;
-    font-size: 1.2rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.board-zone {
-    grid-area: board;
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-    gap: 1rem;
-    border: 2px dashed #444;
-    background-color: rgba(255,255,255,0.03);
-    border-radius: 10px;
-    padding: 0.5rem;
-    min-height: 200px;
-}
-
-.territory-slot {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.25rem;
-}
-
-.units-zone {
-    grid-area: units;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    padding: 0.5rem;
-    background-color: rgba(255,255,255,0.02);
-    border: 1px solid #444;
-    border-radius: 8px;
-}
-
-.villagers-zone {
-    grid-area: villagers;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    padding: 0.5rem;
-}
-
-.decks {
-    grid-area: decks;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    justify-content: flex-end;
-}
-
-.hand-row {
-    grid-area: hand;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    justify-content: center;
-    align-items: flex-end;
-    padding: 0.5rem;
-}
-
-.chat-box {
-    grid-area: chat;
-    background: rgba(0, 0, 0, 0.6);
-    padding: 0.75rem;
-    border-radius: 8px;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    max-height: 100%;
-    overflow-y: auto;
-}
-
-.chat-log {
-    max-height: 100px;
-    overflow-y: auto;
-    padding-right: 0.25rem;
+.zone-label {
     font-size: 0.9rem;
+    color: #ccc;
+    margin-bottom: 0.3rem;
+    font-weight: 600;
 }
 
+.row {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.column {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+/* === Card & Visuals === */
 .card-image {
-    width: 80px;
+    width: 100px;
     border-radius: 6px;
-    transition: transform 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    transition: transform 0.15s ease-in-out;
     cursor: pointer;
 }
 
     .card-image:hover {
-        transform: scale(1.05);
+        transform: scale(1.08);
     }
 
     .card-image.small {
+        width: 70px;
         opacity: 0.5;
     }
 
+/* === Deck, GY, Commit, Phase === */
+.utility-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding: 0 1rem;
+}
+
+/* === Chat === */
+.chat-box {
+    margin-top: 1rem;
+    padding: 0.5rem;
+    background-color: rgba(0,0,0,0.6);
+    border-radius: 6px;
+    max-width: 400px;
+}
+
+.chat-log {
+    max-height: 120px;
+    overflow-y: auto;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+    .chat-log div {
+        margin-bottom: 0.25rem;
+    }
+
+/* === Zoom Preview === */
 .card-preview {
     position: fixed;
     width: 300px;
@@ -144,21 +98,17 @@ body, html {
     box-shadow: 0 0 12px rgba(0,0,0,0.8);
 }
 
-.zone-label {
-    font-size: 0.85rem;
-    color: #aaa;
-    text-align: center;
-    margin-bottom: 0.25rem;
+/* === Button Fixes === */
+button {
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.4rem 0.6rem;
+    font-weight: bold;
+    cursor: pointer;
 }
 
-.card-slot {
-    width: 120px;
-    height: 168px;
-    position: relative;
-}
-
-    .card-slot .card-image {
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
+    button:hover {
+        background-color: #2563eb;
     }
