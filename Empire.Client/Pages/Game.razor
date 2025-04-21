@@ -8,352 +8,254 @@
 @inject GameHubService HubService
 
 @if (gameState == null)
-
 {
     <p>Loading game...</p>
 }
-
 else
-
 {
-    <div class="game-container">
-
-        <!-- Top Section: Opponent -->
-        <div class="top-bar">
-            <div>
-                <strong>Opponent</strong> | Morale: @OpponentMorale | Initiative: @(HasInitiative ? "•" : "")
-            </div>
-            <div class="opponent-hand">
-                @foreach (var _ in OpponentHand)
-
-                {
-                    <img src="images/Cards/cardback.png" class="card-image small" alt="Hidden card" />
-                }
-            </div>
+<div class="game-layout">
+    <!-- HUD and Status -->
+    <div class="status-bar">
+        <div class="morale">You: 20 | Opponent: 20</div>
+        <div class="phase-info">Phase: Main • Initiative</div>
+        <div class="controls">
+            <button class="btn-pass">Pass</button>
+            <button class="btn-commit">Commit</button>
         </div>
-
-        <!-- Main Board Zone -->
-        <div class="main-board">
-            <!-- Morale -->
-            <div class="morale">Morale: @PlayerMorale</div>
-
-            <!-- Territories -->
-            <div class="territories">
-                @for (int i = 0; i < 3; i++)
-
-                {
-                    <div class="territory-slot">
-                        <div class="territory">TERRITORY</div>
-                        <div class="settlement">SETTLEMENT</div>
-                    </div>
-                }
-            </div>
-
-            <!-- Initiative Panel -->
-            <div class="initiative-panel">
-                <div>Initiative Marker</div>
-                <button class="pass-button">Pass</button>
-            </div>
-        </div>
-
-        <!-- Units and Villagers Row -->
-        <div class="board-zones">
-            <div class="units-zone">
-                <div>Units</div>
-                @foreach (var unit in PlayerBoard)
-
-                {
-
-                    var card = GetCardFromDeck(unit.CardId);
-
-                    if (card != null)
-
-                    {
-                        <div class="card-slot">
-                            <CardImage Card="card" />
-                        </div>
-                    }
-
-                }
-            </div>
-
-            <div class="villagers-zone">
-                <div>Villagers</div>
-            </div>
-        </div>
-
-        <!-- Bottom Row: Decks, Commit, Phases, Hand -->
-        <div class="bottom-bar">
-            <div class="deck-pile">
-                <CardBackImage DeckCount="@MilitaryDeckCount" CardBackPath="Cardbacks/armyCardback.png" OnDraw="DrawMilitary" />
-                <CardBackImage DeckCount="@CivicDeckCount" CardBackPath="Cardbacks/civicCardback.png" OnDraw="DrawCivic" />
-                <div class="deck-label">Graveyard</div>
-            </div>
-
-            <div class="commit-controls">
-                <button>Commit</button>
-                <div>Phase Tracker</div>
-            </div>
-
-            <div class="hand-area">
-                @foreach (var card in PlayerHand)
-
-                {
-                    <img src="@card.ImagePath"
-                         class="card-image small"
-                         draggable="true"
-                         @ondragstart="(e) => OnDragStart(card.CardId)"
-                    @oncontextmenu:preventDefault
-                         @oncontextmenu="e => ShowZoomedCard(card, e)"
-                         @onmousedown="e => { if (e.Button == 0 || e.Button == 2) HideZoomedCard(); }"
-                         alt="@card.Name" />
-                }
-            </div>
-        </div>
-
-        <!-- Chat -->
-        <div class="chat-box">
-            <div class="chat-log">
-                @foreach (var msg in ChatLog)
-
-                {
-                    <div><strong>@msg.PlayerId:</strong> @msg.Message</div>
-                }
-            </div>
-            <input class="form-control" @bind="chatInput" @bind:event="oninput" @onkeydown="HandleChatKey" placeholder="Type message or /shuffle..." />
-        </div>
-
-        <!-- Zoomed Card -->
-        @if (ZoomedCard != null)
-
-        {
-            <div class="card-preview" style="top:@PreviewYpx; left:@PreviewXpx;">
-                <img src="@ZoomedCard.ImagePath" alt="@ZoomedCard.Name" class="card-image" />
-            </div>
-        }
     </div>
+
+    <!-- Battlefield (center zone) -->
+    <div class="battlefield">
+        <div class="territory-row">
+            <div class="territory-cell">
+                <div class="zone-label">Opponent Settlement</div>
+                <div class="card-image">[ ]</div>
+                <div class="zone-label">Territory</div>
+                <div class="card-image">[ ]</div>
+                <div class="zone-label">Your Settlement</div>
+                <div class="card-image">[ ]</div>
+            </div>
+            <div class="territory-cell">
+                <div class="zone-label">Opponent Settlement</div>
+                <div class="card-image">[ ]</div>
+                <div class="zone-label">Territory</div>
+                <div class="card-image">[ ]</div>
+                <div class="zone-label">Your Settlement</div>
+                <div class="card-image">[ ]</div>
+            </div>
+            <div class="territory-cell">
+                <div class="zone-label">Opponent Settlement</div>
+                <div class="card-image">[ ]</div>
+                <div class="zone-label">Territory</div>
+                <div class="card-image">[ ]</div>
+                <div class="zone-label">Your Settlement</div>
+                <div class="card-image">[ ]</div>
+            </div>
+        </div>
+    </div>
+
+        <!-- Units and Villagers -->
+        <div class="row">
+            <!-- Units -->
+            <div class="stack">
+                <div class="zone-label">Units</div>
+                <div class="card-row">
+                    @foreach (var unit in PlayerBoard)
+                    {
+
+                        var card = GetCardFromDeck(unit.CardId);
+
+                        if (card != null && card.Type?.ToLowerInvariant() != "villager" && card.Type?.ToLowerInvariant() != "settlement")
+
+                        {
+                            <CardComponent Card="card" OnClick="() => HandleCardClick(card)" OnDoubleClick="() => HandleCardDoubleClick(card)" />
+                        }
+                    }
+                </div>
+            </div>
+
+            <!-- Villagers / Settlements -->
+            <div class="stack">
+                <div class="zone-label">Villagers & Settlements</div>
+                <div class="card-row">
+                    @foreach (var civic in PlayerBoard)
+                    {
+
+                        var card = GetCardFromDeck(civic.CardId);
+
+                        if (card != null && (card.Type?.ToLowerInvariant() == "villager" || card.Type?.ToLowerInvariant() == "settlement"))
+
+                        {
+                            <CardComponent Card="card" OnClick="() => HandleCardClick(card)" OnDoubleClick="() => HandleCardDoubleClick(card)" />
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+
+    <!-- Decks and Hand -->
+    <div class="row">
+        <div class="stack">
+            <div class="zone-label">Decks</div>
+            <div class="card-row">[Army Deck] [Civic Deck] [Graveyard]</div>
+        </div>
+        <div class="stack">
+            <div class="zone-label">Hand</div>
+            <div class="card-row">[Hand Cards]</div>
+        </div>
+    </div>
+
+    <!-- Chat -->
+    <div class="chat-box">
+        <div class="chat-log">
+            <div><strong>Player1:</strong> Hello!</div>
+            <div><strong>Player2:</strong> Hey!</div>
+        </div>
+        <input class="form-control" placeholder="Type message or /shuffle..." />
+    </div>
+
+    <!-- Zoomed Card -->
+    <div class="card-preview">
+        <img src="images/Cards/placeholder.jpg" alt="Zoomed Card" class="card-image" />
+    </div>
+</div>
+
 }
 
 @code {
     [Parameter] public string gameId { get; set; } = string.Empty;
-
     [Parameter] public string playerId { get; set; } = string.Empty;
 
-
-
     private GameState? gameState;
-
     private List<Card> AllCards = new();
-
     private Card? ZoomedCard = null;
-
     private string PreviewXpx = "0px";
-
     private string PreviewYpx = "0px";
-
     private string chatInput = string.Empty;
-
     private List<(string PlayerId, string Message)> ChatLog = new();
-
     private int? draggedCardId = null;
 
-
-
     private List<int> HandCardIds => gameState?.PlayerHands?.GetValueOrDefault(playerId) ?? new();
-
     private List<Card> PlayerHand => HandCardIds.Select(id => GetCardFromDeck(id)).Where(c => c != null).ToList()!;
-
     private List<Card> OpponentHand => gameState?.PlayerHands?.FirstOrDefault(p => p.Key != playerId).Value?.Select(id => new Card { CardId = id })?.ToList() ?? new();
-
     private List<BoardCard> PlayerBoard => gameState?.PlayerBoard?.GetValueOrDefault(playerId) ?? new();
-
     private int CivicDeckCount => gameState?.PlayerDecks?.GetValueOrDefault(playerId)?.Count(c => c.Type?.ToLowerInvariant() is "villager" or "settlement") ?? 0;
-
     private int MilitaryDeckCount => gameState?.PlayerDecks?.GetValueOrDefault(playerId)?.Count(c => c.Type?.ToLowerInvariant() is not ("villager" or "settlement")) ?? 0;
 
-
-
     private int PlayerMorale => 20; // temp static, wire this later
-
     private int OpponentMorale => 20;
-
     private bool HasInitiative => true;
 
-
-
     protected override async Task OnInitializedAsync()
-
     {
-
         gameState = await GameApi.GetGameState(gameId);
-
         AllCards = gameState?.PlayerDecks.SelectMany(p => p.Value).ToList() ?? new();
-
         await HubService.ConnectAsync(gameId);
-
         HubService.OnBoardUpdate += async (update) =>
-
         {
-
             if (update.GameId == gameId)
-
             {
-
                 gameState!.PlayerBoard[update.PlayerId] = update.NewOrder.Select(id => new BoardCard(id)).ToList();
-
                 StateHasChanged();
-
             }
-
         };
-
     }
-
-
 
     private async Task RefreshGameState()
-
     {
-
         gameState = await GameApi.GetGameState(gameId);
-
         AllCards = gameState?.PlayerDecks?.SelectMany(p => p.Value).ToList() ?? new();
-
         StateHasChanged();
-
     }
-
-
 
     private async Task DrawCivic() => await Draw("civic");
-
     private async Task DrawMilitary() => await Draw("military");
-
     private async Task Draw(string type)
-
     {
-
         await GameApi.DrawCard(gameId, playerId, type);
-
         await RefreshGameState();
-
     }
-
-
 
     private async Task HandleChatKey(KeyboardEventArgs e)
-
     {
-
         if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(chatInput))
-
         {
-
             var message = chatInput.Trim();
-
             if (message.StartsWith("/")) await HandleChatCommand(message);
-
             else ChatLog.Add((playerId, message));
-
             chatInput = string.Empty;
-
             StateHasChanged();
-
         }
-
     }
-
-
 
     private async Task HandleChatCommand(string command)
+    {
+        if (command.ToLowerInvariant() == "/shuffle") await ShuffleDeck();
+        else ChatLog.Add((playerId, $"❓ Unknown command: {command}"));
+    }
+
+    private async Task ShuffleDeck()
+    {
+        var move = new GameMove { PlayerId = playerId, MoveType = "ShuffleDeck" };
+        await GameApi.SubmitMove(gameId, move);
+        ChatLog.Add((playerId, "🔀 shuffled their deck."));
+        await RefreshGameState();
+    }
+
+    private Task HandleCardClick(Card card)
 
     {
 
-        if (command.ToLowerInvariant() == "/shuffle") await ShuffleDeck();
+        Console.WriteLine($"Clicked: {card.Name} (#{card.CardId})");
 
-        else ChatLog.Add((playerId, $"❓ Unknown command: {command}"));
+        return Task.CompletedTask;
 
     }
 
 
 
-    private async Task ShuffleDeck()
+    private Task HandleCardDoubleClick(Card card)
 
     {
 
-        var move = new GameMove { PlayerId = playerId, MoveType = "ShuffleDeck" };
+        Console.WriteLine($"Double-clicked: {card.Name} (#{card.CardId})");
 
-        await GameApi.SubmitMove(gameId, move);
-
-        ChatLog.Add((playerId, "🔀 shuffled their deck."));
-
-        await RefreshGameState();
+        return Task.CompletedTask;
 
     }
 
 
 
     private void ShowZoomedCard(Card card, MouseEventArgs e)
-
     {
-
         const int previewWidth = 300, previewHeight = 420, screenWidth = 1920, screenHeight = 1080;
-
         int offsetX = (e.ClientX + previewWidth + 30 > screenWidth) ? -previewWidth - 20 : 20;
-
         int offsetY = (e.ClientY + previewHeight + 30 > screenHeight) ? -previewHeight - 20 : 20;
-
         PreviewXpx = $"{e.ClientX + offsetX}px";
-
         PreviewYpx = $"{e.ClientY + offsetY}px";
-
         ZoomedCard = card;
-
     }
 
-
-
     private void HideZoomedCard() => ZoomedCard = null;
-
     private Card? GetCardFromDeck(int id) => AllCards.FirstOrDefault(c => c.CardId == id);
-
     private void OnDragStart(int cardId) => draggedCardId = cardId;
 
-
-
     private async Task OnCardDrop()
-
     {
-
         if (!draggedCardId.HasValue) return;
-
         var currentBoard = PlayerBoard;
-
         currentBoard.RemoveAll(c => c.CardId == draggedCardId.Value);
-
         currentBoard.Add(new BoardCard(draggedCardId.Value));
 
-
-
         var update = new BoardPositionUpdate
-
-            {
-
-                GameId = gameId,
-
-                PlayerId = playerId,
-
-                NewOrder = currentBoard.Select(c => c.CardId).ToList()
-
-            };
-
-
+        {
+            GameId = gameId,
+            PlayerId = playerId,
+            NewOrder = currentBoard.Select(c => c.CardId).ToList()
+        };
 
         await HubService.SendBoardUpdate(gameId, update);
-
         draggedCardId = null;
-
         StateHasChanged();
-
     }
 }
