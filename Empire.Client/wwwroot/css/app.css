@@ -107,16 +107,19 @@ body {
 
 .card-preview {
     position: fixed;
-    top: 100px;
-    left: 100px;
     width: 300px;
     aspect-ratio: 0.715;
-    background: white;
-    border: 2px solid #000;
-    border-radius: 10px;
-    z-index: 9999;
     pointer-events: none;
+    z-index: 9999;
+    border: 2px solid #000;
+    background-color: white;
+    border-radius: 10px;
     box-shadow: 0 0 12px rgba(0, 0, 0, 0.8);
+    display: none;
 }
 
-</style >
+    .card-preview.show {
+        display: block;
+    }
+
+</style>

@@ -115,9 +115,10 @@ else
     </div>
 
     <!-- Zoomed Card -->
-    <div class="card-preview">
-        <img src="images/Cards/placeholder.jpg" alt="Zoomed Card" class="card-image" />
-    </div>
+        <div class="card-preview @(ZoomedCard != null ? "show" : "")" style="top:@PreviewYpx; left:@PreviewXpx;">
+            <img src="@ZoomedCard.ImagePath" alt="@ZoomedCard.Name" class="card-image" />
+        </div>
+
 </div>
 
 }
