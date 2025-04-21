@@ -1,53 +1,70 @@
 body {
     margin: 0;
     padding: 0;
-    box-sizing: border-box;
-    background-color: #1b1b1b;
     font-family: 'Inter', sans-serif;
+    background-color: #1b1b1b;
+    color: #f0f0f0;
 }
 
-/* === Main Layout === */
+/* === Game Layout === */
 .game-layout {
-    display: flex;
-    flex-direction: column;
-    padding: 1rem;
+    display: grid;
+    grid-template-columns: 1fr 4fr 1fr;
+    grid-template-rows: auto auto 1fr auto;
     gap: 1rem;
-    color: #f0f0f0;
+    padding: 1rem;
+    height: 100vh;
+    box-sizing: border-box;
+}
+
+/* === Top Info (Morale, Initiative) === */
+.status-bar {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #333;
 }
 
 /* === Zones === */
 .zone-label {
-    font-size: 0.9rem;
-    color: #ccc;
-    margin-bottom: 0.3rem;
+    font-size: 0.85rem;
     font-weight: 600;
+    margin-bottom: 0.25rem;
+    color: #aaa;
 }
 
-.row {
+/* Territory & Settlements Grid */
+.territory-row {
     display: flex;
     justify-content: center;
     gap: 0.75rem;
-    flex-wrap: wrap;
+    margin-bottom: 1rem;
 }
 
-.column {
+.territory-cell {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
     align-items: center;
+    gap: 0.25rem;
 }
 
-/* === Card & Visuals === */
+    .territory-cell .card-image {
+        width: 100px;
+    }
+
+/* === Card Display === */
 .card-image {
     width: 100px;
     border-radius: 6px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
-    transition: transform 0.15s ease-in-out;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.4);
     cursor: pointer;
+    transition: transform 0.15s ease-in-out;
 }
 
     .card-image:hover {
-        transform: scale(1.08);
+        transform: scale(1.05);
     }
 
     .card-image.small {
@@ -55,57 +72,64 @@ body {
         opacity: 0.5;
     }
 
-/* === Deck, GY, Commit, Phase === */
-.utility-row {
+/* === Units, Villagers, Decks === */
+.row {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
+    justify-content: center;
+    gap: 0.75rem;
     margin-top: 1rem;
-    padding: 0 1rem;
+    flex-wrap: wrap;
+}
+
+.stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    align-items: center;
 }
 
 /* === Chat === */
 .chat-box {
-    margin-top: 1rem;
+    grid-column: 2 / 3;
+    justify-self: center;
+    background: rgba(0,0,0,0.6);
+    border-radius: 8px;
     padding: 0.5rem;
-    background-color: rgba(0,0,0,0.6);
-    border-radius: 6px;
+    margin-top: 1rem;
     max-width: 400px;
+    width: 100%;
 }
 
 .chat-log {
-    max-height: 120px;
+    max-height: 100px;
     overflow-y: auto;
     font-size: 0.9rem;
     margin-bottom: 0.5rem;
 }
 
-    .chat-log div {
-        margin-bottom: 0.25rem;
-    }
-
-/* === Zoom Preview === */
+/* === Zoomed Card === */
 .card-preview {
     position: fixed;
     width: 300px;
     aspect-ratio: 0.715;
     pointer-events: none;
     z-index: 9999;
+    top: 100px;
+    left: 100px;
+    background-color: #fff;
     border: 2px solid #000;
-    background-color: white;
     border-radius: 10px;
     box-shadow: 0 0 12px rgba(0,0,0,0.8);
 }
 
-/* === Button Fixes === */
+/* === Buttons === */
 button {
+    padding: 0.4rem 0.7rem;
+    font-weight: bold;
+    border: none;
     background-color: #3b82f6;
     color: white;
-    border: none;
     border-radius: 4px;
-    padding: 0.4rem 0.6rem;
-    font-weight: bold;
     cursor: pointer;
 }
 
