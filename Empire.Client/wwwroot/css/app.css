@@ -1,139 +1,156 @@
 /* =========================================
-   Empire TCG - Game UI Layout
-   Applies to /game route
+   Empire TCG - Grid-based Game Layout
+   Based on hand-drawn wireframe layout
    ========================================= */
 
-/* === Layout Wrapper === */
-.game-layout {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    height: 100vh;
-    width: 100%;
-    padding: 1rem;
-    gap: 1rem;
-    box-sizing: border-box;
+body, html {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', sans-serif;
     background-color: #121212;
     color: #f0f0f0;
 }
 
-/* === Opponent Hand === */
-.opponent-zone {
+.game-layout {
+    display: grid;
+    grid-template-areas:
+        "morale board board board initiative"
+        "villagers units units units chat"
+        "decks hand hand hand chat";
+    grid-template-columns: 80px 1fr 1fr 1fr 220px;
+    grid-template-rows: auto auto auto;
+    gap: 0.5rem;
+    height: 100vh;
+    padding: 0.5rem;
+    box-sizing: border-box;
+}
+
+/* === Zones === */
+.morale-box {
+    grid-area: morale;
+    background-color: #1e1e1e;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 0.5rem;
+    text-align: center;
+    font-weight: bold;
+    font-size: 1.2rem;
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 0.5rem;
-}
-
-.zone-label {
-    font-size: 0.9rem;
-    color: #aaa;
-}
-
-.opponent-hand {
-    display: flex;
     justify-content: center;
-    gap: 0.5rem;
 }
 
-/* === Board Zone === */
 .board-zone {
+    grid-area: board;
     display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
+    justify-content: space-around;
+    align-items: center;
     gap: 1rem;
-    padding: 1rem;
-    background-color: rgba(255, 255, 255, 0.05);
     border: 2px dashed #444;
+    background-color: rgba(255,255,255,0.03);
     border-radius: 10px;
+    padding: 0.5rem;
     min-height: 200px;
 }
 
-/* === Player Zone (Decks + Hand) === */
-.player-zone {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    gap: 2rem;
-    padding: 0 1rem;
-}
-
-/* Deck Buttons */
-.decks {
+.territory-slot {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    align-items: center;
+    gap: 0.25rem;
 }
 
-    .decks .card-image {
-        width: 80px;
-        aspect-ratio: 0.715;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-        transition: transform 0.2s ease;
-        cursor: pointer;
-    }
-
-        .decks .card-image:hover {
-            transform: scale(1.05);
-        }
-
-/* Player Hand */
-.hand-row {
+.units-zone {
+    grid-area: units;
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
-    flex: 1;
-    justify-content: center;
+    padding: 0.5rem;
+    background-color: rgba(255,255,255,0.02);
+    border: 1px solid #444;
+    border-radius: 8px;
 }
 
-/* === Card Styling === */
-.card {
-    aspect-ratio: 0.715;
+.villagers-zone {
+    grid-area: villagers;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.5rem;
+}
+
+.decks {
+    grid-area: decks;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    justify-content: flex-end;
+}
+
+.hand-row {
+    grid-area: hand;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+    align-items: flex-end;
+    padding: 0.5rem;
+}
+
+.chat-box {
+    grid-area: chat;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 0.75rem;
     border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-    cursor: pointer;
-    transition: transform 0.2s;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    max-height: 100%;
+    overflow-y: auto;
+}
+
+.chat-log {
+    max-height: 100px;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+    font-size: 0.9rem;
 }
 
 .card-image {
-    display: block;
-    width: 100%;
-    height: auto;
-    object-fit: contain;
-    border-radius: 8px;
+    width: 80px;
+    border-radius: 6px;
+    transition: transform 0.2s;
+    cursor: pointer;
 }
 
     .card-image:hover {
         transform: scale(1.05);
     }
 
-    .card-image.exerted {
-        transform: rotate(90deg);
-        transition: transform 0.2s ease-in-out;
-    }
-
     .card-image.small {
-        width: 80px;
-        height: auto;
         opacity: 0.5;
     }
 
-/* Card Name Overlay */
-.card-overlay {
-    position: absolute;
-    bottom: 0;
-    width: 100%;
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
-    padding: 4px;
-    font-size: 0.75rem;
-    text-align: center;
-    border-bottom-left-radius: 8px;
-    border-bottom-right-radius: 8px;
+.card-preview {
+    position: fixed;
+    width: 300px;
+    aspect-ratio: 0.715;
+    pointer-events: none;
+    z-index: 9999;
+    border: 2px solid #000;
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 0 12px rgba(0,0,0,0.8);
 }
 
-/* Card Drop Slots */
+.zone-label {
+    font-size: 0.85rem;
+    color: #aaa;
+    text-align: center;
+    margin-bottom: 0.25rem;
+}
+
 .card-slot {
     width: 120px;
     height: 168px;
@@ -144,40 +161,4 @@
         width: 100%;
         height: 100%;
         object-fit: contain;
-    }
-
-/* === Zoomed Card === */
-.card-preview {
-    position: fixed;
-    width: 300px;
-    aspect-ratio: 0.715;
-    pointer-events: none;
-    z-index: 9999;
-    border: 2px solid #000;
-    background-color: white;
-    border-radius: 10px;
-    box-shadow: 0 0 12px rgba(0, 0, 0, 0.8);
-}
-
-/* === Chat === */
-.chat-box {
-    max-width: 600px;
-    margin: 0 auto;
-    background: rgba(0, 0, 0, 0.6);
-    padding: 0.75rem;
-    border-radius: 8px;
-    font-size: 0.9rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.chat-log {
-    max-height: 120px;
-    overflow-y: auto;
-    padding-right: 0.25rem;
-}
-
-    .chat-log div {
-        margin-bottom: 0.25rem;
     }
