@@ -47,37 +47,34 @@ else
 
         <!-- Units and Villagers -->
         <div class="row">
-            <!-- Units -->
             <div class="stack">
                 <div class="zone-label">Units</div>
                 <div class="card-row">
-                    @foreach (var unit in PlayerBoard)
+                    @foreach (var boardCard in PlayerBoard)
                     {
 
-                        var card = GetCardFromDeck(unit.CardId);
+                        var card = GetCardFromDeck(boardCard.CardId);
 
                         if (card != null && card.Type?.ToLowerInvariant() != "villager" && card.Type?.ToLowerInvariant() != "settlement")
 
                         {
-                            <CardComponent Card="card" OnClick="EventCallback.Factory.Create(this, () => HandleCardClick(card))" OnDoubleClick="EventCallback.Factory.Create(this, () => HandleCardDoubleClick(card))" />
+                            <CardComponent Card="card" OnClick="() => HandleCardClick(card)" OnDoubleClick="() => HandleCardDoubleClick(card)" />
                         }
                     }
                 </div>
             </div>
-
-            <!-- Villagers / Settlements -->
             <div class="stack">
                 <div class="zone-label">Villagers & Settlements</div>
                 <div class="card-row">
-                    @foreach (var civic in PlayerBoard)
+                    @foreach (var boardCard in PlayerBoard)
                     {
 
-                        var card = GetCardFromDeck(civic.CardId);
+                        var card = GetCardFromDeck(boardCard.CardId);
 
                         if (card != null && (card.Type?.ToLowerInvariant() == "villager" || card.Type?.ToLowerInvariant() == "settlement"))
 
                         {
-                            <CardComponent Card="card" OnClick="EventCallback.Factory.Create(this, () => HandleCardClick(card))" OnDoubleClick="EventCallback.Factory.Create(this, () => HandleCardDoubleClick(card))" />
+                            <CardComponent Card="card" OnClick="() => HandleCardClick(card)" OnDoubleClick="() => HandleCardDoubleClick(card)" />
                         }
                     }
                 </div>
@@ -88,11 +85,19 @@ else
         <div class="row">
             <div class="stack">
                 <div class="zone-label">Decks</div>
-                <div class="card-row">[Army Deck] [Civic Deck] [Graveyard]</div>
+                <div class="card-row">
+                    <CardBackImage DeckCount="@MilitaryDeckCount" CardBackPath="Cardbacks/armyCardback.png" OnDraw="DrawMilitary" />
+                    <CardBackImage DeckCount="@CivicDeckCount" CardBackPath="Cardbacks/civicCardback.png" OnDraw="DrawCivic" />
+                </div>
             </div>
             <div class="stack">
                 <div class="zone-label">Hand</div>
-                <div class="card-row">[Hand Cards]</div>
+                <div class="card-row">
+                    @foreach (var card in PlayerHand)
+                    {
+                        <CardComponent Card="card" OnClick="() => HandleCardClick(card)" OnDoubleClick="() => HandleCardDoubleClick(card)" />
+                    }
+                </div>
             </div>
         </div>
 
@@ -144,25 +149,17 @@ else
 
 
 
-    private List<int> HandCardIds => gameState?.PlayerHands?.TryGetValue(playerId, out var hand) == true ? hand : new();
+    private List<int> HandCardIds => gameState?.PlayerHands?.GetValueOrDefault(playerId) ?? new();
 
     private List<Card> PlayerHand => HandCardIds.Select(id => GetCardFromDeck(id)).Where(c => c != null).ToList()!;
 
     private List<Card> OpponentHand => gameState?.PlayerHands?.FirstOrDefault(p => p.Key != playerId).Value?.Select(id => new Card { CardId = id })?.ToList() ?? new();
 
-    private List<BoardCard> PlayerBoard => gameState?.PlayerBoard?.TryGetValue(playerId, out var board) == true ? board : new();
+    private List<BoardCard> PlayerBoard => gameState?.PlayerBoard?.GetValueOrDefault(playerId) ?? new();
 
-    private int CivicDeckCount => gameState?.PlayerDecks?.TryGetValue(playerId, out var deck) == true ? deck.Count(c => c.Type?.ToLowerInvariant() is "villager" or "settlement") : 0;
+    private int CivicDeckCount => gameState?.PlayerDecks?.GetValueOrDefault(playerId)?.Count(c => c.Type?.ToLowerInvariant() is "villager" or "settlement") ?? 0;
 
-    private int MilitaryDeckCount => gameState?.PlayerDecks?.TryGetValue(playerId, out var deck) == true ? deck.Count(c => c.Type?.ToLowerInvariant() is not ("villager" or "settlement")) : 0;
-
-
-
-    private int PlayerMorale => 20; // temp static
-
-    private int OpponentMorale => 20;
-
-    private bool HasInitiative => true;
+    private int MilitaryDeckCount => gameState?.PlayerDecks?.GetValueOrDefault(playerId)?.Count(c => c.Type?.ToLowerInvariant() is not ("villager" or "settlement")) ?? 0;
 
 
 
