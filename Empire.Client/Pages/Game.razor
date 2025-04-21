@@ -30,7 +30,7 @@ else
             </div>
         </div>
 
-        <!-- Game Board -->
+        <!-- Board Zone -->
         <div class="board-zone" @ondragover:preventDefault="true" @ondrop="OnCardDrop">
             @foreach (var boardCard in PlayerBoard)
 
@@ -49,7 +49,7 @@ else
             }
         </div>
 
-        <!-- Player Hand + Decks -->
+        <!-- Player Hand & Decks -->
         <div class="player-zone">
             <div class="decks">
                 <CardBackImage DeckCount="@CivicDeckCount" CardBackPath="Cardbacks/civicCardback.png" OnDraw="DrawCivic" />
@@ -87,6 +87,7 @@ else
                    placeholder="Type message or /shuffle..." />
         </div>
 
+        <!-- Zoomed Card Preview -->
         @if (ZoomedCard != null)
 
         {
@@ -96,6 +97,7 @@ else
         }
     </div>
 }
+
 
 
 @code {
@@ -283,17 +285,55 @@ else
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
     private void ShowZoomedCard(Card card, MouseEventArgs e)
 
     {
 
+        const int previewWidth = 300;
+
+        const int previewHeight = 420;
+
+        const int screenWidth = 1920;
+
+        const int screenHeight = 1080;
+
+
+
+        int offsetX = (e.ClientX + previewWidth + 30 > screenWidth) ? -previewWidth - 20 : 20;
+
+        int offsetY = (e.ClientY + previewHeight + 30 > screenHeight) ? -previewHeight - 20 : 20;
+
+
+
+        PreviewXpx = $"{e.ClientX + offsetX}px";
+
+        PreviewYpx = $"{e.ClientY + offsetY}px";
+
         ZoomedCard = card;
 
-        PreviewXpx = $"{e.ClientX + 20}px";
-
-        PreviewYpx = $"{e.ClientY + 20}px";
-
     }
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -1,21 +1,23 @@
 /* =========================================
-   Empire TCG - Game Scene Styles
-   Applies to /game layout
+   Empire TCG - Game UI Layout
+   Applies to /game route
    ========================================= */
 
-/* === Layout === */
+/* === Layout Wrapper === */
 .game-layout {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    align-items: stretch;
     height: 100vh;
+    width: 100%;
     padding: 1rem;
     gap: 1rem;
+    box-sizing: border-box;
     background-color: #121212;
+    color: #f0f0f0;
 }
 
-/* === Opponent Zone === */
+/* === Opponent Hand === */
 .opponent-zone {
     display: flex;
     flex-direction: column;
@@ -44,33 +46,48 @@
     background-color: rgba(255, 255, 255, 0.05);
     border: 2px dashed #444;
     border-radius: 10px;
-    min-height: 180px;
+    min-height: 200px;
 }
 
-/* === Player Hand + Decks === */
+/* === Player Zone (Decks + Hand) === */
 .player-zone {
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
     align-items: flex-end;
     gap: 2rem;
+    padding: 0 1rem;
 }
 
+/* Deck Buttons */
 .decks {
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    align-items: center;
 }
 
+    .decks .card-image {
+        width: 80px;
+        aspect-ratio: 0.715;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        transition: transform 0.2s ease;
+        cursor: pointer;
+    }
+
+        .decks .card-image:hover {
+            transform: scale(1.05);
+        }
+
+/* Player Hand */
 .hand-row {
     display: flex;
     flex-wrap: wrap;
-    justify-content: center;
     gap: 0.5rem;
     flex: 1;
+    justify-content: center;
 }
 
-/* === Card Basics === */
+/* === Card Styling === */
 .card {
     aspect-ratio: 0.715;
     border-radius: 8px;
@@ -102,7 +119,7 @@
         opacity: 0.5;
     }
 
-/* === Card Overlay === */
+/* Card Name Overlay */
 .card-overlay {
     position: absolute;
     bottom: 0;
@@ -116,7 +133,7 @@
     border-bottom-right-radius: 8px;
 }
 
-/* === Card Slot for Board === */
+/* Card Drop Slots */
 .card-slot {
     width: 120px;
     height: 168px;
@@ -129,7 +146,7 @@
         object-fit: contain;
     }
 
-/* === Card Zoom Preview === */
+/* === Zoomed Card === */
 .card-preview {
     position: fixed;
     width: 300px;
@@ -146,16 +163,18 @@
 .chat-box {
     max-width: 600px;
     margin: 0 auto;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.6);
     padding: 0.75rem;
     border-radius: 8px;
     font-size: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 
 .chat-log {
     max-height: 120px;
     overflow-y: auto;
-    margin-bottom: 0.5rem;
     padding-right: 0.25rem;
 }
 
