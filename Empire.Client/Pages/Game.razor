@@ -7,6 +7,7 @@
 @using Microsoft.AspNetCore.SignalR.Client
 @inject GameHubService HubService
 
+
 @if (gameState == null)
 
 {
@@ -18,7 +19,7 @@ else
 {
     <div class="game-layout">
 
-        <!-- Opponent Hand -->
+        <!-- Top: Opponent Hand -->
         <div class="opponent-zone">
             <div class="zone-label">Opponent Hand</div>
             <div class="opponent-hand">
@@ -30,7 +31,7 @@ else
             </div>
         </div>
 
-        <!-- Board Zone -->
+        <!-- Middle: Game Board -->
         <div class="board-zone" @ondragover:preventDefault="true" @ondrop="OnCardDrop">
             @foreach (var boardCard in PlayerBoard)
 
@@ -49,12 +50,15 @@ else
             }
         </div>
 
-        <!-- Player Hand & Decks -->
+        <!-- Bottom: Player Area -->
         <div class="player-zone">
+            <!-- Left: Deck Buttons -->
             <div class="decks">
                 <CardBackImage DeckCount="@CivicDeckCount" CardBackPath="Cardbacks/civicCardback.png" OnDraw="DrawCivic" />
                 <CardBackImage DeckCount="@MilitaryDeckCount" CardBackPath="Cardbacks/armyCardback.png" OnDraw="DrawMilitary" />
             </div>
+
+            <!-- Middle: Player Hand -->
             <div class="hand-row">
                 @foreach (var card in PlayerHand)
 
@@ -69,25 +73,24 @@ else
                          alt="@card.Name" />
                 }
             </div>
-        </div>
 
-        <!-- Chat -->
-        <div class="chat-box">
-            <div class="chat-log">
-                @foreach (var msg in ChatLog)
-
-                {
-                    <div><strong>@msg.PlayerId:</strong> @msg.Message</div>
-                }
+            <!-- Right: Chat -->
+            <div class="chat-box">
+                <div class="chat-log">
+                    @foreach (var msg in ChatLog)
+                    {
+                        <div><strong>@msg.PlayerId:</strong> @msg.Message</div>
+                    }
+                </div>
+                <input class="form-control"
+                       @bind="chatInput"
+                       @bind:event="oninput"
+                       @onkeydown="HandleChatKey"
+                       placeholder="Type message or /shuffle..." />
             </div>
-            <input class="form-control"
-                   @bind="chatInput"
-                   @bind:event="oninput"
-                   @onkeydown="HandleChatKey"
-                   placeholder="Type message or /shuffle..." />
         </div>
 
-        <!-- Zoomed Card Preview -->
+        <!-- Zoomed Card -->
         @if (ZoomedCard != null)
 
         {
@@ -97,7 +100,6 @@ else
         }
     </div>
 }
-
 
 
 @code {
