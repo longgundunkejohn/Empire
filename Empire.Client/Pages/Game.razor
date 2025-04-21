@@ -7,7 +7,6 @@
 @using Microsoft.AspNetCore.SignalR.Client
 @inject GameHubService HubService
 
-
 @if (gameState == null)
 
 {
@@ -19,10 +18,10 @@ else
 {
     <div class="game-layout">
 
-        <!-- Top: Opponent Hand -->
-        <div class="opponent-zone">
+        <!-- Opponent Area -->
+        <div class="opponent-hand-row">
             <div class="zone-label">Opponent Hand</div>
-            <div class="opponent-hand">
+            <div class="card-row">
                 @foreach (var _ in OpponentHand)
 
                 {
@@ -31,62 +30,79 @@ else
             </div>
         </div>
 
-        <!-- Middle: Game Board -->
-        <div class="board-zone" @ondragover:preventDefault="true" @ondrop="OnCardDrop">
-            @foreach (var boardCard in PlayerBoard)
+        <!-- Board Middle Area -->
+        <div class="board-grid">
+            <div class="morale-track">Morale: 20</div>
 
-            {
-
-                var card = GetCardFromDeck(boardCard.CardId);
-
-                if (card != null)
+            <div class="territory-zones">
+                @foreach (var boardCard in PlayerBoard)
 
                 {
-                    <div class="card-slot">
-                        <CardImage Card="card" />
-                    </div>
-                }
 
-            }
+                    var card = GetCardFromDeck(boardCard.CardId);
+
+                    if (card != null)
+
+                    {
+                        <div class="card-slot">
+                            <CardImage Card="card" />
+                        </div>
+                    }
+
+                }
+            </div>
+
+            <div class="initiative">
+                <div>Initiative: ●</div>
+                <button class="btn btn-sm">Pass</button>
+            </div>
         </div>
 
-        <!-- Bottom: Player Area -->
-        <div class="player-zone">
-            <!-- Left: Deck Buttons -->
-            <div class="decks">
-                <CardBackImage DeckCount="@CivicDeckCount" CardBackPath="Cardbacks/civicCardback.png" OnDraw="DrawCivic" />
-                <CardBackImage DeckCount="@MilitaryDeckCount" CardBackPath="Cardbacks/armyCardback.png" OnDraw="DrawMilitary" />
-            </div>
+        <!-- Player Area -->
+        <div class="player-zones">
 
-            <!-- Middle: Player Hand -->
-            <div class="hand-row">
-                @foreach (var card in PlayerHand)
-
-                {
-                    <img src="@card.ImagePath"
-                         class="card-image small"
-                         draggable="true"
-                         @ondragstart="(e) => OnDragStart(card.CardId)"
-                    @oncontextmenu:preventDefault
-                         @oncontextmenu="e => ShowZoomedCard(card, e)"
-                         @onmousedown="e => { if (e.Button == 0 || e.Button == 2) HideZoomedCard(); }"
-                         alt="@card.Name" />
-                }
-            </div>
-
-            <!-- Right: Chat -->
-            <div class="chat-box">
-                <div class="chat-log">
-                    @foreach (var msg in ChatLog)
+            <div class="units-zone">
+                <div class="zone-label">Units</div>
+                <div class="card-row">
+                    @foreach (var card in PlayerHand)
                     {
-                        <div><strong>@msg.PlayerId:</strong> @msg.Message</div>
+                        <img src="@card.ImagePath"
+                             class="card-image small"
+                             draggable="true"
+                             @ondragstart="(e) => OnDragStart(card.CardId)"
+                        @oncontextmenu:preventDefault
+                             @oncontextmenu="e => ShowZoomedCard(card, e)"
+                             @onmousedown="e => { if (e.Button == 0 || e.Button == 2) HideZoomedCard(); }"
+                             alt="@card.Name" />
                     }
                 </div>
-                <input class="form-control"
-                       @bind="chatInput"
-                       @bind:event="oninput"
-                       @onkeydown="HandleChatKey"
-                       placeholder="Type message or /shuffle..." />
+            </div>
+
+            <div class="villagers-zone">
+                <div class="zone-label">Villagers</div>
+                <!-- Could list villagers separately here if tracked -->
+            </div>
+
+            <div class="bottom-bar">
+                <div class="decks">
+                    <CardBackImage DeckCount="@CivicDeckCount" CardBackPath="Cardbacks/civicCardback.png" OnDraw="DrawCivic" />
+                    <CardBackImage DeckCount="@MilitaryDeckCount" CardBackPath="Cardbacks/armyCardback.png" OnDraw="DrawMilitary" />
+                </div>
+
+                <div class="chat-box">
+                    <div class="chat-log">
+                        @foreach (var msg in ChatLog)
+
+                        {
+                            <div><strong>@msg.PlayerId:</strong> @msg.Message</div>
+                        }
+                    </div>
+                    <input class="form-control"
+                           @bind="chatInput"
+                           @bind:event="oninput"
+                           @onkeydown="HandleChatKey"
+                           placeholder="Type message or /shuffle..." />
+                </div>
             </div>
         </div>
 
@@ -100,7 +116,6 @@ else
         }
     </div>
 }
-
 
 @code {
     [Parameter] public string gameId { get; set; } = string.Empty;
@@ -139,13 +154,9 @@ else
 
 
 
-    private int CivicDeckCount =>
+    private int CivicDeckCount => gameState?.PlayerDecks?.GetValueOrDefault(playerId)?.Count(c => c.Type?.ToLowerInvariant() is "villager" or "settlement") ?? 0;
 
-        gameState?.PlayerDecks?.GetValueOrDefault(playerId)?.Count(c => c.Type?.ToLowerInvariant() is "villager" or "settlement") ?? 0;
-
-    private int MilitaryDeckCount =>
-
-        gameState?.PlayerDecks?.GetValueOrDefault(playerId)?.Count(c => c.Type?.ToLowerInvariant() is not ("villager" or "settlement")) ?? 0;
+    private int MilitaryDeckCount => gameState?.PlayerDecks?.GetValueOrDefault(playerId)?.Count(c => c.Type?.ToLowerInvariant() is not ("villager" or "settlement")) ?? 0;
 
 
 
@@ -287,18 +298,6 @@ else
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
     private void ShowZoomedCard(Card card, MouseEventArgs e)
 
     {
@@ -329,23 +328,9 @@ else
 
 
 
-
-
-
-
-
-
-
-
-
-
     private void HideZoomedCard() => ZoomedCard = null;
 
-
-
     private Card? GetCardFromDeck(int id) => AllCards.FirstOrDefault(c => c.CardId == id);
-
-
 
     private void OnDragStart(int cardId) => draggedCardId = cardId;
 
