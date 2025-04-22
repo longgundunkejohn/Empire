@@ -189,7 +189,11 @@ else
 
         gameState = await GameApi.GetGameState(gameId);
 
-        AllCards = gameState?.PlayerDecks.SelectMany(p => p.Value).ToList() ?? new();
+
+
+        await RefreshGameState();
+
+
 
         await HubService.ConnectAsync(gameId);
 
@@ -213,17 +217,77 @@ else
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
     private async Task RefreshGameState()
 
     {
 
         gameState = await GameApi.GetGameState(gameId);
 
-        AllCards = gameState?.PlayerDecks?.SelectMany(p => p.Value).ToList() ?? new();
+
+
+        // Start with all cards still in decks (fully hydrated already)
+
+        var deckCards = gameState?.PlayerDecks.SelectMany(p => p.Value).ToList() ?? new();
+
+
+
+        // Grab cardIds from hand and board
+
+        var handIds = gameState?.PlayerHands.SelectMany(p => p.Value).Distinct() ?? Enumerable.Empty<int>();
+
+        var boardIds = gameState?.PlayerBoard.SelectMany(p => p.Value.Select(b => b.CardId)).Distinct() ?? Enumerable.Empty<int>();
+
+
+
+        // Combine all IDs
+
+        var allCardIds = handIds.Concat(boardIds).Concat(deckCards.Select(c => c.CardId)).Distinct();
+
+
+
+        // Hydrate from deckCards (since those have full data)
+
+        AllCards = allCardIds
+
+            .Select(id => deckCards.FirstOrDefault(c => c.CardId == id) ?? new Card { CardId = id }) // fallback
+
+            .ToList();
+
+
 
         StateHasChanged();
 
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
