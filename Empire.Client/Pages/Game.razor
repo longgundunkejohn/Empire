@@ -17,7 +17,6 @@ else
 
 {
     <div class="game-layout">
-        <!-- HUD and Status -->
         <div class="status-bar">
             <div class="morale">You: 20 | Opponent: 20</div>
             <div class="phase-info">Phase: Main • Initiative</div>
@@ -27,7 +26,6 @@ else
             </div>
         </div>
 
-        <!-- Battlefield (center zone) -->
         <div class="battlefield">
             <div class="territory-row">
                 @for (int i = 0; i < 3; i++)
@@ -45,7 +43,6 @@ else
             </div>
         </div>
 
-        <!-- Units and Villagers -->
         <div class="row">
             <div class="stack">
                 <div class="zone-label">Units</div>
@@ -81,16 +78,14 @@ else
             </div>
         </div>
 
-<!-- Hand and Decks (Swapped) -->
-<div class="row">
-    <div class="stack">
-        <div class="zone-label">Hand</div>
+        <div class="row">
+            <div class="stack">
+                <div class="zone-label">Hand</div>
                 <div @ondragover:preventDefault="true"
                      @ondragenter="() => isDragging = true"
                      @ondragleave="() => isDragging = false"
                      @ondrop="OnCardDrop"
                      class="card-row @(isDragging ? "drag-over" : "")">
-
                     @foreach (var card in PlayerHand)
                     {
                         <img src="@card.ImagePath"
@@ -102,20 +97,17 @@ else
                              @onmousedown="e => { if (e.Button == 0 || e.Button == 2) HideZoomedCard(); }"
                              alt="@card.Name" />
                     }
-
+                </div>
+            </div>
+            <div class="stack">
+                <div class="zone-label">Decks</div>
+                <div class="card-row">
+                    <CardBackImage DeckCount="@MilitaryDeckCount" CardBackPath="Cardbacks/armyCardback.png" OnDraw="DrawMilitary" />
+                    <CardBackImage DeckCount="@CivicDeckCount" CardBackPath="Cardbacks/civicCardback.png" OnDraw="DrawCivic" />
+                </div>
+            </div>
         </div>
-    </div>
-    <div class="stack">
-        <div class="zone-label">Decks</div>
-        <div class="card-row">
-            <CardBackImage DeckCount="@MilitaryDeckCount" CardBackPath="Cardbacks/armyCardback.png" OnDraw="DrawMilitary" />
-            <CardBackImage DeckCount="@CivicDeckCount" CardBackPath="Cardbacks/civicCardback.png" OnDraw="DrawCivic" />
-        </div>
-    </div>
-</div>
 
-
-        <!-- Chat -->
         <div class="chat-box">
             <div class="chat-log">
                 @foreach (var msg in ChatLog)
@@ -127,7 +119,6 @@ else
             <input class="form-control" @bind="chatInput" @bind:event="oninput" @onkeydown="HandleChatKey" placeholder="Type message or /shuffle..." />
         </div>
 
-        <!-- Zoomed Card -->
         @if (ZoomedCard != null)
 
         {
@@ -146,10 +137,6 @@ else
 
 
     private bool isDragging = false;
-
-
-
-
 
     private GameState? gameState;
 
@@ -173,8 +160,6 @@ else
 
     private List<Card> PlayerHand => HandCardIds.Select(id => GetCardFromDeck(id)).Where(c => c != null).ToList()!;
 
-    private List<Card> OpponentHand => gameState?.PlayerHands?.FirstOrDefault(p => p.Key != playerId).Value?.Select(id => new Card { CardId = id })?.ToList() ?? new();
-
     private List<BoardCard> PlayerBoard => gameState?.PlayerBoard?.GetValueOrDefault(playerId) ?? new();
 
     private int CivicDeckCount => gameState?.PlayerDecks?.GetValueOrDefault(playerId)?.Count(c => c.Type?.ToLowerInvariant() is "villager" or "settlement") ?? 0;
@@ -189,11 +174,7 @@ else
 
         gameState = await GameApi.GetGameState(gameId);
 
-
-
         await RefreshGameState();
-
-
 
         await HubService.ConnectAsync(gameId);
 
@@ -217,47 +198,11 @@ else
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
     private async Task RefreshGameState()
 
     {
 
         gameState = await GameApi.GetGameState(gameId);
-
-
-
-        // Start with all cards still in decks (fully hydrated already)
-
-        var deckCards = gameState?.PlayerDecks.SelectMany(p => p.Value).ToList() ?? new();
-
-
-
-        // Grab cardIds from hand and board
-
-        var handIds = gameState?.PlayerHands.SelectMany(p => p.Value).Distinct() ?? Enumerable.Empty<int>();
-
-        var boardIds = gameState?.PlayerBoard.SelectMany(p => p.Value.Select(b => b.CardId)).Distinct() ?? Enumerable.Empty<int>();
-
-
-
-        // Combine all IDs
-
-        var allCardIds = handIds.Concat(boardIds).Concat(deckCards.Select(c => c.CardId)).Distinct();
-
-
-
-        // Hydrate from deckCards (since those have full data)
 
 
 
@@ -271,7 +216,7 @@ else
 
             .Concat(gameState?.PlayerGraveyards?.SelectMany(kv => kv.Value.Select(id => new Card { CardId = id })) ?? Enumerable.Empty<Card>())
 
-            .GroupBy(c => c.CardId) // Deduplicate
+            .GroupBy(c => c.CardId)
 
             .Select(g => g.First())
 
@@ -279,33 +224,9 @@ else
 
 
 
-
-
-
-
-
-
         StateHasChanged();
 
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -434,6 +355,8 @@ else
     {
 
         if (!draggedCardId.HasValue) return;
+
+
 
         var currentBoard = PlayerBoard;
 
