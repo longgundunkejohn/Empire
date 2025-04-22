@@ -259,11 +259,29 @@ else
 
         // Hydrate from deckCards (since those have full data)
 
-        AllCards = allCardIds
 
-            .Select(id => deckCards.FirstOrDefault(c => c.CardId == id) ?? new Card { CardId = id }) // fallback
+
+        AllCards =
+
+            (gameState?.PlayerDecks?.SelectMany(kv => kv.Value) ?? Enumerable.Empty<Card>())
+
+            .Concat(gameState?.PlayerHands?.SelectMany(kv => kv.Value.Select(id => new Card { CardId = id })) ?? Enumerable.Empty<Card>())
+
+            .Concat(gameState?.PlayerBoard?.SelectMany(kv => kv.Value.Select(bc => new Card { CardId = bc.CardId })) ?? Enumerable.Empty<Card>())
+
+            .Concat(gameState?.PlayerGraveyards?.SelectMany(kv => kv.Value.Select(id => new Card { CardId = id })) ?? Enumerable.Empty<Card>())
+
+            .GroupBy(c => c.CardId) // Deduplicate
+
+            .Select(g => g.First())
 
             .ToList();
+
+
+
+
+
+
 
 
 
