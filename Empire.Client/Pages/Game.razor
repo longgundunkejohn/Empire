@@ -91,10 +91,18 @@ else
                      @ondrop="OnCardDrop"
                      class="card-row @(isDragging ? "drag-over" : "")">
 
-            @foreach (var card in PlayerHand)
-            {
-                <CardComponent Card="card" OnClick="() => HandleCardClick(card)" OnDoubleClick="() => HandleCardDoubleClick(card)" />
-            }
+                    @foreach (var card in PlayerHand)
+                    {
+                        <img src="@card.ImagePath"
+                             class="card-image"
+                             draggable="true"
+                             @ondragstart="(e) => OnDragStart(card.CardId)"
+                        @oncontextmenu:preventDefault
+                             @oncontextmenu="e => ShowZoomedCard(card, e)"
+                             @onmousedown="e => { if (e.Button == 0 || e.Button == 2) HideZoomedCard(); }"
+                             alt="@card.Name" />
+                    }
+
         </div>
     </div>
     <div class="stack">
