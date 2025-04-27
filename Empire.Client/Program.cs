@@ -23,5 +23,6 @@ builder.Services.AddScoped(sp => new HttpClient
 // 🔧 Register your API service
 builder.Services.AddScoped<GameApi>();
 builder.Services.AddScoped<GameHubService>();
+builder.Services.AddSingleton<BoardClientService>();
 
 await builder.Build().RunAsync();
