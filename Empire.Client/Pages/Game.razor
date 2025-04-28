@@ -139,21 +139,73 @@ else
     private int CivicDeckCount => gameState?.PlayerDecks?.GetValueOrDefault(playerId)?.Count(c => c.Type?.ToLowerInvariant() is "villager" or "settlement") ?? 0;
     private int MilitaryDeckCount => gameState?.PlayerDecks?.GetValueOrDefault(playerId)?.Count(c => c.Type?.ToLowerInvariant() is not ("villager" or "settlement")) ?? 0;
 
+
+
     protected override async Task OnInitializedAsync()
+
     {
+
         gameState = await GameApi.GetGameState(gameId);
-        await RefreshGameState();
+
+
+
+        // HYDRATE all cards from all sources (decks, hands, board)
+
+        AllCards =
+
+            (gameState?.PlayerDecks?.SelectMany(kv => kv.Value) ?? Enumerable.Empty<Card>())
+
+            .Concat(gameState?.PlayerHands?.SelectMany(kv => kv.Value.Select(id => new Card { CardId = id })) ?? Enumerable.Empty<Card>())
+
+            .Concat(gameState?.PlayerBoard?.SelectMany(kv => kv.Value.Select(bc => new Card { CardId = bc.CardId })) ?? Enumerable.Empty<Card>())
+
+            .GroupBy(c => c.CardId)
+
+            .Select(g => g.First())
+
+            .ToList();
+
+
 
         await HubService.ConnectAsync(gameId);
+
+
+
         HubService.OnBoardUpdate += async (update) =>
+
         {
+
             if (update.GameId == gameId)
+
             {
+
                 BoardService.SetBoard(update.PlayerId, update.NewOrder.Select(id => new BoardCard(id)).ToList());
+
                 StateHasChanged();
+
             }
+
         };
+
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
