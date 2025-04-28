@@ -44,5 +44,14 @@ namespace Empire.Server.Hubs
 
             Console.WriteLine($"📤 Board update sent for game {update.GameId}");
         }
+
+        public async Task NotifyGameStateUpdated(string gameId)
+        {
+            if (!string.IsNullOrEmpty(gameId))
+            {
+                await Clients.Group(gameId).SendAsync("GameStateUpdated", gameId);
+                Console.WriteLine($"🔄 Notified GameStateUpdated for {gameId}");
+            }
+        }
     }
 }

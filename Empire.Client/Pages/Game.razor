@@ -9,10 +9,13 @@
 @using Microsoft.AspNetCore.SignalR.Client
 
 @if (gameState == null)
+
 {
     <p>Loading game...</p>
 }
+
 else
+
 {
     <div class="game-layout">
         <div class="status-bar">
@@ -27,6 +30,7 @@ else
         <div class="battlefield">
             <div class="territory-row">
                 @for (int i = 0; i < 3; i++)
+
                 {
                     <div class="territory-cell">
                         <div class="zone-label">Opponent Settlement</div>
@@ -46,8 +50,11 @@ else
                 <div class="card-row">
                     @foreach (var boardCard in PlayerBoard)
                     {
+
                         var card = GetCardFromDeck(boardCard.CardId);
+
                         if (card != null && card.Type?.ToLowerInvariant() != "villager" && card.Type?.ToLowerInvariant() != "settlement")
+
                         {
                             <CardComponent Card="card" OnClick="() => HandleCardClick(card)" OnDoubleClick="() => HandleCardDoubleClick(card)" />
                         }
@@ -59,8 +66,11 @@ else
                 <div class="card-row">
                     @foreach (var boardCard in PlayerBoard)
                     {
+
                         var card = GetCardFromDeck(boardCard.CardId);
+
                         if (card != null && (card.Type?.ToLowerInvariant() == "villager" || card.Type?.ToLowerInvariant() == "settlement"))
+
                         {
                             <CardComponent Card="card" OnClick="() => HandleCardClick(card)" OnDoubleClick="() => HandleCardDoubleClick(card)" />
                         }
@@ -72,24 +82,25 @@ else
         <div class="row">
             <div class="stack">
                 <div class="zone-label">Hand</div>
-                <div @ondragover:preventDefault="true"
+                <div class="card-row @(isDragging ? "drag-over" : "")"
+                @ondragover:preventDefault
                      @ondragenter="() => isDragging = true"
                      @ondragleave="() => isDragging = false"
-                     @ondrop="OnCardDrop"
-                     class="card-row @(isDragging ? "drag-over" : "")">
+                     @ondrop="OnCardDrop">
                     @foreach (var card in PlayerHand)
                     {
                         <img src="@card.ImagePath"
                              class="card-image"
                              draggable="true"
                              @ondragstart="(e) => OnDragStart(card.CardId)"
-                             @oncontextmenu:preventDefault
+                        @oncontextmenu:preventDefault
                              @oncontextmenu="e => ShowZoomedCard(card, e)"
                              @onmousedown="e => { if (e.Button == 0 || e.Button == 2) HideZoomedCard(); }"
                              alt="@card.Name" />
                     }
                 </div>
             </div>
+
             <div class="stack">
                 <div class="zone-label">Decks</div>
                 <div class="card-row">
@@ -102,6 +113,7 @@ else
         <div class="chat-box">
             <div class="chat-log">
                 @foreach (var msg in ChatLog)
+
                 {
                     <div><strong>@msg.PlayerId:</strong> @msg.Message</div>
                 }
@@ -110,6 +122,7 @@ else
         </div>
 
         @if (ZoomedCard != null)
+
         {
             <div class="card-preview show" style="top:@PreviewYpx; left:@PreviewXpx;">
                 <img src="@ZoomedCard.ImagePath" alt="@ZoomedCard.Name" class="card-image" />
@@ -120,23 +133,41 @@ else
 
 @code {
     [Parameter] public string gameId { get; set; } = string.Empty;
+
     [Parameter] public string playerId { get; set; } = string.Empty;
 
+
+
     private bool isDragging = false;
+
     private GameState? gameState;
+
     private List<Card> AllCards = new();
+
     private Card? ZoomedCard = null;
+
     private string PreviewXpx = "0px";
+
     private string PreviewYpx = "0px";
+
     private string chatInput = string.Empty;
+
     private List<(string PlayerId, string Message)> ChatLog = new();
+
     private int? draggedCardId = null;
 
+
+
     private List<int> HandCardIds => BoardService.GetHandIds(playerId);
+
     private List<Card> PlayerHand => HandCardIds.Select(id => GetCardFromDeck(id)).Where(c => c != null).ToList();
+
     private List<BoardCard> PlayerBoard => BoardService.GetBoard(playerId);
 
+
+
     private int CivicDeckCount => gameState?.PlayerDecks?.GetValueOrDefault(playerId)?.Count(c => c.Type?.ToLowerInvariant() is "villager" or "settlement") ?? 0;
+
     private int MilitaryDeckCount => gameState?.PlayerDecks?.GetValueOrDefault(playerId)?.Count(c => c.Type?.ToLowerInvariant() is not ("villager" or "settlement")) ?? 0;
 
 
@@ -147,23 +178,7 @@ else
 
         gameState = await GameApi.GetGameState(gameId);
 
-
-
-        // HYDRATE all cards from all sources (decks, hands, board)
-
-        AllCards =
-
-            (gameState?.PlayerDecks?.SelectMany(kv => kv.Value) ?? Enumerable.Empty<Card>())
-
-            .Concat(gameState?.PlayerHands?.SelectMany(kv => kv.Value.Select(id => new Card { CardId = id })) ?? Enumerable.Empty<Card>())
-
-            .Concat(gameState?.PlayerBoard?.SelectMany(kv => kv.Value.Select(bc => new Card { CardId = bc.CardId })) ?? Enumerable.Empty<Card>())
-
-            .GroupBy(c => c.CardId)
-
-            .Select(g => g.First())
-
-            .ToList();
+        HydrateCards();
 
 
 
@@ -191,43 +206,9 @@ else
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    private async Task RefreshGameState()
+    private void HydrateCards()
 
     {
-
-        gameState = await GameApi.GetGameState(gameId);
-
-
 
         var deckCards = gameState?.PlayerDecks?.SelectMany(kv => kv.Value) ?? Enumerable.Empty<Card>();
 
@@ -237,11 +218,7 @@ else
 
 
 
-        AllCards = deckCards
-
-            .Concat(handCards)
-
-            .Concat(boardCards)
+        AllCards = deckCards.Concat(handCards).Concat(boardCards)
 
             .GroupBy(c => c.CardId)
 
@@ -249,115 +226,181 @@ else
 
             .ToList();
 
-
-
-        StateHasChanged();
-
     }
 
 
 
+    private async Task RefreshGameState()
 
+    {
 
+        gameState = await GameApi.GetGameState(gameId);
 
+        HydrateCards();
 
+        StateHasChanged();
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    }
 
 
 
     private async Task DrawCivic() => await Draw("civic");
+
     private async Task DrawMilitary() => await Draw("military");
+
+
+
     private async Task Draw(string type)
+
     {
+
         await GameApi.DrawCard(gameId, playerId, type);
+
         await RefreshGameState();
+
     }
+
+
 
     private async Task HandleChatKey(KeyboardEventArgs e)
+
     {
+
         if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(chatInput))
+
         {
+
             var message = chatInput.Trim();
+
             if (message.StartsWith("/")) await HandleChatCommand(message);
+
             else ChatLog.Add((playerId, message));
+
             chatInput = string.Empty;
+
             StateHasChanged();
+
         }
+
     }
+
+
 
     private async Task HandleChatCommand(string command)
+
     {
-        if (command.ToLowerInvariant() == "/shuffle") await ShuffleDeck();
-        else ChatLog.Add((playerId, $"❓ Unknown command: {command}"));
+
+        if (command.ToLowerInvariant() == "/shuffle")
+
+        {
+
+            var move = new GameMove { PlayerId = playerId, MoveType = "ShuffleDeck" };
+
+            await GameApi.SubmitMove(gameId, move);
+
+            ChatLog.Add((playerId, "🔀 shuffled their deck."));
+
+        }
+
+        else
+
+        {
+
+            ChatLog.Add((playerId, $"❓ Unknown command: {command}"));
+
+        }
+
     }
 
-    private async Task ShuffleDeck()
-    {
-        var move = new GameMove { PlayerId = playerId, MoveType = "ShuffleDeck" };
-        await GameApi.SubmitMove(gameId, move);
-        ChatLog.Add((playerId, "🔀 shuffled their deck."));
-        await RefreshGameState();
-    }
 
-    private Task HandleCardClick(Card card)
-    {
-        Console.WriteLine($"Clicked: {card.Name} (#{card.CardId})");
-        return Task.CompletedTask;
-    }
-
-    private Task HandleCardDoubleClick(Card card)
-    {
-        Console.WriteLine($"Double-clicked: {card.Name} (#{card.CardId})");
-        return Task.CompletedTask;
-    }
-
-    private void ShowZoomedCard(Card card, MouseEventArgs e)
-    {
-        const int previewWidth = 300, previewHeight = 420, screenWidth = 1920, screenHeight = 1080;
-        int offsetX = (e.ClientX + previewWidth + 30 > screenWidth) ? -previewWidth - 20 : 20;
-        int offsetY = (e.ClientY + previewHeight + 30 > screenHeight) ? -previewHeight - 20 : 20;
-        PreviewXpx = $"{e.ClientX + offsetX}px";
-        PreviewYpx = $"{e.ClientY + offsetY}px";
-        ZoomedCard = card;
-    }
-
-    private void HideZoomedCard() => ZoomedCard = null;
-
-    private Card? GetCardFromDeck(int id) => AllCards.FirstOrDefault(c => c.CardId == id);
 
     private void OnDragStart(int cardId) => draggedCardId = cardId;
 
+
+
     private async Task OnCardDrop()
+
     {
+
         if (!draggedCardId.HasValue) return;
+
+
 
         BoardService.MoveToBoard(playerId, draggedCardId.Value);
 
+
+
         var update = new BoardPositionUpdate
-        {
-            GameId = gameId,
-            PlayerId = playerId,
-            NewOrder = BoardService.GetBoard(playerId).Select(c => c.CardId).ToList()
-        };
+
+            {
+
+                GameId = gameId,
+
+                PlayerId = playerId,
+
+                NewOrder = BoardService.GetBoard(playerId).Select(c => c.CardId).ToList()
+
+            };
+
+
 
         await HubService.SendBoardUpdate(gameId, update);
+
         draggedCardId = null;
+
         StateHasChanged();
+
     }
+
+
+
+    private Task HandleCardClick(Card card)
+
+    {
+
+        Console.WriteLine($"Clicked: {card.Name} (#{card.CardId})");
+
+        return Task.CompletedTask;
+
+    }
+
+
+
+    private Task HandleCardDoubleClick(Card card)
+
+    {
+
+        Console.WriteLine($"Double-clicked: {card.Name} (#{card.CardId})");
+
+        return Task.CompletedTask;
+
+    }
+
+
+
+    private void ShowZoomedCard(Card card, MouseEventArgs e)
+
+    {
+
+        const int previewWidth = 300, previewHeight = 420, screenWidth = 1920, screenHeight = 1080;
+
+        int offsetX = (e.ClientX + previewWidth + 30 > screenWidth) ? -previewWidth - 20 : 20;
+
+        int offsetY = (e.ClientY + previewHeight + 30 > screenHeight) ? -previewHeight - 20 : 20;
+
+        PreviewXpx = $"{e.ClientX + offsetX}px";
+
+        PreviewYpx = $"{e.ClientY + offsetY}px";
+
+        ZoomedCard = card;
+
+    }
+
+
+
+    private void HideZoomedCard() => ZoomedCard = null;
+
+
+
+    private Card? GetCardFromDeck(int cardId) => AllCards.FirstOrDefault(c => c.CardId == cardId);
 }

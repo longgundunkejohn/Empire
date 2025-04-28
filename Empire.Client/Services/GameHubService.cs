@@ -10,6 +10,7 @@ public class GameHubService : IAsyncDisposable
     private HubConnection? _hub;
 
     public event Func<BoardPositionUpdate, Task>? OnBoardUpdate;
+    public event Func<string, Task>? OnGameStateUpdated; // 🆕 for full game refresh
 
     public GameHubService(NavigationManager nav)
     {
@@ -30,6 +31,12 @@ public class GameHubService : IAsyncDisposable
         {
             if (OnBoardUpdate != null)
                 await OnBoardUpdate.Invoke(update);
+        });
+
+        _hub.On<string>("GameStateUpdated", async (updatedGameId) =>
+        {
+            if (OnGameStateUpdated != null)
+                await OnGameStateUpdated.Invoke(updatedGameId);
         });
 
         _hub.Closed += async (error) =>
@@ -53,7 +60,19 @@ public class GameHubService : IAsyncDisposable
         }
         else
         {
-            Console.WriteLine("⚠️ Hub not connected. Cannot send update.");
+            Console.WriteLine("⚠️ Hub not connected. Cannot send board update.");
+        }
+    }
+
+    public async Task NotifyGameStateUpdated(string gameId)
+    {
+        if (_hub?.State == HubConnectionState.Connected)
+        {
+            await _hub.SendAsync("NotifyGameStateUpdated", gameId);
+        }
+        else
+        {
+            Console.WriteLine("⚠️ Hub not connected. Cannot send game state update.");
         }
     }
 
