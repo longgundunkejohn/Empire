@@ -161,6 +161,14 @@ else
 
 
 
+
+
+
+
+
+
+
+
     private async Task RefreshGameState()
 
     {
@@ -169,37 +177,19 @@ else
 
 
 
-        if (gameState != null)
+        var deckCards = gameState?.PlayerDecks?.SelectMany(kv => kv.Value) ?? Enumerable.Empty<Card>();
 
-        {
+        var handCards = gameState?.PlayerHands?.SelectMany(kv => kv.Value.Select(id => new Card { CardId = id })) ?? Enumerable.Empty<Card>();
 
-            // 👋 Hydrate client zones
-
-            if (gameState.PlayerHands.TryGetValue(playerId, out var hand))
-
-                BoardService.SetHand(playerId, hand);
+        var boardCards = gameState?.PlayerBoard?.SelectMany(kv => kv.Value.Select(bc => new Card { CardId = bc.CardId })) ?? Enumerable.Empty<Card>();
 
 
 
-            if (gameState.PlayerBoard.TryGetValue(playerId, out var board))
+        AllCards = deckCards
 
-                BoardService.SetBoard(playerId, board);
+            .Concat(handCards)
 
-        }
-
-
-
-        // ♻️ Hydrate cards for UI rendering
-
-        AllCards =
-
-            (gameState?.PlayerDecks?.SelectMany(kv => kv.Value) ?? Enumerable.Empty<Card>())
-
-            .Concat(gameState?.PlayerHands?.SelectMany(kv => kv.Value.Select(id => new Card { CardId = id })) ?? Enumerable.Empty<Card>())
-
-            .Concat(gameState?.PlayerBoard?.SelectMany(kv => kv.Value.Select(bc => new Card { CardId = bc.CardId })) ?? Enumerable.Empty<Card>())
-
-            .Concat(gameState?.PlayerGraveyards?.SelectMany(kv => kv.Value.Select(id => new Card { CardId = id })) ?? Enumerable.Empty<Card>())
+            .Concat(boardCards)
 
             .GroupBy(c => c.CardId)
 
@@ -212,6 +202,20 @@ else
         StateHasChanged();
 
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
