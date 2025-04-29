@@ -230,17 +230,65 @@ else
 
 
 
+
+
+
+
     private async Task RefreshGameState()
 
     {
 
         gameState = await GameApi.GetGameState(gameId);
 
-        HydrateCards();
+
+
+        // ✅ Update BoardService hand and board from latest gameState
+
+        if (gameState?.PlayerHands?.ContainsKey(playerId) == true)
+
+            BoardService.SetHand(playerId, gameState.PlayerHands[playerId]);
+
+
+
+        if (gameState?.PlayerBoard?.ContainsKey(playerId) == true)
+
+            BoardService.SetBoard(playerId, gameState.PlayerBoard[playerId]);
+
+
+
+        // ✅ Hydrate AllCards
+
+        var deckCards = gameState.PlayerDecks.GetValueOrDefault(playerId) ?? new();
+
+        var handCards = gameState.PlayerHands[playerId].Select(id => new Card { CardId = id });
+
+        var boardCards = gameState.PlayerBoard[playerId].Select(bc => new Card { CardId = bc.CardId });
+
+
+
+        AllCards = deckCards
+
+            .Concat(handCards)
+
+            .Concat(boardCards)
+
+            .GroupBy(c => c.CardId)
+
+            .Select(g => g.First())
+
+            .ToList();
+
+
 
         StateHasChanged();
 
     }
+
+
+
+
+
+
 
 
 
