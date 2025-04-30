@@ -172,13 +172,43 @@ else
 
 
 
+
+
+
+
     protected override async Task OnInitializedAsync()
 
     {
 
         gameState = await GameApi.GetGameState(gameId);
 
-        HydrateCards();
+
+
+        var handIds = gameState?.PlayerHands?.SelectMany(kv => kv.Value) ?? Enumerable.Empty<int>();
+
+        var boardIds = gameState?.PlayerBoard?.SelectMany(kv => kv.Value.Select(bc => bc.CardId)) ?? Enumerable.Empty<int>();
+
+        var deckCards = gameState?.PlayerDecks?.SelectMany(kv => kv.Value) ?? Enumerable.Empty<Card>();
+
+
+
+        var allIds = handIds
+
+            .Concat(boardIds)
+
+            .Concat(deckCards.Select(c => c.CardId))
+
+            .Distinct()
+
+            .ToList();
+
+
+
+        AllCards = allIds.Select(id =>
+
+            deckCards.FirstOrDefault(c => c.CardId == id) ?? new Card { CardId = id }
+
+        ).ToList();
 
 
 
@@ -196,13 +226,17 @@ else
 
                 BoardService.SetBoard(update.PlayerId, update.NewOrder.Select(id => new BoardCard(id)).ToList());
 
-                StateHasChanged();
+                await RefreshGameState(); // re-hydrate cards that may have moved zones
 
             }
 
         };
 
     }
+
+
+
+
 
 
 
@@ -234,6 +268,14 @@ else
 
 
 
+
+
+
+
+
+
+
+
     private async Task RefreshGameState()
 
     {
@@ -242,47 +284,51 @@ else
 
 
 
-        // ✅ Update BoardService hand and board from latest gameState
+        var handIds = gameState?.PlayerHands?.SelectMany(kv => kv.Value) ?? Enumerable.Empty<int>();
 
-        if (gameState?.PlayerHands?.ContainsKey(playerId) == true)
+        var boardIds = gameState?.PlayerBoard?.SelectMany(kv => kv.Value.Select(bc => bc.CardId)) ?? Enumerable.Empty<int>();
 
-            BoardService.SetHand(playerId, gameState.PlayerHands[playerId]);
-
-
-
-        if (gameState?.PlayerBoard?.ContainsKey(playerId) == true)
-
-            BoardService.SetBoard(playerId, gameState.PlayerBoard[playerId]);
+        var deckCards = gameState?.PlayerDecks?.SelectMany(kv => kv.Value) ?? Enumerable.Empty<Card>();
 
 
 
-        // ✅ Hydrate AllCards
+        var allIds = handIds
 
-        var deckCards = gameState.PlayerDecks.GetValueOrDefault(playerId) ?? new();
+            .Concat(boardIds)
 
-        var handCards = gameState.PlayerHands[playerId].Select(id => new Card { CardId = id });
+            .Concat(deckCards.Select(c => c.CardId))
 
-        var boardCards = gameState.PlayerBoard[playerId].Select(bc => new Card { CardId = bc.CardId });
-
-
-
-        AllCards = deckCards
-
-            .Concat(handCards)
-
-            .Concat(boardCards)
-
-            .GroupBy(c => c.CardId)
-
-            .Select(g => g.First())
+            .Distinct()
 
             .ToList();
+
+
+
+        // Hydrate using deckCards first, fallback with Card stubs
+
+        AllCards = allIds.Select(id =>
+
+            deckCards.FirstOrDefault(c => c.CardId == id) ?? new Card { CardId = id }
+
+        ).ToList();
 
 
 
         StateHasChanged();
 
     }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
