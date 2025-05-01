@@ -9,13 +9,10 @@
 @using Microsoft.AspNetCore.SignalR.Client
 
 @if (gameState == null)
-
 {
     <p>Loading game...</p>
 }
-
 else
-
 {
     <div class="game-layout">
         <div class="status-bar">
@@ -30,7 +27,6 @@ else
         <div class="battlefield">
             <div class="territory-row">
                 @for (int i = 0; i < 3; i++)
-
                 {
                     <div class="territory-cell">
                         <div class="zone-label">Opponent Settlement</div>
@@ -50,11 +46,8 @@ else
                 <div class="card-row">
                     @foreach (var boardCard in PlayerBoard)
                     {
-
                         var card = GetCardFromDeck(boardCard.CardId);
-
                         if (card != null && card.Type?.ToLowerInvariant() != "villager" && card.Type?.ToLowerInvariant() != "settlement")
-
                         {
                             <CardComponent Card="card" OnClick="() => HandleCardClick(card)" OnDoubleClick="() => HandleCardDoubleClick(card)" />
                         }
@@ -66,11 +59,8 @@ else
                 <div class="card-row">
                     @foreach (var boardCard in PlayerBoard)
                     {
-
                         var card = GetCardFromDeck(boardCard.CardId);
-
                         if (card != null && (card.Type?.ToLowerInvariant() == "villager" || card.Type?.ToLowerInvariant() == "settlement"))
-
                         {
                             <CardComponent Card="card" OnClick="() => HandleCardClick(card)" OnDoubleClick="() => HandleCardDoubleClick(card)" />
                         }
@@ -83,7 +73,7 @@ else
             <div class="stack">
                 <div class="zone-label">Hand</div>
                 <div class="card-row @(isDragging ? "drag-over" : "")"
-                @ondragover:preventDefault
+                     @ondragover:preventDefault
                      @ondragenter="() => isDragging = true"
                      @ondragleave="() => isDragging = false"
                      @ondrop="OnCardDrop">
@@ -93,12 +83,16 @@ else
                              class="card-image"
                              draggable="true"
                              @ondragstart="(e) => OnDragStart(card.CardId)"
-                        @oncontextmenu:preventDefault
+                             @oncontextmenu:preventDefault
                              @oncontextmenu="e => ShowZoomedCard(card, e)"
                              @onmousedown="e => { if (e.Button == 0 || e.Button == 2) HideZoomedCard(); }"
                              alt="@card.Name" />
                     }
                 </div>
+                @if (!PlayerHand.Any())
+                {
+                    <div style="color: red; font-size: small;">⚠️ PlayerHand is empty!</div>
+                }
             </div>
 
             <div class="stack">
@@ -113,7 +107,6 @@ else
         <div class="chat-box">
             <div class="chat-log">
                 @foreach (var msg in ChatLog)
-
                 {
                     <div><strong>@msg.PlayerId:</strong> @msg.Message</div>
                 }
@@ -122,7 +115,6 @@ else
         </div>
 
         @if (ZoomedCard != null)
-
         {
             <div class="card-preview show" style="top:@PreviewYpx; left:@PreviewXpx;">
                 <img src="@ZoomedCard.ImagePath" alt="@ZoomedCard.Name" class="card-image" />
@@ -138,11 +130,11 @@ else
 
 
 
-    private bool isDragging = false;
-
     private GameState? gameState;
 
     private List<Card> AllCards = new();
+
+    private bool isDragging = false;
 
     private Card? ZoomedCard = null;
 
@@ -150,11 +142,11 @@ else
 
     private string PreviewYpx = "0px";
 
+    private int? draggedCardId = null;
+
     private string chatInput = string.Empty;
 
     private List<(string PlayerId, string Message)> ChatLog = new();
-
-    private int? draggedCardId = null;
 
 
 
@@ -172,10 +164,6 @@ else
 
 
 
-
-
-
-
     protected override async Task OnInitializedAsync()
 
     {
@@ -184,31 +172,7 @@ else
 
 
 
-        var handIds = gameState?.PlayerHands?.SelectMany(kv => kv.Value) ?? Enumerable.Empty<int>();
-
-        var boardIds = gameState?.PlayerBoard?.SelectMany(kv => kv.Value.Select(bc => bc.CardId)) ?? Enumerable.Empty<int>();
-
-        var deckCards = gameState?.PlayerDecks?.SelectMany(kv => kv.Value) ?? Enumerable.Empty<Card>();
-
-
-
-        var allIds = handIds
-
-            .Concat(boardIds)
-
-            .Concat(deckCards.Select(c => c.CardId))
-
-            .Distinct()
-
-            .ToList();
-
-
-
-        AllCards = allIds.Select(id =>
-
-            deckCards.FirstOrDefault(c => c.CardId == id) ?? new Card { CardId = id }
-
-        ).ToList();
+        HydrateCards();
 
 
 
@@ -226,17 +190,29 @@ else
 
                 BoardService.SetBoard(update.PlayerId, update.NewOrder.Select(id => new BoardCard(id)).ToList());
 
-                await RefreshGameState(); // re-hydrate cards that may have moved zones
+                await RefreshGameState();
+
+            }
+
+        };
+
+
+
+        HubService.OnGameStateUpdated += async (updatedGameId) =>
+
+        {
+
+            if (updatedGameId == gameId)
+
+            {
+
+                await RefreshGameState();
 
             }
 
         };
 
     }
-
-
-
-
 
 
 
@@ -252,7 +228,11 @@ else
 
 
 
-        AllCards = deckCards.Concat(handCards).Concat(boardCards)
+        AllCards = deckCards
+
+            .Concat(handCards)
+
+            .Concat(boardCards)
 
             .GroupBy(c => c.CardId)
 
@@ -264,55 +244,13 @@ else
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
     private async Task RefreshGameState()
 
     {
 
         gameState = await GameApi.GetGameState(gameId);
 
-
-
-        var handIds = gameState?.PlayerHands?.SelectMany(kv => kv.Value) ?? Enumerable.Empty<int>();
-
-        var boardIds = gameState?.PlayerBoard?.SelectMany(kv => kv.Value.Select(bc => bc.CardId)) ?? Enumerable.Empty<int>();
-
-        var deckCards = gameState?.PlayerDecks?.SelectMany(kv => kv.Value) ?? Enumerable.Empty<Card>();
-
-
-
-        var allIds = handIds
-
-            .Concat(boardIds)
-
-            .Concat(deckCards.Select(c => c.CardId))
-
-            .Distinct()
-
-            .ToList();
-
-
-
-        // Hydrate using deckCards first, fallback with Card stubs
-
-        AllCards = allIds.Select(id =>
-
-            deckCards.FirstOrDefault(c => c.CardId == id) ?? new Card { CardId = id }
-
-        ).ToList();
-
-
+        HydrateCards();
 
         StateHasChanged();
 
@@ -320,27 +258,9 @@ else
 
 
 
+    private Card? GetCardFromDeck(int cardId) =>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    private async Task DrawCivic() => await Draw("civic");
-
-    private async Task DrawMilitary() => await Draw("military");
+        AllCards.FirstOrDefault(c => c.CardId == cardId);
 
 
 
@@ -356,55 +276,9 @@ else
 
 
 
-    private async Task HandleChatKey(KeyboardEventArgs e)
+    private async Task DrawCivic() => await Draw("civic");
 
-    {
-
-        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(chatInput))
-
-        {
-
-            var message = chatInput.Trim();
-
-            if (message.StartsWith("/")) await HandleChatCommand(message);
-
-            else ChatLog.Add((playerId, message));
-
-            chatInput = string.Empty;
-
-            StateHasChanged();
-
-        }
-
-    }
-
-
-
-    private async Task HandleChatCommand(string command)
-
-    {
-
-        if (command.ToLowerInvariant() == "/shuffle")
-
-        {
-
-            var move = new GameMove { PlayerId = playerId, MoveType = "ShuffleDeck" };
-
-            await GameApi.SubmitMove(gameId, move);
-
-            ChatLog.Add((playerId, "🔀 shuffled their deck."));
-
-        }
-
-        else
-
-        {
-
-            ChatLog.Add((playerId, $"❓ Unknown command: {command}"));
-
-        }
-
-    }
+    private async Task DrawMilitary() => await Draw("military");
 
 
 
@@ -496,5 +370,55 @@ else
 
 
 
-    private Card? GetCardFromDeck(int cardId) => AllCards.FirstOrDefault(c => c.CardId == cardId);
+    private async Task HandleChatKey(KeyboardEventArgs e)
+
+    {
+
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(chatInput))
+
+        {
+
+            var message = chatInput.Trim();
+
+            if (message.StartsWith("/")) await HandleChatCommand(message);
+
+            else ChatLog.Add((playerId, message));
+
+            chatInput = string.Empty;
+
+            StateHasChanged();
+
+        }
+
+    }
+
+
+
+    private async Task HandleChatCommand(string command)
+
+    {
+
+        if (command.ToLowerInvariant() == "/shuffle")
+
+        {
+
+            var move = new GameMove { PlayerId = playerId, MoveType = "ShuffleDeck" };
+
+            await GameApi.SubmitMove(gameId, move);
+
+            ChatLog.Add((playerId, "🔀 shuffled their deck."));
+
+            await RefreshGameState();
+
+        }
+
+        else
+
+        {
+
+            ChatLog.Add((playerId, $"❓ Unknown command: {command}"));
+
+        }
+
+    }
 }
