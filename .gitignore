@@ -29,3 +29,5 @@ Thumbs.db
 /certbot/conf/live
 .env
 /Empire.puml
+Empire.Server/appsettings.json
+certbot/conf/archive/empirecardgame.com/privkey1.pem
