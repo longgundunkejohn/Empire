@@ -2,25 +2,43 @@
 @inject GameApi GameApi
 @inject NavigationManager NavigationManager
 @inject GameHubService HubService
-@inject BoardClientService BoardService
+@inject GameStateClientService GameStateService
 @using Empire.Client.Services
+@using Empire.Client.Components
 @using Empire.Shared.Models
 @using Empire.Shared.Models.Enums
 @using Microsoft.AspNetCore.SignalR.Client
 
-@if (gameState == null)
+@if (isLoading)
 {
-    <p>Loading game...</p>
+    <div class="loading-container">
+        <p>Loading game...</p>
+        <div class="spinner"></div>
+    </div>
+}
+else if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="error-container">
+        <p class="error-message">❌ @errorMessage</p>
+        <button class="btn btn-primary" @onclick="RefreshGameState">Retry</button>
+    </div>
+}
+else if (gameState == null)
+{
+    <div class="error-container">
+        <p>Game not found</p>
+        <button class="btn btn-secondary" @onclick="() => NavigationManager.NavigateTo('/lobby')">Back to Lobby</button>
+    </div>
 }
 else
 {
     <div class="game-layout">
         <div class="status-bar">
-            <div class="morale">You: 20 | Opponent: 20</div>
-            <div class="phase-info">Phase: Main • Initiative</div>
+            <div class="morale">You: @PlayerLifeTotal | Opponent: @OpponentLifeTotal</div>
+            <div class="phase-info">Phase: @CurrentPhase @(IsMyTurn ? "• Your Turn" : "• Opponent's Turn")</div>
             <div class="controls">
-                <button class="btn-pass">Pass</button>
-                <button class="btn-commit">Commit</button>
+                <button class="btn-pass" @onclick="() => HandleChatCommand('/endturn')" disabled="@(!IsMyTurn)">End Turn</button>
+                <button class="btn-commit" @onclick="() => HandleChatCommand('/shuffle')" disabled="@(!IsMyTurn)">Shuffle</button>
             </div>
         </div>
 
@@ -30,11 +48,35 @@ else
                 {
                     <div class="territory-cell">
                         <div class="zone-label">Opponent Settlement</div>
-                        <div class="card-image">[ ]</div>
+                        <div class="card-row drop-zone">
+                            @if (OpponentBoard.Any())
+                            {
+                                @foreach (var boardCard in OpponentBoard.Where(bc => MockCardDataService.GetCardById(bc.CardId)?.CardType == "Settlement"))
+                                {
+                                    <CardComponent CardId="@boardCard.CardId" IsExerted="@boardCard.IsExerted" 
+                                                   OnClick="HandleOpponentCardClick" OnDoubleClick="HandleOpponentCardDoubleClick" />
+                                }
+                            }
+                        </div>
                         <div class="zone-label">Territory</div>
-                        <div class="card-image">[ ]</div>
+                        <div class="card-row drop-zone">
+                            @if (OpponentBoard.Any())
+                            {
+                                @foreach (var boardCard in OpponentBoard.Where(bc => MockCardDataService.GetCardById(bc.CardId)?.CardType == "Unit"))
+                                {
+                                    <CardComponent CardId="@boardCard.CardId" IsExerted="@boardCard.IsExerted" 
+                                                   OnClick="HandleOpponentCardClick" OnDoubleClick="HandleOpponentCardDoubleClick" />
+                                }
+                            }
+                        </div>
                         <div class="zone-label">Your Settlement</div>
-                        <div class="card-image">[ ]</div>
+                        <div class="card-row drop-zone">
+                            @foreach (var boardCard in PlayerBoard.Where(bc => MockCardDataService.GetCardById(bc.CardId)?.CardType == "Settlement"))
+                            {
+                                <CardComponent CardId="@boardCard.CardId" IsExerted="@boardCard.IsExerted" 
+                                               OnClick="HandleCardClick" OnDoubleClick="HandleCardDoubleClick" />
+                            }
+                        </div>
                     </div>
                 }
             </div>
@@ -42,28 +84,24 @@ else
 
         <div class="row">
             <div class="stack">
-                <div class="zone-label">Units</div>
-                <div class="card-row">
-                    @foreach (var boardCard in PlayerBoard)
+                <div class="zone-label">Your Units</div>
+                <div class="card-row drop-zone" @ondrop="OnCardDrop" @ondragover:preventDefault>
+                    @foreach (var boardCard in PlayerBoard.Where(bc => MockCardDataService.GetCardById(bc.CardId)?.CardType == "Unit"))
                     {
-                        var card = GetCardFromDeck(boardCard.CardId);
-                        if (card != null && card.Type?.ToLowerInvariant() != "villager" && card.Type?.ToLowerInvariant() != "settlement")
-                        {
-                            <CardComponent Card="card" OnClick="() => HandleCardClick(card)" OnDoubleClick="() => HandleCardDoubleClick(card)" />
-                        }
+                        <CardComponent CardId="@boardCard.CardId" IsExerted="@boardCard.IsExerted" 
+                                       OnClick="HandleCardClick" OnDoubleClick="HandleCardDoubleClick" 
+                                       OnDragStart="OnDragStart" />
                     }
                 </div>
             </div>
             <div class="stack">
-                <div class="zone-label">Villagers & Settlements</div>
-                <div class="card-row">
-                    @foreach (var boardCard in PlayerBoard)
+                <div class="zone-label">Your Villagers</div>
+                <div class="card-row drop-zone" @ondrop="OnCardDrop" @ondragover:preventDefault>
+                    @foreach (var boardCard in PlayerBoard.Where(bc => MockCardDataService.GetCardById(bc.CardId)?.CardType == "Villager"))
                     {
-                        var card = GetCardFromDeck(boardCard.CardId);
-                        if (card != null && (card.Type?.ToLowerInvariant() == "villager" || card.Type?.ToLowerInvariant() == "settlement"))
-                        {
-                            <CardComponent Card="card" OnClick="() => HandleCardClick(card)" OnDoubleClick="() => HandleCardDoubleClick(card)" />
-                        }
+                        <CardComponent CardId="@boardCard.CardId" IsExerted="@boardCard.IsExerted" 
+                                       OnClick="HandleCardClick" OnDoubleClick="HandleCardDoubleClick" 
+                                       OnDragStart="OnDragStart" />
                     }
                 </div>
             </div>
@@ -71,28 +109,19 @@ else
 
         <div class="row">
             <div class="stack">
-                <div class="zone-label">Hand</div>
-                <div class="card-row @(isDragging ? "drag-over" : "")"
-                     @ondragover:preventDefault
-                     @ondragenter="() => isDragging = true"
-                     @ondragleave="() => isDragging = false"
-                     @ondrop="OnCardDrop">
-                    @foreach (var card in PlayerHand)
+                <div class="zone-label">Your Hand (@PlayerHand.Count cards)</div>
+                <div class="hand-area">
+                    @foreach (var cardId in PlayerHand)
                     {
-                        <img src="@card.ImagePath"
-                             class="card-image"
-                             draggable="true"
-                             @ondragstart="(e) => OnDragStart(card.CardId)"
-                             @oncontextmenu:preventDefault
-                             @oncontextmenu="e => ShowZoomedCard(card, e)"
-                             @onmousedown="e => { if (e.Button == 0 || e.Button == 2) HideZoomedCard(); }"
-                             alt="@card.Name" />
+                        <CardComponent CardId="@cardId" IsExerted="false" 
+                                       OnClick="HandleHandCardClick" OnDoubleClick="HandleHandCardDoubleClick" 
+                                       OnDragStart="OnDragStart" />
+                    }
+                    @if (!PlayerHand.Any())
+                    {
+                        <div style="color: #888; font-style: italic;">No cards in hand</div>
                     }
                 </div>
-                @if (!PlayerHand.Any())
-                {
-                    <div style="color: red; font-size: small;">⚠️ PlayerHand is empty!</div>
-                }
             </div>
 
             <div class="stack">
@@ -111,7 +140,7 @@ else
                     <div><strong>@msg.PlayerId:</strong> @msg.Message</div>
                 }
             </div>
-            <input class="form-control" @bind="chatInput" @bind:event="oninput" @onkeydown="HandleChatKey" placeholder="Type message or /shuffle..." />
+            <input class="form-control" @bind="chatInput" @bind:event="oninput" @onkeydown="HandleChatKey" placeholder="Type message or /shuffle, /endturn..." />
         </div>
 
         @if (ZoomedCard != null)
@@ -121,304 +150,4 @@ else
             </div>
         }
     </div>
-}
-
-@code {
-    [Parameter] public string gameId { get; set; } = string.Empty;
-
-    [Parameter] public string playerId { get; set; } = string.Empty;
-
-
-
-    private GameState? gameState;
-
-    private List<Card> AllCards = new();
-
-    private bool isDragging = false;
-
-    private Card? ZoomedCard = null;
-
-    private string PreviewXpx = "0px";
-
-    private string PreviewYpx = "0px";
-
-    private int? draggedCardId = null;
-
-    private string chatInput = string.Empty;
-
-    private List<(string PlayerId, string Message)> ChatLog = new();
-
-
-
-    private List<int> HandCardIds => BoardService.GetHandIds(playerId);
-
-    private List<Card> PlayerHand => HandCardIds.Select(id => GetCardFromDeck(id)).Where(c => c != null).ToList();
-
-    private List<BoardCard> PlayerBoard => BoardService.GetBoard(playerId);
-
-
-
-    private int CivicDeckCount => gameState?.PlayerDecks?.GetValueOrDefault(playerId)?.Count(c => c.Type?.ToLowerInvariant() is "villager" or "settlement") ?? 0;
-
-    private int MilitaryDeckCount => gameState?.PlayerDecks?.GetValueOrDefault(playerId)?.Count(c => c.Type?.ToLowerInvariant() is not ("villager" or "settlement")) ?? 0;
-
-
-
-    protected override async Task OnInitializedAsync()
-
-    {
-
-        gameState = await GameApi.GetGameState(gameId);
-
-
-
-        HydrateCards();
-
-
-
-        await HubService.ConnectAsync(gameId);
-
-
-
-        HubService.OnBoardUpdate += async (update) =>
-
-        {
-
-            if (update.GameId == gameId)
-
-            {
-
-                BoardService.SetBoard(update.PlayerId, update.NewOrder.Select(id => new BoardCard(id)).ToList());
-
-                await RefreshGameState();
-
-            }
-
-        };
-
-
-
-        HubService.OnGameStateUpdated += async (updatedGameId) =>
-
-        {
-
-            if (updatedGameId == gameId)
-
-            {
-
-                await RefreshGameState();
-
-            }
-
-        };
-
-    }
-
-
-
-    private void HydrateCards()
-
-    {
-
-        var deckCards = gameState?.PlayerDecks?.SelectMany(kv => kv.Value) ?? Enumerable.Empty<Card>();
-
-        var handCards = gameState?.PlayerHands?.SelectMany(kv => kv.Value.Select(id => new Card { CardId = id })) ?? Enumerable.Empty<Card>();
-
-        var boardCards = gameState?.PlayerBoard?.SelectMany(kv => kv.Value.Select(bc => new Card { CardId = bc.CardId })) ?? Enumerable.Empty<Card>();
-
-
-
-        AllCards = deckCards
-
-            .Concat(handCards)
-
-            .Concat(boardCards)
-
-            .GroupBy(c => c.CardId)
-
-            .Select(g => g.First())
-
-            .ToList();
-
-    }
-
-
-
-    private async Task RefreshGameState()
-
-    {
-
-        gameState = await GameApi.GetGameState(gameId);
-
-        HydrateCards();
-
-        StateHasChanged();
-
-    }
-
-
-
-    private Card? GetCardFromDeck(int cardId) =>
-
-        AllCards.FirstOrDefault(c => c.CardId == cardId);
-
-
-
-    private async Task Draw(string type)
-
-    {
-
-        await GameApi.DrawCard(gameId, playerId, type);
-
-        await RefreshGameState();
-
-    }
-
-
-
-    private async Task DrawCivic() => await Draw("civic");
-
-    private async Task DrawMilitary() => await Draw("military");
-
-
-
-    private void OnDragStart(int cardId) => draggedCardId = cardId;
-
-
-
-    private async Task OnCardDrop()
-
-    {
-
-        if (!draggedCardId.HasValue) return;
-
-
-
-        BoardService.MoveToBoard(playerId, draggedCardId.Value);
-
-
-
-        var update = new BoardPositionUpdate
-
-            {
-
-                GameId = gameId,
-
-                PlayerId = playerId,
-
-                NewOrder = BoardService.GetBoard(playerId).Select(c => c.CardId).ToList()
-
-            };
-
-
-
-        await HubService.SendBoardUpdate(gameId, update);
-
-        draggedCardId = null;
-
-        StateHasChanged();
-
-    }
-
-
-
-    private Task HandleCardClick(Card card)
-
-    {
-
-        Console.WriteLine($"Clicked: {card.Name} (#{card.CardId})");
-
-        return Task.CompletedTask;
-
-    }
-
-
-
-    private Task HandleCardDoubleClick(Card card)
-
-    {
-
-        Console.WriteLine($"Double-clicked: {card.Name} (#{card.CardId})");
-
-        return Task.CompletedTask;
-
-    }
-
-
-
-    private void ShowZoomedCard(Card card, MouseEventArgs e)
-
-    {
-
-        const int previewWidth = 300, previewHeight = 420, screenWidth = 1920, screenHeight = 1080;
-
-        int offsetX = (e.ClientX + previewWidth + 30 > screenWidth) ? -previewWidth - 20 : 20;
-
-        int offsetY = (e.ClientY + previewHeight + 30 > screenHeight) ? -previewHeight - 20 : 20;
-
-        PreviewXpx = $"{e.ClientX + offsetX}px";
-
-        PreviewYpx = $"{e.ClientY + offsetY}px";
-
-        ZoomedCard = card;
-
-    }
-
-
-
-    private void HideZoomedCard() => ZoomedCard = null;
-
-
-
-    private async Task HandleChatKey(KeyboardEventArgs e)
-
-    {
-
-        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(chatInput))
-
-        {
-
-            var message = chatInput.Trim();
-
-            if (message.StartsWith("/")) await HandleChatCommand(message);
-
-            else ChatLog.Add((playerId, message));
-
-            chatInput = string.Empty;
-
-            StateHasChanged();
-
-        }
-
-    }
-
-
-
-    private async Task HandleChatCommand(string command)
-
-    {
-
-        if (command.ToLowerInvariant() == "/shuffle")
-
-        {
-
-            var move = new GameMove { PlayerId = playerId, MoveType = "ShuffleDeck" };
-
-            await GameApi.SubmitMove(gameId, move);
-
-            ChatLog.Add((playerId, "🔀 shuffled their deck."));
-
-            await RefreshGameState();
-
-        }
-
-        else
-
-        {
-
-            ChatLog.Add((playerId, $"❓ Unknown command: {command}"));
-
-        }
-
-    }
 }

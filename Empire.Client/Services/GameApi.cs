@@ -25,7 +25,15 @@ namespace Empire.Client.Services
 
         public async Task<List<PlayerDeck>> GetDecksForPlayer(string playerName)
         {
-            return await _http.GetFromJsonAsync<List<PlayerDeck>>($"api/prelobby/decks/{playerName}") ?? new();
+            try
+            {
+                return await _http.GetFromJsonAsync<List<PlayerDeck>>($"api/prelobby/decks/{playerName}") ?? new();
+            }
+            catch
+            {
+                // Fallback to mock data if server is unavailable
+                return MockDeckService.GetDecksForPlayer(playerName);
+            }
         }
 
         public async Task<string> CreateGame(string playerName, string deckId)

@@ -1,18 +1,83 @@
 @using Empire.Shared.Models
+@using Empire.Client.Services
 
-<div class="card" ondblclick="HandleDoubleClick" @onclick="HandleClick">
-    <img src="@Card.ImagePath" alt="@Card.Name" class="card-image @(Card.IsExerted ? "exerted" : "")" />
-    <div class="card-overlay">
-        <strong>@Card.Name</strong>
-    </div>
+<div class="card" @ondblclick="HandleDoubleClick" @onclick="HandleClick" 
+     @onmouseenter="ShowPreview" @onmouseleave="HidePreview"
+     draggable="true" @ondragstart="HandleDragStart">
+    
+    @if (CardData != null)
+    {
+        <img src="@CardData.ImagePath" alt="@CardData.Name" 
+             class="card-image @(IsExerted ? "exerted" : "")" 
+             onerror="this.src='/images/card-placeholder.png'" />
+        <div class="card-overlay">
+            <div class="card-name">@CardData.Name</div>
+            <div class="card-cost">@CardData.Cost</div>
+        </div>
+    }
+    else
+    {
+        <div class="card-placeholder">
+            <div class="card-id">ID: @CardId</div>
+        </div>
+    }
 </div>
 
-
 @code {
-    [Parameter] public Card Card { get; set; } = default!;
-    [Parameter] public EventCallback<Card> OnClick { get; set; }
-    [Parameter] public EventCallback<Card> OnDoubleClick { get; set; }
+    [Parameter] public int CardId { get; set; }
+    [Parameter] public bool IsExerted { get; set; }
+    [Parameter] public EventCallback<int> OnClick { get; set; }
+    [Parameter] public EventCallback<int> OnDoubleClick { get; set; }
+    [Parameter] public EventCallback<int> OnDragStart { get; set; }
 
-    private async Task HandleClick() => await OnClick.InvokeAsync(Card);
-    private async Task HandleDoubleClick() => await OnDoubleClick.InvokeAsync(Card);
+    private Card? CardData => MockCardDataService.GetCardById(CardId);
+
+    private async Task HandleClick() => await OnClick.InvokeAsync(CardId);
+    private async Task HandleDoubleClick() => await OnDoubleClick.InvokeAsync(CardId);
+    private async Task HandleDragStart() => await OnDragStart.InvokeAsync(CardId);
+
+    private void ShowPreview(MouseEventArgs e)
+    {
+        // TODO: Implement card preview on hover
+    }
+
+    private void HidePreview(MouseEventArgs e)
+    {
+        // TODO: Hide card preview
+    }
 }
+
+<style>
+    .card-placeholder {
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #2a2a2a, #1a1a1a);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        color: #888;
+        font-size: 0.8rem;
+    }
+
+    .card-cost {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        background: rgba(59, 130, 246, 0.9);
+        color: white;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        font-weight: bold;
+    }
+
+    .card-name {
+        font-size: 0.65rem;
+        line-height: 1.1;
+    }
+</style>
