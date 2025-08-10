@@ -14,8 +14,8 @@
 }
 else if (!string.IsNullOrEmpty(errorMessage))
 {
-    <div class="error-container">
-        <p class="error-message">❌ @errorMessage</p>
+        <div class="error-container">
+        <p class="error-message">Error: @errorMessage</p>
         <button class="btn btn-primary" @onclick="RefreshGameState">Retry</button>
     </div>
 }
@@ -23,7 +23,7 @@ else if (gameState == null)
 {
     <div class="error-container">
         <p>Game not found</p>
-        <button class="btn btn-secondary" @onclick="() => NavigationManager.NavigateTo('/lobby')">Back to Lobby</button>
+        <button class="btn btn-secondary" @onclick="NavigateToLobby">Back to Lobby</button>
     </div>
 }
 else
@@ -31,10 +31,10 @@ else
     <div class="game-layout">
         <div class="status-bar">
             <div class="morale">You: @PlayerLifeTotal | Opponent: @OpponentLifeTotal</div>
-            <div class="phase-info">Phase: @CurrentPhase @(IsMyTurn ? "• Your Turn" : "• Opponent's Turn")</div>
+            <div class="phase-info">Phase: @CurrentPhase @(IsMyTurn ? "- Your Turn" : "- Opponent Turn")</div>
             <div class="controls">
-                <button class="btn-pass" @onclick="() => HandleChatCommand('/endturn')" disabled="@(!IsMyTurn)">End Turn</button>
-                <button class="btn-commit" @onclick="() => HandleChatCommand('/shuffle')" disabled="@(!IsMyTurn)">Shuffle</button>
+                <button class="btn-pass" @onclick="EndTurn" disabled="@(!IsMyTurn)">End Turn</button>
+                <button class="btn-commit" @onclick="ShuffleDeck" disabled="@(!IsMyTurn)">Shuffle</button>
             </div>
         </div>
 
@@ -47,7 +47,7 @@ else
                         <div class="card-row drop-zone">
                             @if (OpponentBoard.Any())
                             {
-                                @foreach (var boardCard in OpponentBoard.Where(bc => MockCardDataService.GetCardById(bc.CardId)?.CardType == "Settlement"))
+                                @foreach (var boardCard in OpponentBoard.Where(bc => GetCardType(bc.CardId) == "Settlement"))
                                 {
                                     <CardComponent CardId="@boardCard.CardId" IsExerted="@boardCard.IsExerted" 
                                                    OnClick="HandleOpponentCardClick" OnDoubleClick="HandleOpponentCardDoubleClick" />
@@ -58,7 +58,7 @@ else
                         <div class="card-row drop-zone">
                             @if (OpponentBoard.Any())
                             {
-                                @foreach (var boardCard in OpponentBoard.Where(bc => MockCardDataService.GetCardById(bc.CardId)?.CardType == "Unit"))
+                                @foreach (var boardCard in OpponentBoard.Where(bc => GetCardType(bc.CardId) == "Unit"))
                                 {
                                     <CardComponent CardId="@boardCard.CardId" IsExerted="@boardCard.IsExerted" 
                                                    OnClick="HandleOpponentCardClick" OnDoubleClick="HandleOpponentCardDoubleClick" />
@@ -67,7 +67,7 @@ else
                         </div>
                         <div class="zone-label">Your Settlement</div>
                         <div class="card-row drop-zone">
-                            @foreach (var boardCard in PlayerBoard.Where(bc => MockCardDataService.GetCardById(bc.CardId)?.CardType == "Settlement"))
+                            @foreach (var boardCard in PlayerBoard.Where(bc => GetCardType(bc.CardId) == "Settlement"))
                             {
                                 <CardComponent CardId="@boardCard.CardId" IsExerted="@boardCard.IsExerted" 
                                                OnClick="HandleCardClick" OnDoubleClick="HandleCardDoubleClick" />
@@ -82,7 +82,7 @@ else
             <div class="stack">
                 <div class="zone-label">Your Units</div>
                 <div class="card-row drop-zone" @ondrop="OnCardDrop" @ondragover:preventDefault>
-                    @foreach (var boardCard in PlayerBoard.Where(bc => MockCardDataService.GetCardById(bc.CardId)?.CardType == "Unit"))
+                    @foreach (var boardCard in PlayerBoard.Where(bc => GetCardType(bc.CardId) == "Unit"))
                     {
                         <CardComponent CardId="@boardCard.CardId" IsExerted="@boardCard.IsExerted" 
                                        OnClick="HandleCardClick" OnDoubleClick="HandleCardDoubleClick" 
@@ -93,7 +93,7 @@ else
             <div class="stack">
                 <div class="zone-label">Your Villagers</div>
                 <div class="card-row drop-zone" @ondrop="OnCardDrop" @ondragover:preventDefault>
-                    @foreach (var boardCard in PlayerBoard.Where(bc => MockCardDataService.GetCardById(bc.CardId)?.CardType == "Villager"))
+                    @foreach (var boardCard in PlayerBoard.Where(bc => GetCardType(bc.CardId) == "Villager"))
                     {
                         <CardComponent CardId="@boardCard.CardId" IsExerted="@boardCard.IsExerted" 
                                        OnClick="HandleCardClick" OnDoubleClick="HandleCardDoubleClick" 
@@ -142,7 +142,7 @@ else
         @if (ZoomedCard != null)
         {
             <div class="card-preview show" style="top:@PreviewYpx; left:@PreviewXpx;">
-                <img src="@ZoomedCard.ImagePath" alt="@ZoomedCard.Name" class="card-image" />
+                <img src="@GetCardImagePath(ZoomedCard)" alt="@ZoomedCard.Name" class="card-image" />
             </div>
         }
     </div>

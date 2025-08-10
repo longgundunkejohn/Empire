@@ -1,5 +1,6 @@
 @using Empire.Shared.Models
 @using Empire.Client.Services
+@inject CardService CardService
 
 <div class="card" @ondblclick="HandleDoubleClick" @onclick="HandleClick" 
      @onmouseenter="ShowPreview" @onmouseleave="HidePreview"
@@ -7,7 +8,7 @@
     
     @if (CardData != null)
     {
-        <img src="@CardData.ImagePath" alt="@CardData.Name" 
+        <img src="@GetCardImagePath()" alt="@CardData.Name" 
              class="card-image @(IsExerted ? "exerted" : "")" 
              onerror="this.src='/images/card-placeholder.png'" />
         <div class="card-overlay">
@@ -30,7 +31,24 @@
     [Parameter] public EventCallback<int> OnDoubleClick { get; set; }
     [Parameter] public EventCallback<int> OnDragStart { get; set; }
 
-    private Card? CardData => MockCardDataService.GetCardById(CardId);
+    private CardData? CardData { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (CardId > 0)
+        {
+            CardData = await CardService.GetCardByIdAsync(CardId);
+        }
+    }
+
+    private string GetCardImagePath()
+    {
+        if (CardData?.ImageFileName != null && !string.IsNullOrEmpty(CardData.ImageFileName))
+        {
+            return $"/images/cards/{CardData.ImageFileName}";
+        }
+        return "/images/card-placeholder.png";
+    }
 
     private async Task HandleClick() => await OnClick.InvokeAsync(CardId);
     private async Task HandleDoubleClick() => await OnDoubleClick.InvokeAsync(CardId);

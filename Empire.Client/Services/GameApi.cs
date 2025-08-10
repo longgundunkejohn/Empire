@@ -7,10 +7,12 @@ namespace Empire.Client.Services
     public class GameApi
     {
         private readonly HttpClient _http;
+        private readonly DeckService _deckService;
 
-        public GameApi(HttpClient http)
+        public GameApi(HttpClient http, DeckService deckService)
         {
             _http = http;
+            _deckService = deckService;
         }
 
         public async Task<List<GamePreview>> GetOpenGames()
@@ -31,8 +33,8 @@ namespace Empire.Client.Services
             }
             catch
             {
-                // Fallback to mock data if server is unavailable
-                return MockDeckService.GetDecksForPlayer(playerName);
+                // Fallback to empty list if server is unavailable
+                return new List<PlayerDeck>();
             }
         }
 

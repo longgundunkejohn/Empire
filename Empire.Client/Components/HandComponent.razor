@@ -3,7 +3,7 @@
 <div class="hand">
     @foreach (var card in Hand)
     {
-        <CardComponent Card="card" OnClick="HandleCardClick" OnDoubleClick="HandleCardDoubleClick" />
+        <CardComponent CardId="@card.CardId" OnClick="EventCallback.Factory.Create<int>(this, HandleCardClick)" OnDoubleClick="EventCallback.Factory.Create<int>(this, HandleCardDoubleClick)" />
     }
 </div>
 
@@ -11,13 +11,14 @@
     [Parameter] public List<Card> Hand { get; set; } = new();
     [Parameter] public EventCallback<Card> OnCardSelected { get; set; }
 
-    private async Task HandleCardClick(Card card)
+    private async Task HandleCardClick(int cardId)
     {
-        if (OnCardSelected.HasDelegate)
+        var card = Hand.FirstOrDefault(c => c.CardId == cardId);
+        if (card != null && OnCardSelected.HasDelegate)
             await OnCardSelected.InvokeAsync(card);
     }
 
-    private async Task HandleCardDoubleClick(Card card)
+    private async Task HandleCardDoubleClick(int cardId)
     {
         // Optional: double-click handling, if needed
     }

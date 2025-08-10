@@ -20,9 +20,11 @@ builder.Services.AddScoped(sp => new HttpClient
     BaseAddress = new Uri(apiBaseUrl)
 });
 
-// 🔧 Register your API service
+// 🔧 Register your API services
 builder.Services.AddScoped<GameApi>();
 builder.Services.AddScoped<GameHubService>();
 builder.Services.AddSingleton<GameStateClientService>();
+builder.Services.AddScoped<CardService>();
+builder.Services.AddScoped<DeckService>();
 
 await builder.Build().RunAsync();

@@ -59,7 +59,7 @@ public class GameStateClientService
     {
         lock (_stateLock)
         {
-            if (_currentGameState?.PlayerBoards?.TryGetValue(playerId, out var board) == true)
+            if (_currentGameState?.PlayerBoard?.TryGetValue(playerId, out var board) == true)
             {
                 return board;
             }
@@ -87,11 +87,9 @@ public class GameStateClientService
     {
         lock (_stateLock)
         {
-            if (_currentGameState?.DeckCounts?.TryGetValue(playerId, out var deckCounts) == true)
-            {
-                return deckCounts.TryGetValue(deckType, out var count) ? count : 0;
-            }
-            return 0;
+            // For now, return a mock count since DeckCounts doesn't exist in GameState
+            // This should be implemented properly when the server supports it
+            return 30; // Default deck size
         }
     }
 
@@ -99,8 +97,11 @@ public class GameStateClientService
     {
         lock (_stateLock)
         {
-            var player = _currentGameState?.Players?.FirstOrDefault(p => p.PlayerId == playerId);
-            return player?.LifeTotal ?? 20; // Default life total
+            if (_currentGameState?.PlayerLifeTotals?.TryGetValue(playerId, out var lifeTotal) == true)
+            {
+                return lifeTotal;
+            }
+            return 20; // Default life total
         }
     }
 
@@ -116,7 +117,8 @@ public class GameStateClientService
     {
         lock (_stateLock)
         {
-            return _currentGameState?.ActivePlayerId;
+            // Use PriorityPlayer as the active player for now
+            return _currentGameState?.PriorityPlayer ?? _currentGameState?.Player1;
         }
     }
 
@@ -124,10 +126,15 @@ public class GameStateClientService
     {
         lock (_stateLock)
         {
-            if (_currentGameState?.Players == null) return null;
+            if (_currentGameState == null) return null;
             
-            var opponent = _currentGameState.Players.FirstOrDefault(p => p.PlayerId != playerId);
-            return opponent?.PlayerId;
+            // Return the other player
+            if (playerId == _currentGameState.Player1)
+                return _currentGameState.Player2;
+            else if (playerId == _currentGameState.Player2)
+                return _currentGameState.Player1;
+            
+            return null;
         }
     }
 
@@ -158,7 +165,7 @@ public class GameStateClientService
         lock (_stateLock)
         {
             if (_currentGameState?.PlayerHands?.TryGetValue(playerId, out var hand) == true &&
-                _currentGameState?.PlayerBoards?.TryGetValue(playerId, out var board) == true)
+                _currentGameState?.PlayerBoard?.TryGetValue(playerId, out var board) == true)
             {
                 if (hand.Remove(cardId))
                 {
@@ -173,7 +180,7 @@ public class GameStateClientService
     {
         lock (_stateLock)
         {
-            if (_currentGameState?.PlayerBoards?.TryGetValue(playerId, out var board) == true)
+            if (_currentGameState?.PlayerBoard?.TryGetValue(playerId, out var board) == true)
             {
                 var boardCard = board.FirstOrDefault(bc => bc.CardId == cardId);
                 if (boardCard != null)
@@ -191,15 +198,15 @@ public class GameStateClientService
         {
             if (_currentGameState != null)
             {
-                // Switch active player
-                var currentActive = _currentGameState.ActivePlayerId;
+                // Switch active player using PriorityPlayer
+                var currentActive = _currentGameState.PriorityPlayer;
                 var opponent = GetOpponentId(currentActive ?? "");
                 if (opponent != null)
                 {
-                    _currentGameState.ActivePlayerId = opponent;
+                    _currentGameState.PriorityPlayer = opponent;
                     
                     // Unexert all cards for the new active player
-                    if (_currentGameState.PlayerBoards?.TryGetValue(opponent, out var board) == true)
+                    if (_currentGameState.PlayerBoard?.TryGetValue(opponent, out var board) == true)
                     {
                         foreach (var card in board)
                         {

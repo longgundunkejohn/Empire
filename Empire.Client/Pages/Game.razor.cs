@@ -20,16 +20,19 @@ namespace Empire.Client.Pages
         [Inject] public NavigationManager NavigationManager { get; set; } = default!;
         [Inject] public GameHubService HubService { get; set; } = default!;
         [Inject] public GameStateClientService GameStateService { get; set; } = default!;
+        [Inject] public CardService CardService { get; set; } = default!;
+        [Inject] public DeckService DeckService { get; set; } = default!;
 
         private bool isLoading = true;
         private string errorMessage = string.Empty;
         private bool isDragging = false;
-        private Card? ZoomedCard = null;
+        private CardData? ZoomedCard = null;
         private string PreviewXpx = "0px";
         private string PreviewYpx = "0px";
         private int? draggedCardId = null;
         private string chatInput = string.Empty;
         private List<(string PlayerId, string Message)> ChatLog = new();
+        private List<CardData> allCards = new();
 
         // Properties that get data from the state service
         private GameState? gameState => GameStateService.CurrentGameState;
@@ -50,8 +53,12 @@ namespace Empire.Client.Pages
                 isLoading = true;
                 errorMessage = string.Empty;
 
-                // Initialize with mock data for testing
-                InitializeMockGameState();
+                // Load all cards from the server
+                allCards = await CardService.GetAllCardsAsync();
+                ChatLog.Add(("System", $"📚 Loaded {allCards.Count} cards from server"));
+
+                // Initialize with real data or fallback to mock
+                await InitializeGameState();
 
                 // Load initial game state
                 await RefreshGameState();
@@ -82,59 +89,48 @@ namespace Empire.Client.Pages
             }
         }
 
-        private void InitializeMockGameState()
+        private async Task InitializeGameState()
         {
-            // Create a mock game state for testing
-            var mockState = new GameState
+            if (allCards.Any())
             {
-                GameId = gameId,
-                CurrentPhase = GamePhase.Main,
-                ActivePlayerId = playerId,
-                Players = new List<Player>
-                {
-                    new Player { PlayerId = playerId, LifeTotal = 20 },
-                    new Player { PlayerId = "opponent", LifeTotal = 20 }
-                },
-                PlayerHands = new Dictionary<string, List<int>>
-                {
-                    [playerId] = MockCardDataService.GetSampleAmaliMilitaryDeck().Take(7).ToList(),
-                    ["opponent"] = MockCardDataService.GetSampleHorudjetMilitaryDeck().Take(7).ToList()
-                },
-                PlayerBoards = new Dictionary<string, List<BoardCard>>
-                {
-                    [playerId] = new List<BoardCard>(),
-                    ["opponent"] = new List<BoardCard>()
-                },
-                DeckCounts = new Dictionary<string, Dictionary<string, int>>
-                {
-                    [playerId] = new Dictionary<string, int> { ["military"] = 23, ["civic"] = 15 },
-                    ["opponent"] = new Dictionary<string, int> { ["military"] = 23, ["civic"] = 15 }
-                }
-            };
+                // Create a game state with real cards
+                var militaryCards = allCards.Where(c => c.CardType is "Unit" or "Tactic" or "Battle Tactic" or "Chronicle" or "Skirmisher").ToList();
+                var civicCards = allCards.Where(c => c.CardType is "Settlement" or "Villager").ToList();
 
-            GameStateService.UpdateGameState(mockState);
-        }
+                var mockState = new GameState
+                {
+                    GameId = gameId,
+                    CurrentPhase = GamePhase.Strategy,
+                    Player1 = playerId,
+                    Player2 = "opponent",
+                    InitiativeHolder = playerId,
+                    PriorityPlayer = playerId,
+                    PlayerHands = new Dictionary<string, List<int>>
+                    {
+                        [playerId] = militaryCards.Take(7).Select(c => c.CardID).ToList(),
+                        ["opponent"] = militaryCards.Skip(7).Take(7).Select(c => c.CardID).ToList()
+                    },
+                    PlayerBoard = new Dictionary<string, List<BoardCard>>
+                    {
+                        [playerId] = new List<BoardCard>(),
+                        ["opponent"] = new List<BoardCard>()
+                    },
+                    PlayerLifeTotals = new Dictionary<string, int>
+                    {
+                        [playerId] = 20,
+                        ["opponent"] = 20
+                    }
+                };
 
-        private async Task RefreshGameState()
-        {
-            try
-            {
-                var state = await GameApi.GetGameState(gameId);
-                if (state != null)
-                {
-                    GameStateService.UpdateGameState(state);
-                }
-                else
-                {
-                    // Keep using mock data if server is unavailable
-                    ChatLog.Add(("System", "⚠️ Using mock data - server unavailable"));
-                }
+                GameStateService.UpdateGameState(mockState);
+                ChatLog.Add(("System", "🎮 Initialized with real card data"));
             }
-            catch (Exception ex)
+            else
             {
-                ChatLog.Add(("System", $"⚠️ Server error: {ex.Message}. Using mock data."));
+                ChatLog.Add(("System", "⚠️ No cards loaded, using fallback data"));
             }
         }
+
 
         // SignalR Event Handlers
         private async Task HandleBoardUpdate(BoardPositionUpdate update)
@@ -182,7 +178,7 @@ namespace Empire.Client.Pages
 
         private async Task HandleCardPlayed(string playingPlayerId, int cardId)
         {
-            var card = MockCardDataService.GetCardById(cardId);
+            var card = allCards.FirstOrDefault(c => c.CardID == cardId);
             var cardName = card?.Name ?? $"Card #{cardId}";
             ChatLog.Add((playingPlayerId, $"🎴 Played {cardName}"));
             await InvokeAsync(StateHasChanged);
@@ -214,10 +210,10 @@ namespace Empire.Client.Pages
                     return;
                 }
 
-                // Mock drawing a card
+                // Draw a card from real data
                 var availableCards = type == "civic" 
-                    ? MockCardDataService.GetCivicCards()
-                    : MockCardDataService.GetMilitaryCards();
+                    ? allCards.Where(c => c.CardType is "Settlement" or "Villager").ToList()
+                    : allCards.Where(c => c.CardType is "Unit" or "Tactic" or "Battle Tactic" or "Chronicle" or "Skirmisher").ToList();
                 
                 if (availableCards.Any())
                 {
@@ -225,7 +221,7 @@ namespace Empire.Client.Pages
                     var drawnCard = availableCards[random.Next(availableCards.Count)];
                     
                     // Add to hand
-                    GameStateService.AddCardToHand(playerId, drawnCard.CardId);
+                    GameStateService.AddCardToHand(playerId, drawnCard.CardID);
                     
                     ChatLog.Add((playerId, $"🃏 Drew {drawnCard.Name}"));
                     await InvokeAsync(StateHasChanged);
@@ -251,7 +247,7 @@ namespace Empire.Client.Pages
                 // Move card from hand to board
                 GameStateService.PlayCardFromHand(playerId, draggedCardId.Value);
                 
-                var card = MockCardDataService.GetCardById(draggedCardId.Value);
+                var card = allCards.FirstOrDefault(c => c.CardID == draggedCardId.Value);
                 ChatLog.Add((playerId, $"🎴 Played {card?.Name ?? $"Card #{draggedCardId.Value}"}"));
                 
                 await InvokeAsync(StateHasChanged);
@@ -270,7 +266,7 @@ namespace Empire.Client.Pages
         // Card click handlers for the new component structure
         private async Task HandleCardClick(int cardId)
         {
-            var card = MockCardDataService.GetCardById(cardId);
+            var card = allCards.FirstOrDefault(c => c.CardID == cardId);
             Console.WriteLine($"Clicked: {card?.Name ?? "Unknown"} (#{cardId})");
             
             // If it's a board card, try to exert it
@@ -284,14 +280,14 @@ namespace Empire.Client.Pages
 
         private async Task HandleCardDoubleClick(int cardId)
         {
-            var card = MockCardDataService.GetCardById(cardId);
+            var card = allCards.FirstOrDefault(c => c.CardID == cardId);
             Console.WriteLine($"Double-clicked: {card?.Name ?? "Unknown"} (#{cardId})");
             await Task.CompletedTask;
         }
 
         private async Task HandleHandCardClick(int cardId)
         {
-            var card = MockCardDataService.GetCardById(cardId);
+            var card = allCards.FirstOrDefault(c => c.CardID == cardId);
             Console.WriteLine($"Hand card clicked: {card?.Name ?? "Unknown"} (#{cardId})");
             await Task.CompletedTask;
         }
@@ -302,7 +298,7 @@ namespace Empire.Client.Pages
             if (IsMyTurn)
             {
                 GameStateService.PlayCardFromHand(playerId, cardId);
-                var card = MockCardDataService.GetCardById(cardId);
+                var card = allCards.FirstOrDefault(c => c.CardID == cardId);
                 ChatLog.Add((playerId, $"🎴 Played {card?.Name ?? $"Card #{cardId}"}"));
                 await InvokeAsync(StateHasChanged);
             }
@@ -310,19 +306,19 @@ namespace Empire.Client.Pages
 
         private async Task HandleOpponentCardClick(int cardId)
         {
-            var card = MockCardDataService.GetCardById(cardId);
+            var card = allCards.FirstOrDefault(c => c.CardID == cardId);
             Console.WriteLine($"Opponent card clicked: {card?.Name ?? "Unknown"} (#{cardId})");
             await Task.CompletedTask;
         }
 
         private async Task HandleOpponentCardDoubleClick(int cardId)
         {
-            var card = MockCardDataService.GetCardById(cardId);
+            var card = allCards.FirstOrDefault(c => c.CardID == cardId);
             Console.WriteLine($"Opponent card double-clicked: {card?.Name ?? "Unknown"} (#{cardId})");
             await Task.CompletedTask;
         }
 
-        private void ShowZoomedCard(Card card, MouseEventArgs e)
+        private void ShowZoomedCard(CardData card, MouseEventArgs e)
         {
             const int previewWidth = 300, previewHeight = 420, screenWidth = 1920, screenHeight = 1080;
             int offsetX = (e.ClientX + previewWidth + 30 > screenWidth) ? -previewWidth - 20 : 20;
@@ -333,6 +329,21 @@ namespace Empire.Client.Pages
         }
 
         private void HideZoomedCard() => ZoomedCard = null;
+
+        private string GetCardType(int cardId)
+        {
+            var card = allCards.FirstOrDefault(c => c.CardID == cardId);
+            return card?.CardType ?? "Unknown";
+        }
+
+        private string GetCardImagePath(CardData card)
+        {
+            if (card?.ImageFileName != null && !string.IsNullOrEmpty(card.ImageFileName))
+            {
+                return $"/images/cards/{card.ImageFileName}";
+            }
+            return "/images/card-placeholder.png";
+        }
 
         private async Task HandleChatKey(KeyboardEventArgs e)
         {
@@ -382,6 +393,47 @@ namespace Empire.Client.Pages
                     break;
             }
             await InvokeAsync(StateHasChanged);
+        }
+
+        private async Task RefreshGameState()
+        {
+            await LoadGameState();
+        }
+
+        private async Task LoadGameState()
+        {
+            try
+            {
+                var state = await GameApi.GetGameState(gameId);
+                if (state != null)
+                {
+                    GameStateService.UpdateGameState(state);
+                }
+                else
+                {
+                    // Keep using mock data if server is unavailable
+                    ChatLog.Add(("System", "⚠️ Using mock data - server unavailable"));
+                }
+            }
+            catch (Exception ex)
+            {
+                ChatLog.Add(("System", $"⚠️ Server error: {ex.Message}. Using mock data."));
+            }
+        }
+
+        private void NavigateToLobby()
+        {
+            NavigationManager.NavigateTo("/lobby");
+        }
+
+        private async Task EndTurn()
+        {
+            await HandleChatCommand("/endturn");
+        }
+
+        private async Task ShuffleDeck()
+        {
+            await HandleChatCommand("/shuffle");
         }
 
         public void Dispose()
