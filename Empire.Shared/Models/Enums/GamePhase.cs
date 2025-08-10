@@ -9,6 +9,7 @@ namespace Empire.Shared.Models
     public enum GamePhase
     {
         Strategy,
+        Action,
         Battle,
         Resolution,
         Replenishment,

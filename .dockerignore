@@ -1,0 +1,47 @@
+# Build outputs
+**/bin/
+**/obj/
+**/out/
+**/publish/
+
+# IDE files
+.vs/
+.vscode/
+*.user
+*.suo
+*.cache
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Node modules (if any)
+node_modules/
+
+# Large image assets that can cause storage issues
+**/wwwroot/images/Cards/
+**/Images/
+blazor-dist/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Certificate files (should be mounted at runtime)
+certbot/
+
+# Documentation
+*.md
+README*
+
+# Test files
+**/*Test*/
+**/*Tests*/
