@@ -10,8 +10,17 @@ COPY Empire.Server/Empire.Server.csproj Empire.Server/
 # Restore dependencies
 RUN dotnet restore Empire.Server/Empire.Server.csproj
 
-# Copy source code (excluding large assets via .dockerignore)
-COPY . .
+# Copy only essential source files (no images)
+COPY Empire.Shared/ Empire.Shared/
+COPY Empire.Client/ Empire.Client/
+COPY Empire.Server/ Empire.Server/
+COPY Empire.sln .
+COPY nginx/ nginx/
+
+# Remove any image directories that might have been copied
+RUN rm -rf Empire.Client/wwwroot/images/Cards/ || true
+RUN rm -rf Empire.Client/wwwroot/images/cards/ || true
+RUN rm -rf blazor-dist/ || true
 
 # Publish server, which also triggers client publish via post-build hook
 RUN dotnet publish Empire.Server/Empire.Server.csproj -c Release -o /app/publish --no-restore

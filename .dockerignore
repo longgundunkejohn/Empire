@@ -25,8 +25,20 @@ node_modules/
 
 # Large image assets that can cause storage issues
 **/wwwroot/images/Cards/
+**/wwwroot/images/cards/
 **/Images/
+**/images/
 blazor-dist/
+**/blazor-dist/
+**/*.jpg
+**/*.jpeg
+**/*.png
+**/*.gif
+**/*.bmp
+**/*.tiff
+**/*.webp
+# Exclude specific problematic paths mentioned in error
+/src/blazor-dist/wwwroot/images/Cards/
 
 # Logs
 *.log
