@@ -333,15 +333,35 @@ namespace Empire.Server.Services
         
         public async Task SaveGameState()
         {
-            await _mongoDbService.UpdateGameStateAsync(GameState);
+            try
+            {
+                var collection = _mongoDbService.GameDatabase.GetCollection<GameState>("GameStates");
+                await collection.ReplaceOneAsync(
+                    gs => gs.GameId == GameState.GameId,
+                    GameState,
+                    new MongoDB.Driver.ReplaceOptions { IsUpsert = true }
+                );
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error saving game state: {ex.Message}");
+            }
         }
 
         public async Task LoadGameState(string gameId)
         {
-            var loadedState = await _mongoDbService.GetGameStateAsync(gameId);
-            if (loadedState != null)
+            try
             {
-                GameState = loadedState;
+                var collection = _mongoDbService.GameDatabase.GetCollection<GameState>("GameStates");
+                var loadedState = await collection.Find(gs => gs.GameId == gameId).FirstOrDefaultAsync();
+                if (loadedState != null)
+                {
+                    GameState = loadedState;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading game state: {ex.Message}");
             }
         }
 

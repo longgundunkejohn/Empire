@@ -36,6 +36,9 @@ public class CardData
     [BsonElement("Faction")]
     public string Faction { get; set; }
 
+    [BsonElement("Description")]
+    public string Description { get; set; } = string.Empty;
+
     public string ImageFileName { get; set; } = string.Empty;
 
 

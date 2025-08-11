@@ -107,30 +107,30 @@ namespace Empire.Client.Pages
         }
 
         // Empire Event Handlers
-        private async Task HandleEmpirePhaseChanged(GamePhase phase, string initiativeHolder)
+        private void HandleEmpirePhaseChanged(GamePhase phase, string initiativeHolder)
         {
             ChatLog.Add(("System", $"⏰ Phase: {phase} | Initiative: {initiativeHolder}"));
-            await InvokeAsync(StateHasChanged);
+            InvokeAsync(StateHasChanged);
         }
 
-        private async Task HandleInitiativeChanged(string newInitiativeHolder)
+        private void HandleInitiativeChanged(string newInitiativeHolder)
         {
             var isYourTurn = newInitiativeHolder == playerId;
             ChatLog.Add(("System", isYourTurn ? "🎯 Your turn!" : "⏳ Opponent's turn"));
-            await InvokeAsync(StateHasChanged);
+            InvokeAsync(StateHasChanged);
         }
 
-        private async Task HandleMoraleChanged(string playerId, int newMorale)
+        private void HandleMoraleChanged(string playerId, int newMorale)
         {
             ChatLog.Add(("System", $"💔 {playerId} morale: {newMorale}"));
-            await InvokeAsync(StateHasChanged);
+            InvokeAsync(StateHasChanged);
         }
 
-        private async Task HandleGameWon(string winnerId)
+        private void HandleGameWon(string winnerId)
         {
             var isYouWinner = winnerId == playerId;
             ChatLog.Add(("System", isYouWinner ? "🎉 You won!" : "💀 You lost!"));
-            await InvokeAsync(StateHasChanged);
+            InvokeAsync(StateHasChanged);
         }
 
         // SignalR Event Handlers
@@ -564,6 +564,20 @@ namespace Empire.Client.Pages
         {
             ChatLog.Add((playerId, "🔀 Shuffled deck"));
             await InvokeAsync(StateHasChanged);
+        }
+
+        private async Task UnexertAllCards()
+        {
+            try
+            {
+                await EmpireGameService.UnexertAllCards();
+                ChatLog.Add((playerId, "🔄 Unexerted all cards"));
+                await InvokeAsync(StateHasChanged);
+            }
+            catch (Exception ex)
+            {
+                ChatLog.Add(("System", $"❌ Error unexerting cards: {ex.Message}"));
+            }
         }
 
         public void Dispose()

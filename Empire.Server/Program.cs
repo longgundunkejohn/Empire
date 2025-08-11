@@ -1,5 +1,6 @@
 using Empire.Server.Hubs;
 using Empire.Server.Interfaces;
+using Empire.Server.Middleware;
 using Empire.Server.Services;
 using Empire.Shared.Models;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -45,7 +46,7 @@ builder.Services.Configure<FormOptions>(options =>
 
 // ✅ Game services
 builder.Services.AddScoped<IMongoDbService, MongoDbService>();
-builder.Services.AddScoped<ICardDatabaseService, CardGameDatabaseService>();
+builder.Services.AddScoped<ICardDatabaseService, JsonCardDataService>();
 builder.Services.AddSingleton<ICardService, CardService>();
 builder.Services.AddSingleton<GameSessionService>();
 builder.Services.AddSingleton<GameStateService>();
@@ -53,6 +54,7 @@ builder.Services.AddSingleton<BoardService>();
 builder.Services.AddSingleton<DeckService>();
 builder.Services.AddSingleton<DeckLoaderService>();
 builder.Services.AddSingleton<CardFactory>();
+builder.Services.AddScoped<CardEffectService>();
 builder.Services.AddMemoryCache();
 builder.Services.AddSwaggerGen();
 
@@ -74,6 +76,9 @@ builder.Services.AddCors(opt =>
 
 // ────────────── Pipeline ──────────────
 var app = builder.Build();
+
+// ✅ Error handling middleware (must be first)
+app.UseMiddleware<ErrorHandlingMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {

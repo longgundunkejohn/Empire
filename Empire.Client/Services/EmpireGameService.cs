@@ -71,22 +71,26 @@ namespace Empire.Client.Services
         {
             if (!CanTakeAction()) return false;
             
-            var card = GetCardById(cardId);
-            if (card == null || !card.IsCivicCard() == false) return false; // Must be army card
-            
             var player = GetCurrentPlayer();
             if (player == null) return false;
             
-            // Check if player can afford the card
-            if (!card.CanBeDeployed(player.CurrentTier, player.AvailableMana))
+            var card = GetCardById(cardId);
+            if (card == null || card.Type != "Army") return false;
+            
+            // For now, use simplified mana cost of 1
+            // TODO: Implement proper mana cost calculation based on card and player tier
+            int manaCost = 1;
+            
+            try
             {
-                Console.WriteLine($"Cannot afford card {card.Name}. Requires tier {card.GetTierNumber()}, costs {card.GetManaCost(player.CurrentTier)} mana. Player has tier {player.CurrentTier}, {player.AvailableMana} mana.");
+                await _hubService.DeployArmyCard(CurrentGameId!, CurrentPlayerId!, cardId, manaCost);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deploying army card: {ex.Message}");
                 return false;
             }
-            
-            int manaCost = card.GetManaCost(player.CurrentTier);
-            await _hubService.DeployArmyCard(CurrentGameId!, CurrentPlayerId!, cardId, manaCost);
-            return true;
         }
 
         /// <summary>

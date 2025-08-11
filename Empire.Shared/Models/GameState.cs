@@ -35,6 +35,7 @@ namespace Empire.Shared.Models
         public Dictionary<string, string> TerritoryOccupants { get; set; } = new(); // "territory-1" → "player1"
         public Dictionary<string, List<int>> TerritorySettlements { get; set; } = new(); // settled civic cards
         public Dictionary<string, List<int>> TerritoryAdvancingUnits { get; set; } = new(); // units advancing into territory
+        public Dictionary<string, List<int>> TerritoryOccupyingUnits { get; set; } = new(); // units currently occupying territory
         
         // Player Zones
         public Dictionary<string, List<int>> PlayerArmyHands { get; set; } = new();
@@ -80,6 +81,9 @@ namespace Empire.Shared.Models
                 TerritoryAdvancingUnits["territory-1"] = new List<int>();
                 TerritoryAdvancingUnits["territory-2"] = new List<int>();
                 TerritoryAdvancingUnits["territory-3"] = new List<int>();
+                TerritoryOccupyingUnits["territory-1"] = new List<int>();
+                TerritoryOccupyingUnits["territory-2"] = new List<int>();
+                TerritoryOccupyingUnits["territory-3"] = new List<int>();
             }
         }
         

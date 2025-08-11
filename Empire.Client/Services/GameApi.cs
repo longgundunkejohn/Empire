@@ -1,5 +1,6 @@
 ﻿using Empire.Shared.DTOs;
 using Empire.Shared.Models;
+using Empire.Shared.Models.DTOs;
 using System.Net.Http.Json;
 
 namespace Empire.Client.Services

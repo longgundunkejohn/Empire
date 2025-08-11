@@ -1,0 +1,421 @@
+@using Empire.Shared.Models
+@using Empire.Client.Services
+@inject CardDataService CardDataService
+@inject IJSRuntime JSRuntime
+
+<div class="deck-builder">
+    <div class="deck-builder-header">
+        <h2>Empire Deck Builder</h2>
+        <div class="deck-info">
+            <span>Cards in Deck: @currentDeck.Count / 60</span>
+            <button class="btn btn-primary" @onclick="SaveDeck" disabled="@(!IsValidDeck())">Save Deck</button>
+            <button class="btn btn-secondary" @onclick="ClearDeck">Clear Deck</button>
+        </div>
+    </div>
+
+    <div class="deck-builder-content">
+        <!-- Card Browser -->
+        <div class="card-browser">
+            <div class="search-filters">
+                <input type="text" @bind="searchTerm" @oninput="OnSearchChanged" placeholder="Search cards..." class="form-control" />
+                
+                <select @bind="selectedCardType" @bind:after="OnFilterChanged" class="form-select">
+                    <option value="">All Types</option>
+                    <option value="Unit">Units</option>
+                    <option value="Tactic">Tactics</option>
+                    <option value="Chronicle">Chronicles</option>
+                    <option value="Settlement">Settlements</option>
+                    <option value="Villager">Villagers</option>
+                </select>
+
+                <select @bind="selectedTier" @bind:after="OnFilterChanged" class="form-select">
+                    <option value="">All Tiers</option>
+                    <option value="I">Tier I</option>
+                    <option value="II">Tier II</option>
+                    <option value="III">Tier III</option>
+                    <option value="IV">Tier IV</option>
+                    <option value="-">Special</option>
+                </select>
+
+                <select @bind="selectedFaction" @bind:after="OnFilterChanged" class="form-select">
+                    <option value="">All Factions</option>
+                    @foreach (var faction in availableFactions)
+                    {
+                        <option value="@faction">@faction</option>
+                    }
+                </select>
+            </div>
+
+            <div class="card-grid">
+                @if (isLoading)
+                {
+                    <div class="loading">Loading cards...</div>
+                }
+                else
+                {
+                    @foreach (var card in filteredCards)
+                    {
+                        <div class="card-item" @onclick="() => AddCardToDeck(card)">
+                            <div class="card-preview">
+                                <img src="@CardDataService.GetCardImageUrl(card)" alt="@card.Name" class="card-image" />
+                                <div class="card-overlay">
+                                    <div class="card-name">@card.Name</div>
+                                    <div class="card-cost">@card.Cost</div>
+                                    @if (card.CardType.Contains("Unit"))
+                                    {
+                                        <div class="card-stats">@card.Attack/@card.Defence</div>
+                                    }
+                                    <div class="card-tier">@card.Tier</div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+
+        <!-- Current Deck -->
+        <div class="current-deck">
+            <h3>Current Deck</h3>
+            
+            <div class="deck-stats">
+                <div class="stat">
+                    <label>Total Cards:</label>
+                    <span>@currentDeck.Count</span>
+                </div>
+                <div class="stat">
+                    <label>Average Cost:</label>
+                    <span>@(currentDeck.Any() ? currentDeck.Average(c => c.Cost).ToString("F1") : "0")</span>
+                </div>
+            </div>
+
+            <div class="deck-breakdown">
+                <h4>By Type:</h4>
+                @foreach (var typeGroup in currentDeck.GroupBy(c => c.CardType).OrderBy(g => g.Key))
+                {
+                    <div class="type-count">@typeGroup.Key: @typeGroup.Count()</div>
+                }
+            </div>
+
+            <div class="deck-list">
+                @foreach (var cardGroup in currentDeck.GroupBy(c => c.CardID).OrderBy(g => g.First().Cost))
+                {
+                    var card = cardGroup.First();
+                    var count = cardGroup.Count();
+                    
+                    <div class="deck-card-item">
+                        <img src="@CardDataService.GetCardImageUrl(card)" alt="@card.Name" class="deck-card-image" />
+                        <div class="deck-card-info">
+                            <div class="deck-card-name">@card.Name</div>
+                            <div class="deck-card-details">
+                                <span class="cost">@card.Cost</span>
+                                @if (card.CardType.Contains("Unit"))
+                                {
+                                    <span class="stats">@card.Attack/@card.Defence</span>
+                                }
+                                <span class="tier">@card.Tier</span>
+                            </div>
+                        </div>
+                        <div class="deck-card-count">
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveCardFromDeck(card)">-</button>
+                            <span>@count</span>
+                            <button class="btn btn-sm btn-outline-success" @onclick="() => AddCardToDeck(card)" disabled="@(count >= 3)">+</button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<CardData> allCards = new();
+    private List<CardData> filteredCards = new();
+    private List<CardData> currentDeck = new();
+    private List<string> availableFactions = new();
+    
+    private string searchTerm = "";
+    private string selectedCardType = "";
+    private string selectedTier = "";
+    private string selectedFaction = "";
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCards();
+    }
+
+    private async Task LoadCards()
+    {
+        isLoading = true;
+        allCards = await CardDataService.GetAllCardsAsync();
+        
+        // Get available factions
+        availableFactions = allCards
+            .Where(c => !string.IsNullOrEmpty(c.Faction) && c.Faction != "No")
+            .Select(c => c.Faction)
+            .Distinct()
+            .OrderBy(f => f)
+            .ToList();
+        
+        await ApplyFilters();
+        isLoading = false;
+    }
+
+    private async Task OnSearchChanged(ChangeEventArgs e)
+    {
+        searchTerm = e.Value?.ToString() ?? "";
+        await ApplyFilters();
+    }
+
+    private async Task OnFilterChanged()
+    {
+        await ApplyFilters();
+    }
+
+    private async Task ApplyFilters()
+    {
+        filteredCards = allCards;
+
+        if (!string.IsNullOrEmpty(searchTerm))
+        {
+            filteredCards = await CardDataService.SearchCardsAsync(searchTerm);
+        }
+
+        if (!string.IsNullOrEmpty(selectedCardType))
+        {
+            filteredCards = filteredCards.Where(c => c.CardType.Contains(selectedCardType, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+
+        if (!string.IsNullOrEmpty(selectedTier))
+        {
+            filteredCards = filteredCards.Where(c => c.Tier == selectedTier).ToList();
+        }
+
+        if (!string.IsNullOrEmpty(selectedFaction))
+        {
+            filteredCards = filteredCards.Where(c => c.Faction.Equals(selectedFaction, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+
+        StateHasChanged();
+    }
+
+    private void AddCardToDeck(CardData card)
+    {
+        // Check deck limits
+        if (currentDeck.Count >= 60) return;
+        
+        var cardCount = currentDeck.Count(c => c.CardID == card.CardID);
+        if (cardCount >= 3) return; // Max 3 copies per card
+        
+        currentDeck.Add(card);
+        StateHasChanged();
+    }
+
+    private void RemoveCardFromDeck(CardData card)
+    {
+        var cardToRemove = currentDeck.FirstOrDefault(c => c.CardID == card.CardID);
+        if (cardToRemove != null)
+        {
+            currentDeck.Remove(cardToRemove);
+            StateHasChanged();
+        }
+    }
+
+    private void ClearDeck()
+    {
+        currentDeck.Clear();
+        StateHasChanged();
+    }
+
+    private bool IsValidDeck()
+    {
+        return currentDeck.Count >= 40 && currentDeck.Count <= 60;
+    }
+
+    private async Task SaveDeck()
+    {
+        if (!IsValidDeck()) return;
+        
+        // TODO: Implement deck saving logic
+        await JSRuntime.InvokeVoidAsync("alert", $"Deck saved! {currentDeck.Count} cards.");
+    }
+}
+
+<style>
+    .deck-builder {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        padding: 1rem;
+    }
+
+    .deck-builder-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #ddd;
+    }
+
+    .deck-info {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .deck-builder-content {
+        display: flex;
+        gap: 1rem;
+        flex: 1;
+        overflow: hidden;
+    }
+
+    .card-browser {
+        flex: 2;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .search-filters {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .search-filters input,
+    .search-filters select {
+        flex: 1;
+    }
+
+    .card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 0.5rem;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .card-item {
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+
+    .card-item:hover {
+        transform: scale(1.05);
+    }
+
+    .card-preview {
+        position: relative;
+        aspect-ratio: 2.5/3.5;
+    }
+
+    .card-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 8px;
+    }
+
+    .card-overlay {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(transparent, rgba(0,0,0,0.8));
+        color: white;
+        padding: 0.5rem;
+        border-radius: 0 0 8px 8px;
+        font-size: 0.8rem;
+    }
+
+    .card-name {
+        font-weight: bold;
+        margin-bottom: 0.25rem;
+    }
+
+    .current-deck {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        border-left: 1px solid #ddd;
+        padding-left: 1rem;
+    }
+
+    .deck-stats {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .stat {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .stat label {
+        font-size: 0.8rem;
+        color: #666;
+    }
+
+    .deck-breakdown {
+        margin-bottom: 1rem;
+    }
+
+    .type-count {
+        font-size: 0.9rem;
+        margin: 0.25rem 0;
+    }
+
+    .deck-list {
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    .deck-card-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem;
+        border: 1px solid #eee;
+        border-radius: 4px;
+        margin-bottom: 0.5rem;
+    }
+
+    .deck-card-image {
+        width: 40px;
+        height: 56px;
+        object-fit: cover;
+        border-radius: 4px;
+    }
+
+    .deck-card-info {
+        flex: 1;
+    }
+
+    .deck-card-name {
+        font-weight: bold;
+        font-size: 0.9rem;
+    }
+
+    .deck-card-details {
+        font-size: 0.8rem;
+        color: #666;
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .deck-card-count {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 2rem;
+        color: #666;
+    }
+</style>

@@ -1,8 +1,8 @@
-﻿namespace Empire.Shared.DTOs
+﻿namespace Empire.Shared.Models.DTOs
 {
     public class GameStartRequest
     {
         public string Player1 { get; set; } = string.Empty;
-        public string DeckId { get; set; } = string.Empty; // ⬅️ now we're referencing a specific deck
+        public string DeckId { get; set; } = string.Empty;
     }
 }

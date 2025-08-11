@@ -27,5 +27,6 @@ builder.Services.AddSingleton<GameStateClientService>();
 builder.Services.AddScoped<CardService>();
 builder.Services.AddScoped<DeckService>();
 builder.Services.AddScoped<EmpireGameService>();
+builder.Services.AddScoped<CardDataService>();
 
 await builder.Build().RunAsync();

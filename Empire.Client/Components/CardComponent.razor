@@ -43,9 +43,9 @@
 
     private string GetCardImagePath()
     {
-        if (CardData?.ImageFileName != null && !string.IsNullOrEmpty(CardData.ImageFileName))
+        if (CardData?.CardID > 0)
         {
-            return $"/images/cards/{CardData.ImageFileName}";
+            return $"/images/Cards/{CardData.CardID}.jpg";
         }
         return "/images/card-placeholder.png";
     }

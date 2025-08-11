@@ -50,7 +50,7 @@
                 <h3>🏰 Heartland</h3>
                 <span class="zone-count">@PlayerHeartland.Count units</span>
             </div>
-            <div class="card-container" @ondrop="@((e) => OnZoneDrop(e, "heartland"))" @ondragover:preventDefault>
+            <div class="card-container" @ondrop="@((e) => OnZoneDrop.InvokeAsync((0, "heartland")))" @ondragover:preventDefault>
                 @foreach (var cardId in PlayerHeartland)
                 {
                     <div class="card-slot @(IsCardExerted(cardId) ? "exerted" : "")">
@@ -78,7 +78,7 @@
                 <h3>👥 Villagers</h3>
                 <span class="zone-count">@PlayerVillagers.Count villagers</span>
             </div>
-            <div class="card-container" @ondrop="@((e) => OnZoneDrop(e, "villagers"))" @ondragover:preventDefault>
+            <div class="card-container" @ondrop="@((e) => OnZoneDrop.InvokeAsync((0, "villagers")))" @ondragover:preventDefault>
                 @foreach (var cardId in PlayerVillagers)
                 {
                     <div class="card-slot">
@@ -234,11 +234,6 @@
         return false;
     }
 
-    private async Task OnZoneDrop(DragEventArgs e, string zone)
-    {
-        // Handle dropping cards into zones
-        await Task.CompletedTask;
-    }
 }
 
 <style>
@@ -444,7 +439,7 @@
 }
 
 /* Responsive design */
-@media (max-width: 1200px) {
+@@media (max-width: 1200px) {
     .territory-grid {
         grid-template-columns: 1fr;
     }

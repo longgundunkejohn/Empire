@@ -59,7 +59,7 @@ else
                 <button class="btn-empire btn-pass" @onclick="PassInitiative" disabled="@(!IsMyTurn)">
                     Pass Initiative
                 </button>
-                <button class="btn-empire btn-unexert" @onclick="() => HandleChatCommand(\"/unexert\")" disabled="@(!IsMyTurn)">
+                <button class="btn-empire btn-unexert" @onclick="UnexertAllCards" disabled="@(!IsMyTurn)">
                     Unexert All
                 </button>
             </div>
@@ -236,10 +236,10 @@ else
         <div class="empire-action-panel">
             <div class="action-group">
                 <h4>Empire Actions</h4>
-                <button class="btn-empire btn-action" @onclick="() => HandleChatCommand(\"/draw\")" disabled="@(!IsMyTurn)">
+                <button class="btn-empire btn-action" @onclick="DrawMilitary" disabled="@(!IsMyTurn)">
                     Draw Army Card
                 </button>
-                <button class="btn-empire btn-action" @onclick="() => HandleChatCommand(\"/drawcivic\")" disabled="@(!IsMyTurn)">
+                <button class="btn-empire btn-action" @onclick="DrawCivic" disabled="@(!IsMyTurn)">
                     Draw 2 Civic Cards
                 </button>
             </div>
@@ -529,13 +529,14 @@ else
     margin-top: 0.5rem;
 }
 
-@keyframes pulse {
+/* Animations */
+@@keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
 }
 
 /* Responsive design */
-@media (max-width: 1200px) {
+@@media (max-width: 1200px) {
     .empire-action-panel {
         position: relative;
         top: auto;
