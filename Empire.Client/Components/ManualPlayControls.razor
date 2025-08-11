@@ -85,25 +85,25 @@
         <div class="deck-buttons">
             <div class="army-deck-controls">
                 <span class="deck-label">Army Deck:</span>
-                <button class="btn btn-sm btn-outline-primary" @onclick="() => DrawCards('Army', 1)">
+                <button class="btn btn-sm btn-outline-primary" @onclick='() => DrawCards("Army", 1)'>
                     Draw 1
                 </button>
-                <button class="btn btn-sm btn-outline-primary" @onclick="() => DrawCards('Army', 2)">
+                <button class="btn btn-sm btn-outline-primary" @onclick='() => DrawCards("Army", 2)'>
                     Draw 2
                 </button>
-                <button class="btn btn-sm btn-outline-secondary" @onclick="() => ShuffleDeck('Army')">
+                <button class="btn btn-sm btn-outline-secondary" @onclick='() => ShuffleDeck("Army")'>
                     Shuffle
                 </button>
             </div>
             <div class="civic-deck-controls">
                 <span class="deck-label">Civic Deck:</span>
-                <button class="btn btn-sm btn-outline-success" @onclick="() => DrawCards('Civic', 1)">
+                <button class="btn btn-sm btn-outline-success" @onclick='() => DrawCards("Civic", 1)'>
                     Draw 1
                 </button>
-                <button class="btn btn-sm btn-outline-success" @onclick="() => DrawCards('Civic', 2)">
+                <button class="btn btn-sm btn-outline-success" @onclick='() => DrawCards("Civic", 2)'>
                     Draw 2
                 </button>
-                <button class="btn btn-sm btn-outline-secondary" @onclick="() => ShuffleDeck('Civic')">
+                <button class="btn btn-sm btn-outline-secondary" @onclick='() => ShuffleDeck("Civic")'>
                     Shuffle
                 </button>
             </div>
@@ -156,10 +156,10 @@
                 <div class="modal-body">
                     <p>Choose your replenishment action:</p>
                     <div class="replenishment-options">
-                        <button class="btn btn-primary me-2" @onclick="() => ReplenishmentChoice('Army')">
+                        <button class="btn btn-primary me-2" @onclick='() => ReplenishmentChoice("Army")'>
                             Draw 1 Army Card
                         </button>
-                        <button class="btn btn-success" @onclick="() => ReplenishmentChoice('Civic')">
+                        <button class="btn btn-success" @onclick='() => ReplenishmentChoice("Civic")'>
                             Draw 2 Civic Cards
                         </button>
                     </div>
@@ -568,12 +568,3 @@
         background-color: rgba(0, 0, 0, 0.5);
     }
 </style>
-
-<script>
-    window.scrollToBottom = (elementId) => {
-        const element = document.getElementById(elementId);
-        if (element) {
-            element.scrollTop = element.scrollHeight;
-        }
-    };
-</script>

@@ -29,6 +29,12 @@
         <a class="dismiss">🗙</a>
     </div>
     <script src="_framework/blazor.webassembly.js"></script>
+    <script>
+        window.setDragData = (event, cardId, zone) => {
+            event.dataTransfer.setData("text/plain", JSON.stringify({ cardId, zone }));
+            event.dataTransfer.effectAllowed = "move";
+        };
+    </script>
 </body>
 
 </html>

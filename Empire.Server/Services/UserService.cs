@@ -1,18 +1,16 @@
 using Microsoft.EntityFrameworkCore;
 using Empire.Server.Data;
-using Empire.Server.Models;
 using System.Text.Json;
-using Empire.Shared.Models;
 
 namespace Empire.Server.Services
 {
     public interface IUserService
     {
-        Task<User> GetOrCreateUserAsync(string username);
-        Task<List<UserDeck>> GetUserDecksAsync(string username);
-        Task<UserDeck> SaveDeckAsync(string username, string deckName, List<int> armyCards, List<int> civicCards);
+        Task<Empire.Server.Models.User> GetOrCreateUserAsync(string username);
+        Task<List<Empire.Server.Models.UserDeck>> GetUserDecksAsync(string username);
+        Task<Empire.Server.Models.UserDeck> SaveDeckAsync(string username, string deckName, List<int> armyCards, List<int> civicCards);
         Task<bool> DeleteDeckAsync(string username, string deckName);
-        Task<Deck?> GetDeckAsync(string username, string deckName);
+        Task<Empire.Shared.Models.Deck?> GetDeckAsync(string username, string deckName);
     }
 
     public class UserService : IUserService
@@ -26,13 +24,13 @@ namespace Empire.Server.Services
             _cardService = cardService;
         }
 
-        public async Task<User> GetOrCreateUserAsync(string username)
+        public async Task<Empire.Server.Models.User> GetOrCreateUserAsync(string username)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == username);
             
             if (user == null)
             {
-                user = new User { Username = username };
+                user = new Empire.Server.Models.User { Username = username };
                 _context.Users.Add(user);
                 await _context.SaveChangesAsync();
             }
@@ -40,22 +38,22 @@ namespace Empire.Server.Services
             return user;
         }
 
-        public async Task<List<UserDeck>> GetUserDecksAsync(string username)
+        public async Task<List<Empire.Server.Models.UserDeck>> GetUserDecksAsync(string username)
         {
             var user = await GetOrCreateUserAsync(username);
             return await _context.UserDecks
                 .Where(d => d.UserId == user.Id)
-                .OrderBy(d => d.DeckName)
+                .OrderBy(d => d.Name)
                 .ToListAsync();
         }
 
-        public async Task<UserDeck> SaveDeckAsync(string username, string deckName, List<int> armyCards, List<int> civicCards)
+        public async Task<Empire.Server.Models.UserDeck> SaveDeckAsync(string username, string deckName, List<int> armyCards, List<int> civicCards)
         {
             var user = await GetOrCreateUserAsync(username);
             
             // Check if deck already exists
             var existingDeck = await _context.UserDecks
-                .FirstOrDefaultAsync(d => d.UserId == user.Id && d.DeckName == deckName);
+                .FirstOrDefaultAsync(d => d.UserId == user.Id && d.Name == deckName);
 
             if (existingDeck != null)
             {
@@ -67,10 +65,10 @@ namespace Empire.Server.Services
             else
             {
                 // Create new deck
-                existingDeck = new UserDeck
+                existingDeck = new Empire.Server.Models.UserDeck
                 {
                     UserId = user.Id,
-                    DeckName = deckName,
+                    Name = deckName,
                     ArmyCards = JsonSerializer.Serialize(armyCards),
                     CivicCards = JsonSerializer.Serialize(civicCards)
                 };
@@ -85,7 +83,7 @@ namespace Empire.Server.Services
         {
             var user = await GetOrCreateUserAsync(username);
             var deck = await _context.UserDecks
-                .FirstOrDefaultAsync(d => d.UserId == user.Id && d.DeckName == deckName);
+                .FirstOrDefaultAsync(d => d.UserId == user.Id && d.Name == deckName);
 
             if (deck != null)
             {
@@ -97,11 +95,11 @@ namespace Empire.Server.Services
             return false;
         }
 
-        public async Task<Deck?> GetDeckAsync(string username, string deckName)
+        public async Task<Empire.Shared.Models.Deck?> GetDeckAsync(string username, string deckName)
         {
             var user = await GetOrCreateUserAsync(username);
             var userDeck = await _context.UserDecks
-                .FirstOrDefaultAsync(d => d.UserId == user.Id && d.DeckName == deckName);
+                .FirstOrDefaultAsync(d => d.UserId == user.Id && d.Name == deckName);
 
             if (userDeck == null)
                 return null;
@@ -113,7 +111,7 @@ namespace Empire.Server.Services
             var allCardIds = armyCardIds.Concat(civicCardIds).ToList();
             var cards = await _cardService.GetDeckCards(allCardIds);
 
-            return new Deck(cards);
+            return new Empire.Shared.Models.Deck(cards);
         }
     }
 }

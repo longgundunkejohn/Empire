@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Empire.Shared.Models;
 using Empire.Server.Services;
 using System.Security.Claims;
+using System.ComponentModel.DataAnnotations;
 
 namespace Empire.Server.Controllers
 {
@@ -141,7 +142,7 @@ namespace Empire.Server.Controllers
                 }
 
                 var success = await _lobbyService.JoinLobbyAsync(
-                    request.LobbyId, userId, username, null, request.PlayerSlot);
+                    request.LobbyId, userId, username, null, (PlayerSlot)request.PlayerSlot);
 
                 if (!success)
                 {

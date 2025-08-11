@@ -384,7 +384,7 @@ namespace Empire.Server.Services
                     Cost = 1 + (i % 5),
                     Attack = 1 + (i % 4),
                     Defense = 1 + (i % 3),
-                    Description = $"Mock army unit {i}"
+                    CardText = $"Mock army unit {i}"
                 });
             }
             return cards;
@@ -401,7 +401,7 @@ namespace Empire.Server.Services
                     Name = $"Civic Building {i}",
                     Type = "Civic",
                     Cost = 1 + (i % 3),
-                    Description = $"Mock civic building {i}"
+                    CardText = $"Mock civic building {i}"
                 });
             }
             return cards;

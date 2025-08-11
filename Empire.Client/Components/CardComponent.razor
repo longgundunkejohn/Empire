@@ -58,7 +58,7 @@
         <!-- Tap indicator -->
         @if (IsTapped)
         {
-            <div class="tap-indicator">⟲</div>
+            <div class="tap-indicator">T</div>
         }
     }
     else
@@ -80,13 +80,13 @@
             @(IsFaceDown ? "Flip Face Up" : "Flip Face Down")
         </div>
         <div class="context-menu-separator"></div>
-        <div class="context-menu-item" @onclick="() => ShowCounterDialog('damage')">
+        <div class="context-menu-item" @onclick='() => ShowCounterDialog("damage")'>
             Add Damage Counter
         </div>
-        <div class="context-menu-item" @onclick="() => ShowCounterDialog('escalation')">
+        <div class="context-menu-item" @onclick='() => ShowCounterDialog("escalation")'>
             Add Escalation Counter
         </div>
-        <div class="context-menu-item" @onclick="() => ShowCounterDialog('custom')">
+        <div class="context-menu-item" @onclick='() => ShowCounterDialog("custom")'>
             Add Custom Counter
         </div>
         <div class="context-menu-separator"></div>
@@ -209,7 +209,7 @@
         if (IsFaceDown)
         {
             // Return appropriate card back based on card type
-            if (CardData?.Type?.Contains("Army") == true)
+            if (CardData?.CardType?.Contains("Army") == true)
                 return "/Cardbacks/armyCardback.png";
             else
                 return "/Cardbacks/civicCardback.png";
@@ -249,12 +249,12 @@
     {
         return counterType.ToLower() switch
         {
-            "damage" => "💥",
-            "escalation" => "⬆️",
-            "+1/+1" => "➕",
-            "-1/-1" => "➖",
-            "poison" => "☠️",
-            _ => "🔢"
+            "damage" => "DMG",
+            "escalation" => "ESC",
+            "+1/+1" => "+1",
+            "-1/-1" => "-1",
+            "poison" => "PSN",
+            _ => "CTR"
         };
     }
 
@@ -578,10 +578,3 @@
         background-color: rgba(0, 0, 0, 0.5);
     }
 </style>
-
-<script>
-    window.setDragData = (event, cardId, zone) => {
-        event.dataTransfer.setData("text/plain", JSON.stringify({ cardId, zone }));
-        event.dataTransfer.effectAllowed = "move";
-    };
-</script>

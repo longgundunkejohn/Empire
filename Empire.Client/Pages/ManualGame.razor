@@ -30,8 +30,8 @@
                 <div class="player-info opponent">
                     <div class="player-name">@OpponentName</div>
                     <div class="player-stats">
-                        <span class="morale">❤️ @OpponentMorale</span>
-                        <span class="tier">⭐ @OpponentTier</span>
+                        <span class="morale">HP @OpponentMorale</span>
+                        <span class="tier">T @OpponentTier</span>
                     </div>
                 </div>
 
@@ -181,8 +181,8 @@
                 <div class="player-info current">
                     <div class="player-name">@CurrentPlayerName</div>
                     <div class="player-stats">
-                        <span class="morale">❤️ @PlayerMorale</span>
-                        <span class="tier">⭐ @PlayerTier</span>
+                        <span class="morale">HP @PlayerMorale</span>
+                        <span class="tier">T @PlayerTier</span>
                     </div>
                 </div>
             </div>
@@ -207,12 +207,12 @@
 
                 <!-- Decks -->
                 <div class="deck-zones">
-                    <div class="deck-zone army-deck" @onclick="() => DrawFromDeck('Army')">
+                    <div class="deck-zone army-deck" @onclick='() => DrawFromDeck("Army")'>
                         <div class="zone-label">Army Deck</div>
                         <div class="deck-count">@ArmyDeckCount</div>
                         <CardComponent CardId="0" IsFaceDown="true" IsDraggable="false" />
                     </div>
-                    <div class="deck-zone civic-deck" @onclick="() => DrawFromDeck('Civic')">
+                    <div class="deck-zone civic-deck" @onclick='() => DrawFromDeck("Civic")'>
                         <div class="zone-label">Civic Deck</div>
                         <div class="deck-count">@CivicDeckCount</div>
                         <CardComponent CardId="0" IsFaceDown="true" IsDraggable="false" />
@@ -239,7 +239,7 @@
         <div class="error-screen">
             <h3>Game not found</h3>
             <p>The requested game could not be loaded.</p>
-            <button class="btn btn-primary" @onclick="() => Navigation.NavigateTo(\"/lobby\")">
+            <button class="btn btn-primary" @onclick='() => Navigation.NavigateTo("/lobby")'>
                 Return to Lobby
             </button>
         </div>
@@ -879,9 +879,3 @@
         background: rgba(78, 205, 196, 0.1);
     }
 </style>
-
-<script>
-    window.getDragData = (event) => {
-        return event.dataTransfer.getData("text/plain");
-    };
-</script>

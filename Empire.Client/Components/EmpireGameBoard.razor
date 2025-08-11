@@ -14,7 +14,7 @@
         
         <div class="initiative-display">
             <div class="initiative-holder @(IsPlayerTurn ? "player-turn" : "opponent-turn")">
-                <span class="initiative-icon">⚡</span>
+                <span class="initiative-icon">!</span>
                 <span class="initiative-text">@(IsPlayerTurn ? "Your Initiative" : "Opponent's Initiative")</span>
             </div>
         </div>
@@ -47,7 +47,7 @@
         <!-- Heartland -->
         <div class="zone heartland-zone">
             <div class="zone-header">
-                <h3>🏰 Heartland</h3>
+                <h3>Heartland</h3>
                 <span class="zone-count">@PlayerHeartland.Count units</span>
             </div>
             <div class="card-container" @ondrop="@((e) => OnZoneDrop.InvokeAsync((0, "heartland")))" @ondragover:preventDefault>
@@ -75,7 +75,7 @@
         <!-- Villagers -->
         <div class="zone villagers-zone">
             <div class="zone-header">
-                <h3>👥 Villagers</h3>
+                <h3>Villagers</h3>
                 <span class="zone-count">@PlayerVillagers.Count villagers</span>
             </div>
             <div class="card-container" @ondrop="@((e) => OnZoneDrop.InvokeAsync((0, "villagers")))" @ondragover:preventDefault>
@@ -106,7 +106,7 @@
         <!-- Army Hand -->
         <div class="hand-zone army-hand">
             <div class="hand-header">
-                <h3>⚔️ Army Hand</h3>
+                <h3>Army Hand</h3>
                 <span class="hand-count">@PlayerArmyHand.Count cards</span>
             </div>
             <div class="hand-container">
@@ -131,7 +131,7 @@
         <!-- Civic Hand -->
         <div class="hand-zone civic-hand">
             <div class="hand-header">
-                <h3>🏛️ Civic Hand</h3>
+                <h3>Civic Hand</h3>
                 <span class="hand-count">@PlayerCivicHand.Count cards</span>
             </div>
             <div class="hand-container">
@@ -179,10 +179,10 @@
     {
         return phase switch
         {
-            GamePhase.Strategy => "🎯",
-            GamePhase.Battle => "⚔️",
-            GamePhase.Replenishment => "🔄",
-            _ => "❓"
+            GamePhase.Strategy => "S",
+            GamePhase.Battle => "B",
+            GamePhase.Replenishment => "R",
+            _ => "?"
         };
     }
 

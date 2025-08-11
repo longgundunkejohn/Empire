@@ -7,15 +7,15 @@
         <div class="territory-status">
             @if (IsOccupiedByPlayer)
             {
-                <span class="occupation-status player">🏴 Occupied</span>
+                <span class="occupation-status player">Occupied</span>
             }
             else if (OccupyingUnits.Any())
             {
-                <span class="occupation-status opponent">🏴 Enemy Occupied</span>
+                <span class="occupation-status opponent">Enemy Occupied</span>
             }
             else
             {
-                <span class="occupation-status neutral">🏳️ Neutral</span>
+                <span class="occupation-status neutral">Neutral</span>
             }
         </div>
     </div>
@@ -100,13 +100,13 @@
         @if (IsOccupiedByPlayer && PlayerSettlements.Any())
         {
             <button class="btn-territory btn-settle" @onclick="@(() => OnSettleTerritory.InvokeAsync((0, TerritoryId)))">
-                🏘️ Settle Territory
+                Settle Territory
             </button>
         }
         @if (AdvancingUnits.Any())
         {
             <button class="btn-territory btn-advance" @onclick="@(() => OnAdvanceUnits())">
-                ⚔️ Advance Units
+                Advance Units
             </button>
         }
     </div>

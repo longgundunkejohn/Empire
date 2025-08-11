@@ -3,18 +3,16 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using Empire.Server.Models;
 using Empire.Server.Data;
-using Empire.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace Empire.Server.Services
 {
     public interface IAuthenticationService
     {
-        Task<AuthResult> RegisterAsync(string username, string password);
-        Task<AuthResult> LoginAsync(string username, string password);
-        string GenerateJwtToken(User user);
+        Task<Empire.Shared.Models.AuthResult> RegisterAsync(string username, string password);
+        Task<Empire.Shared.Models.AuthResult> LoginAsync(string username, string password);
+        string GenerateJwtToken(Empire.Server.Models.User user);
         string HashPassword(string password);
         bool VerifyPassword(string password, string hash);
     }
@@ -32,7 +30,7 @@ namespace Empire.Server.Services
             _logger = logger;
         }
 
-        public async Task<AuthResult> RegisterAsync(string username, string password)
+        public async Task<Empire.Shared.Models.AuthResult> RegisterAsync(string username, string password)
         {
             try
             {
@@ -42,22 +40,22 @@ namespace Empire.Server.Services
 
                 if (existingUser != null)
                 {
-                return AuthResult.CreateFailure("Username already exists");
+                return Empire.Shared.Models.AuthResult.CreateFailure("Username already exists");
                 }
 
                 // Validate input
                 if (string.IsNullOrWhiteSpace(username) || username.Length < 3)
                 {
-                    return AuthResult.CreateFailure("Username must be at least 3 characters long");
+                    return Empire.Shared.Models.AuthResult.CreateFailure("Username must be at least 3 characters long");
                 }
 
                 if (string.IsNullOrWhiteSpace(password) || password.Length < 6)
                 {
-                    return AuthResult.CreateFailure("Password must be at least 6 characters long");
+                    return Empire.Shared.Models.AuthResult.CreateFailure("Password must be at least 6 characters long");
                 }
 
                 // Create new user
-                var user = new User
+                var user = new Empire.Server.Models.User
                 {
                     Username = username.Trim(),
                     PasswordHash = HashPassword(password),
@@ -70,16 +68,21 @@ namespace Empire.Server.Services
                 _logger.LogInformation("User {Username} registered successfully", username);
 
                 var token = GenerateJwtToken(user);
-                return AuthResult.CreateSuccess(user, token);
+                var sharedUser = new Empire.Shared.Models.User
+                {
+                    Id = user.Id,
+                    Username = user.Username
+                };
+                return Empire.Shared.Models.AuthResult.CreateSuccess(sharedUser, token);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error registering user {Username}", username);
-                return AuthResult.CreateFailure("Registration failed");
+                return Empire.Shared.Models.AuthResult.CreateFailure("Registration failed");
             }
         }
 
-        public async Task<AuthResult> LoginAsync(string username, string password)
+        public async Task<Empire.Shared.Models.AuthResult> LoginAsync(string username, string password)
         {
             try
             {
@@ -88,12 +91,12 @@ namespace Empire.Server.Services
 
                 if (user == null)
                 {
-                    return AuthResult.CreateFailure("Invalid username or password");
+                    return Empire.Shared.Models.AuthResult.CreateFailure("Invalid username or password");
                 }
 
                 if (!VerifyPassword(password, user.PasswordHash))
                 {
-                    return AuthResult.CreateFailure("Invalid username or password");
+                    return Empire.Shared.Models.AuthResult.CreateFailure("Invalid username or password");
                 }
 
                 // Update last login date
@@ -103,16 +106,21 @@ namespace Empire.Server.Services
                 _logger.LogInformation("User {Username} logged in successfully", username);
 
                 var token = GenerateJwtToken(user);
-                return AuthResult.CreateSuccess(user, token);
+                var sharedUser = new Empire.Shared.Models.User
+                {
+                    Id = user.Id,
+                    Username = user.Username
+                };
+                return Empire.Shared.Models.AuthResult.CreateSuccess(sharedUser, token);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error logging in user {Username}", username);
-                return AuthResult.CreateFailure("Login failed");
+                return Empire.Shared.Models.AuthResult.CreateFailure("Login failed");
             }
         }
 
-        public string GenerateJwtToken(User user)
+        public string GenerateJwtToken(Empire.Server.Models.User user)
         {
             var jwtSettings = _configuration.GetSection("JwtSettings");
             var secretKey = jwtSettings["SecretKey"] ?? "YourSuperSecretKeyThatIsAtLeast32CharactersLong!";
