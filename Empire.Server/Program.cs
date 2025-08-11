@@ -142,12 +142,15 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 });
 
-// ✅ Force domain (prod)
-app.Use((context, next) =>
+// ✅ Force domain (prod) - Only in production
+if (!app.Environment.IsDevelopment())
 {
-    context.Request.Host = new HostString("empirecardgame.com");
-    return next();
-});
+    app.Use((context, next) =>
+    {
+        context.Request.Host = new HostString("empirecardgame.com");
+        return next();
+    });
+}
 
 app.UseCors("AllowEmpireClient");
 app.UseHttpsRedirection();
