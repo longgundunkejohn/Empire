@@ -1,26 +1,26 @@
 using Empire.Server.Hubs;
-using Empire.Server.Interfaces;
 using Empire.Server.Middleware;
 using Empire.Server.Services;
+using Empire.Server.Data;
 using Empire.Shared.Models;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.IIS;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
-using MongoDB.Driver;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ────────────── Services ──────────────
 
-// ✅ Mongo
-builder.Services.AddSingleton<IMongoClient>(sp =>
-    new MongoClient(sp.GetRequiredService<IConfiguration>()["MongoDB:ConnectionString"]));
-
-builder.Services.AddSingleton<IMongoDatabase>(sp =>
-    sp.GetRequiredService<IMongoClient>().GetDatabase(sp.GetRequiredService<IConfiguration>()["MongoDB:DatabaseName"]));
+// ✅ SQLite Database
+builder.Services.AddDbContext<EmpireDbContext>(options =>
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=empire.db"));
 
 // ✅ JSON & File Upload Configuration
 builder.Services.AddControllers().AddJsonOptions(opts =>
@@ -44,8 +44,47 @@ builder.Services.Configure<FormOptions>(options =>
     options.MultipartHeadersLengthLimit = int.MaxValue;
 });
 
+// ✅ Authentication
+var jwtSettings = builder.Configuration.GetSection("JwtSettings");
+var secretKey = jwtSettings["SecretKey"] ?? "YourSuperSecretKeyThatIsAtLeast32CharactersLong!";
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtSettings["Issuer"] ?? "EmpireTCG",
+            ValidAudience = jwtSettings["Audience"] ?? "EmpireTCGUsers",
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(secretKey)),
+            ClockSkew = TimeSpan.Zero
+        };
+
+        // Configure JWT for SignalR
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/gamehub"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
+    });
+
+builder.Services.AddAuthorization();
+
 // ✅ Game services
-builder.Services.AddScoped<IMongoDbService, MongoDbService>();
+builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddSingleton<ILobbyService, LobbyService>();
 builder.Services.AddScoped<ICardDatabaseService, JsonCardDataService>();
 builder.Services.AddSingleton<ICardService, CardService>();
 builder.Services.AddSingleton<GameSessionService>();
@@ -77,6 +116,13 @@ builder.Services.AddCors(opt =>
 // ────────────── Pipeline ──────────────
 var app = builder.Build();
 
+// ✅ Initialize Database
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<EmpireDbContext>();
+    context.Database.EnsureCreated();
+}
+
 // ✅ Error handling middleware (must be first)
 app.UseMiddleware<ErrorHandlingMiddleware>();
 
@@ -107,6 +153,8 @@ app.UseCors("AllowEmpireClient");
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 app.MapHub<GameHub>("/gamehub");
 app.MapFallbackToFile("index.html");

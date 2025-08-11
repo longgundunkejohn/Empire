@@ -1,5 +1,5 @@
 ﻿using Empire.Shared.Models;
-using Empire.Server.Interfaces;
+using Empire.Server.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Empire.Server.Controllers

@@ -1,20 +1,65 @@
 @using Empire.Shared.Models
 @using Empire.Client.Services
 @inject CardService CardService
+@inject GameHubService GameHub
+@inject IJSRuntime JSRuntime
 
-<div class="card" @ondblclick="HandleDoubleClick" @onclick="HandleClick" 
-     @onmouseenter="ShowPreview" @onmouseleave="HidePreview"
-     draggable="true" @ondragstart="HandleDragStart">
+<div class="card @GetCardClasses()" 
+     @ondblclick="HandleDoubleClick" 
+     @onclick="HandleClick" 
+     @oncontextmenu="HandleRightClick"
+     @oncontextmenu:preventDefault="true"
+     @onmouseenter="ShowPreview" 
+     @onmouseleave="HidePreview"
+     draggable="@IsDraggable.ToString().ToLower()" 
+     @ondragstart="HandleDragStart"
+     @ondragover="HandleDragOver"
+     @ondrop="HandleDrop"
+     style="@GetCardStyle()">
     
     @if (CardData != null)
     {
         <img src="@GetCardImagePath()" alt="@CardData.Name" 
-             class="card-image @(IsExerted ? "exerted" : "")" 
+             class="card-image @(IsTapped ? "tapped" : "") @(IsFaceDown ? "face-down" : "")" 
              onerror="this.src='/images/card-placeholder.png'" />
+        
+        <!-- Card Overlay -->
         <div class="card-overlay">
             <div class="card-name">@CardData.Name</div>
             <div class="card-cost">@CardData.Cost</div>
+            
+            <!-- Tier indicator for Army cards -->
+            @if (!string.IsNullOrEmpty(CardData.Tier))
+            {
+                <div class="card-tier">@CardData.Tier</div>
+            }
         </div>
+
+        <!-- Counters -->
+        @if (Counters.Any())
+        {
+            <div class="card-counters">
+                @foreach (var counter in Counters)
+                {
+                    <div class="counter @counter.Key.ToLower()">
+                        <span class="counter-type">@GetCounterSymbol(counter.Key)</span>
+                        <span class="counter-value">@counter.Value</span>
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- Selection indicator -->
+        @if (IsSelected)
+        {
+            <div class="selection-indicator"></div>
+        }
+
+        <!-- Tap indicator -->
+        @if (IsTapped)
+        {
+            <div class="tap-indicator">⟲</div>
+        }
     }
     else
     {
@@ -24,14 +69,132 @@
     }
 </div>
 
+<!-- Context Menu -->
+@if (ShowContextMenu)
+{
+    <div class="context-menu" style="left: @(ContextMenuX)px; top: @(ContextMenuY)px;">
+        <div class="context-menu-item" @onclick="() => ToggleTapped()">
+            @(IsTapped ? "Untap" : "Tap")
+        </div>
+        <div class="context-menu-item" @onclick="() => FlipCard()">
+            @(IsFaceDown ? "Flip Face Up" : "Flip Face Down")
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" @onclick="() => ShowCounterDialog('damage')">
+            Add Damage Counter
+        </div>
+        <div class="context-menu-item" @onclick="() => ShowCounterDialog('escalation')">
+            Add Escalation Counter
+        </div>
+        <div class="context-menu-item" @onclick="() => ShowCounterDialog('custom')">
+            Add Custom Counter
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" @onclick="() => ShowMoveDialog()">
+            Move to Zone...
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" @onclick="() => CloseContextMenu()">
+            Cancel
+        </div>
+    </div>
+    <div class="context-menu-backdrop" @onclick="CloseContextMenu"></div>
+}
+
+<!-- Counter Dialog -->
+@if (ShowCounterDialogModal)
+{
+    <div class="modal fade show" style="display: block;" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add @CounterDialogType Counter</h5>
+                    <button type="button" class="btn-close" @onclick="CloseCounterDialog"></button>
+                </div>
+                <div class="modal-body">
+                    @if (CounterDialogType == "custom")
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Counter Type:</label>
+                            <input type="text" class="form-control" @bind="CustomCounterType" placeholder="e.g., +1/+1, poison" />
+                        </div>
+                    }
+                    <div class="mb-3">
+                        <label class="form-label">Amount:</label>
+                        <input type="number" class="form-control" @bind="CounterAmount" min="1" max="99" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseCounterDialog">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="AddCounter">Add Counter</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+<!-- Move Dialog -->
+@if (ShowMoveDialogModal)
+{
+    <div class="modal fade show" style="display: block;" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Move Card</h5>
+                    <button type="button" class="btn-close" @onclick="CloseMoveDialog"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Move to:</label>
+                        <select class="form-select" @bind="SelectedMoveZone">
+                            <option value="">Select zone...</option>
+                            <option value="Hand">Hand</option>
+                            <option value="Heartland">Heartland</option>
+                            <option value="Territory1">Territory 1</option>
+                            <option value="Territory2">Territory 2</option>
+                            <option value="Territory3">Territory 3</option>
+                            <option value="Graveyard">Graveyard</option>
+                            <option value="Deck">Deck (Top)</option>
+                            <option value="DeckBottom">Deck (Bottom)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseMoveDialog">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="MoveCard" disabled="@string.IsNullOrEmpty(SelectedMoveZone)">Move</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
 @code {
     [Parameter] public int CardId { get; set; }
-    [Parameter] public bool IsExerted { get; set; }
+    [Parameter] public bool IsTapped { get; set; }
+    [Parameter] public bool IsFaceDown { get; set; }
+    [Parameter] public bool IsSelected { get; set; }
+    [Parameter] public bool IsDraggable { get; set; } = true;
+    [Parameter] public string CurrentZone { get; set; } = "";
+    [Parameter] public string GameId { get; set; } = "";
+    [Parameter] public string PlayerId { get; set; } = "";
+    [Parameter] public Dictionary<string, int> Counters { get; set; } = new();
     [Parameter] public EventCallback<int> OnClick { get; set; }
     [Parameter] public EventCallback<int> OnDoubleClick { get; set; }
     [Parameter] public EventCallback<int> OnDragStart { get; set; }
+    [Parameter] public EventCallback<(int cardId, string fromZone, string toZone)> OnCardMoved { get; set; }
 
     private CardData? CardData { get; set; }
+    private bool ShowContextMenu = false;
+    private double ContextMenuX = 0;
+    private double ContextMenuY = 0;
+    private bool ShowCounterDialogModal = false;
+    private bool ShowMoveDialogModal = false;
+    private string CounterDialogType = "";
+    private string CustomCounterType = "";
+    private int CounterAmount = 1;
+    private string SelectedMoveZone = "";
 
     protected override async Task OnParametersSetAsync()
     {
@@ -43,6 +206,15 @@
 
     private string GetCardImagePath()
     {
+        if (IsFaceDown)
+        {
+            // Return appropriate card back based on card type
+            if (CardData?.Type?.Contains("Army") == true)
+                return "/Cardbacks/armyCardback.png";
+            else
+                return "/Cardbacks/civicCardback.png";
+        }
+
         if (CardData?.CardID > 0)
         {
             return $"/images/Cards/{CardData.CardID}.jpg";
@@ -50,9 +222,158 @@
         return "/images/card-placeholder.png";
     }
 
-    private async Task HandleClick() => await OnClick.InvokeAsync(CardId);
-    private async Task HandleDoubleClick() => await OnDoubleClick.InvokeAsync(CardId);
-    private async Task HandleDragStart() => await OnDragStart.InvokeAsync(CardId);
+    private string GetCardClasses()
+    {
+        var classes = new List<string> { "card" };
+        
+        if (IsTapped) classes.Add("tapped");
+        if (IsFaceDown) classes.Add("face-down");
+        if (IsSelected) classes.Add("selected");
+        
+        return string.Join(" ", classes);
+    }
+
+    private string GetCardStyle()
+    {
+        var styles = new List<string>();
+        
+        if (IsTapped)
+        {
+            styles.Add("transform: rotate(90deg)");
+        }
+        
+        return string.Join("; ", styles);
+    }
+
+    private string GetCounterSymbol(string counterType)
+    {
+        return counterType.ToLower() switch
+        {
+            "damage" => "💥",
+            "escalation" => "⬆️",
+            "+1/+1" => "➕",
+            "-1/-1" => "➖",
+            "poison" => "☠️",
+            _ => "🔢"
+        };
+    }
+
+    private async Task HandleClick() 
+    {
+        CloseContextMenu();
+        await OnClick.InvokeAsync(CardId);
+    }
+
+    private async Task HandleDoubleClick() 
+    {
+        CloseContextMenu();
+        await ToggleTapped();
+        await OnDoubleClick.InvokeAsync(CardId);
+    }
+
+    private async Task HandleRightClick(MouseEventArgs e)
+    {
+        ContextMenuX = e.ClientX;
+        ContextMenuY = e.ClientY;
+        ShowContextMenu = true;
+        StateHasChanged();
+    }
+
+    private async Task HandleDragStart(DragEventArgs e)
+    {
+        if (IsDraggable)
+        {
+            await JSRuntime.InvokeVoidAsync("setDragData", e, CardId.ToString(), CurrentZone);
+            await OnDragStart.InvokeAsync(CardId);
+        }
+    }
+
+    private async Task HandleDragOver(DragEventArgs e)
+    {
+        // Allow drop
+    }
+
+    private async Task HandleDrop(DragEventArgs e)
+    {
+        // Handle card dropped on this card (for targeting, etc.)
+    }
+
+    private async Task ToggleTapped()
+    {
+        if (!string.IsNullOrEmpty(GameId) && !string.IsNullOrEmpty(PlayerId))
+        {
+            await GameHub.ToggleCardTappedManual(GameId, PlayerId, CardId, !IsTapped);
+        }
+        CloseContextMenu();
+    }
+
+    private async Task FlipCard()
+    {
+        if (!string.IsNullOrEmpty(GameId) && !string.IsNullOrEmpty(PlayerId))
+        {
+            await GameHub.FlipCardManual(GameId, PlayerId, CardId, IsFaceDown);
+        }
+        CloseContextMenu();
+    }
+
+    private void ShowCounterDialog(string counterType)
+    {
+        CounterDialogType = counterType;
+        CounterAmount = 1;
+        CustomCounterType = "";
+        ShowCounterDialogModal = true;
+        CloseContextMenu();
+        StateHasChanged();
+    }
+
+    private void CloseCounterDialog()
+    {
+        ShowCounterDialogModal = false;
+        StateHasChanged();
+    }
+
+    private async Task AddCounter()
+    {
+        var counterType = CounterDialogType == "custom" ? CustomCounterType : CounterDialogType;
+        
+        if (!string.IsNullOrEmpty(counterType) && !string.IsNullOrEmpty(GameId) && !string.IsNullOrEmpty(PlayerId))
+        {
+            await GameHub.AddCounterManual(GameId, PlayerId, CardId, counterType, CounterAmount);
+        }
+        
+        CloseCounterDialog();
+    }
+
+    private void ShowMoveDialog()
+    {
+        SelectedMoveZone = "";
+        ShowMoveDialogModal = true;
+        CloseContextMenu();
+        StateHasChanged();
+    }
+
+    private void CloseMoveDialog()
+    {
+        ShowMoveDialogModal = false;
+        StateHasChanged();
+    }
+
+    private async Task MoveCard()
+    {
+        if (!string.IsNullOrEmpty(SelectedMoveZone) && !string.IsNullOrEmpty(GameId) && !string.IsNullOrEmpty(PlayerId))
+        {
+            await GameHub.MoveCardManual(GameId, PlayerId, CardId, CurrentZone, SelectedMoveZone);
+            await OnCardMoved.InvokeAsync((CardId, CurrentZone, SelectedMoveZone));
+        }
+        
+        CloseMoveDialog();
+    }
+
+    private void CloseContextMenu()
+    {
+        ShowContextMenu = false;
+        StateHasChanged();
+    }
 
     private void ShowPreview(MouseEventArgs e)
     {
@@ -66,6 +387,54 @@
 }
 
 <style>
+    .card {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: transform 0.3s ease, box-shadow 0.2s ease;
+        user-select: none;
+    }
+
+    .card:hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        z-index: 10;
+    }
+
+    .card.selected {
+        box-shadow: 0 0 0 3px #007bff;
+    }
+
+    .card.tapped {
+        transition: transform 0.5s ease;
+    }
+
+    .card-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 6px;
+        transition: filter 0.3s ease;
+    }
+
+    .card-image.face-down {
+        filter: brightness(0.8);
+    }
+
+    .card-overlay {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+        color: white;
+        padding: 4px 6px;
+        border-radius: 0 0 6px 6px;
+        font-size: 0.7rem;
+    }
+
     .card-placeholder {
         width: 100%;
         height: 100%;
@@ -94,8 +463,125 @@
         font-weight: bold;
     }
 
+    .card-tier {
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        background: rgba(255, 215, 0, 0.9);
+        color: black;
+        border-radius: 3px;
+        padding: 2px 4px;
+        font-size: 0.6rem;
+        font-weight: bold;
+    }
+
     .card-name {
         font-size: 0.65rem;
         line-height: 1.1;
+        font-weight: bold;
+    }
+
+    .card-counters {
+        position: absolute;
+        top: 25px;
+        right: 4px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .counter {
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        border-radius: 10px;
+        padding: 2px 6px;
+        font-size: 0.6rem;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        min-width: 20px;
+        justify-content: center;
+    }
+
+    .counter.damage {
+        background: rgba(220, 53, 69, 0.9);
+    }
+
+    .counter.escalation {
+        background: rgba(255, 193, 7, 0.9);
+        color: black;
+    }
+
+    .selection-indicator {
+        position: absolute;
+        top: -2px;
+        left: -2px;
+        right: -2px;
+        bottom: -2px;
+        border: 2px solid #007bff;
+        border-radius: 8px;
+        pointer-events: none;
+    }
+
+    .tap-indicator {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 2rem;
+        color: rgba(255, 255, 255, 0.8);
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        pointer-events: none;
+    }
+
+    .context-menu {
+        position: fixed;
+        background: white;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        z-index: 1000;
+        min-width: 150px;
+    }
+
+    .context-menu-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        border-bottom: 1px solid #eee;
+    }
+
+    .context-menu-item:hover {
+        background: #f8f9fa;
+    }
+
+    .context-menu-item:last-child {
+        border-bottom: none;
+    }
+
+    .context-menu-separator {
+        height: 1px;
+        background: #ddd;
+        margin: 4px 0;
+    }
+
+    .context-menu-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 999;
+    }
+
+    .modal-backdrop {
+        background-color: rgba(0, 0, 0, 0.5);
     }
 </style>
+
+<script>
+    window.setDragData = (event, cardId, zone) => {
+        event.dataTransfer.setData("text/plain", JSON.stringify({ cardId, zone }));
+        event.dataTransfer.effectAllowed = "move";
+    };
+</script>

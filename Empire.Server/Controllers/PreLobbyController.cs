@@ -4,10 +4,7 @@ using Empire.Shared.Models.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using CsvHelper;
 using System.Globalization;
-using Empire.Server.Interfaces;
 using Empire.Shared.Models;
-using MongoDB.Driver;
-using MongoDB.Bson;
 
 namespace Empire.Server.Controllers
 {
@@ -16,125 +13,154 @@ namespace Empire.Server.Controllers
     public class PreLobbyController : ControllerBase
     {
         private readonly DeckLoaderService _deckLoader;
-        private readonly DeckService _deckService;
-        private readonly IMongoCollection<PlayerDeck> _deckCollection;
+        private readonly UserService _userService;
+        private readonly ILogger<PreLobbyController> _logger;
 
-        public PreLobbyController(DeckLoaderService deckLoader, DeckService deckService, IMongoDbService mongo)
+        public PreLobbyController(
+            DeckLoaderService deckLoader, 
+            UserService userService,
+            ILogger<PreLobbyController> logger)
         {
             _deckLoader = deckLoader;
-            _deckService = deckService;
-            _deckCollection = mongo.DeckDatabase.GetCollection<PlayerDeck>("PlayerDecks");
+            _userService = userService;
+            _logger = logger;
         }
 
         [HttpGet("decks")]
         public async Task<ActionResult<List<string>>> GetAllDeckNames()
         {
-            var decks = await _deckCollection.Find(_ => true).ToListAsync();
-
-            var names = decks
-                .Select(d => d.DeckName ?? "")
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Distinct()
-                .OrderBy(n => n)
-                .ToList();
-
-
-            return Ok(names);
+            try
+            {
+                var playerNames = _deckLoader.GetAllPlayerNames();
+                return Ok(playerNames);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error getting all deck names");
+                return StatusCode(500, "Error retrieving deck names");
+            }
         }
 
         [HttpGet("decks/{playerName}")]
         public async Task<ActionResult<List<PlayerDeck>>> GetDecksForPlayer(string playerName)
         {
-            var filter = Builders<PlayerDeck>.Filter.Eq(d => d.PlayerName, playerName);
-            var decks = await _deckCollection.Find(filter).ToListAsync();
-            return Ok(decks);
+            try
+            {
+                var deck = _deckLoader.LoadDeck(playerName);
+                var decks = new List<PlayerDeck>();
+                
+                if (deck.CivicDeck.Count > 0 || deck.MilitaryDeck.Count > 0)
+                {
+                    decks.Add(deck);
+                }
+                
+                return Ok(decks);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error getting decks for player {Player}", playerName);
+                return StatusCode(500, "Error retrieving player decks");
+            }
         }
 
-      [HttpPost("upload")]
-public async Task<IActionResult> UploadDeck([FromQuery] string playerName, [FromQuery] string? deckName, IFormFile file)
-{
-    if (!Request.HasFormContentType || file == null || file.Length == 0)
-        return BadRequest("Expected multipart/form-data content with a valid CSV file.");
+        [HttpPost("upload")]
+        public async Task<IActionResult> UploadDeck([FromQuery] string playerName, [FromQuery] string? deckName, IFormFile file)
+        {
+            try
+            {
+                if (!Request.HasFormContentType || file == null || file.Length == 0)
+                    return BadRequest("Expected multipart/form-data content with a valid CSV file.");
 
-    if (string.IsNullOrWhiteSpace(playerName))
-        return BadRequest("Player name is required.");
+                if (string.IsNullOrWhiteSpace(playerName))
+                    return BadRequest("Player name is required.");
 
-    List<RawDeckEntry> rawDeck;
-    try
-    {
-        using var stream = file.OpenReadStream();
-        rawDeck = _deckLoader.ParseDeckFromCsv(stream);
-    }
-    catch (Exception ex)
-    {
-        return BadRequest($"CSV parsing failed: {ex.Message}");
-    }
+                List<RawDeckEntry> rawDeck;
+                try
+                {
+                    using var stream = file.OpenReadStream();
+                    rawDeck = _deckLoader.ParseDeckFromCsv(stream);
+                }
+                catch (Exception ex)
+                {
+                    return BadRequest($"CSV parsing failed: {ex.Message}");
+                }
 
-    if (!rawDeck.Any())
-        return BadRequest("Parsed deck is empty.");
+                if (!rawDeck.Any())
+                    return BadRequest("Parsed deck is empty.");
 
-    foreach (var entry in rawDeck)
-    {
-        entry.Player = playerName;
-        entry.DeckType = entry.DeckType?.Trim();
-    }
+                foreach (var entry in rawDeck)
+                {
+                    entry.Player = playerName;
+                    entry.DeckType = entry.DeckType?.Trim();
+                }
 
-    var rawCollection = _deckLoader.GetRawDeckCollection();
-    var filter = Builders<RawDeckEntry>.Filter.Eq("Player", playerName);
-    await rawCollection.DeleteManyAsync(filter);
-    await rawCollection.InsertManyAsync(rawDeck);
+                // Save the raw deck entries
+                _deckLoader.SaveDeckToDatabase(playerName, rawDeck);
 
-    // ✅ Hydrate decks here directly
-    var civic = rawDeck
-        .Where(d => (d.DeckType?.ToLowerInvariant() ?? "").Trim() == "civic" || DeckUtils.IsCivicCard(d.CardId))
-        .SelectMany(d => Enumerable.Repeat(d.CardId, d.Count))
-        .ToList();
+                // Create a deck ID for response
+                var deckId = Guid.NewGuid().ToString();
 
-    var military = rawDeck
-        .Where(d => (d.DeckType?.ToLowerInvariant() ?? "").Trim() == "military" || !DeckUtils.IsCivicCard(d.CardId))
-        .SelectMany(d => Enumerable.Repeat(d.CardId, d.Count))
-        .ToList();
-
-    var playerDeck = new PlayerDeck(playerName, civic, military)
-    {
-        DeckName = string.IsNullOrWhiteSpace(deckName)
-            ? $"Deck_{Guid.NewGuid().ToString("N")[..6]}"
-            : deckName
-    };
-
-    var deckFilter = Builders<PlayerDeck>.Filter.And(
-        Builders<PlayerDeck>.Filter.Eq(d => d.PlayerName, playerName),
-        Builders<PlayerDeck>.Filter.Eq(d => d.DeckName, playerDeck.DeckName)
-    );
-
-    await _deckCollection.ReplaceOneAsync(deckFilter, playerDeck, new ReplaceOptions { IsUpsert = true });
-
-    return Ok(new { message = "✅ Deck uploaded and saved.", deckId = playerDeck.Id });
-}
-
+                _logger.LogInformation("✅ Deck uploaded for player {Player} with {Count} entries", playerName, rawDeck.Count);
+                return Ok(new { message = "✅ Deck uploaded and saved.", deckId });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error uploading deck for player {Player}", playerName);
+                return StatusCode(500, "Error uploading deck");
+            }
+        }
 
         [HttpGet("hasdeck/{playerName}")]
         public async Task<IActionResult> HasDeck(string playerName)
         {
-            bool exists = await _deckService.HasDeckAsync(playerName);
-            return Ok(new { player = playerName, hasDeck = exists });
+            try
+            {
+                var deck = _deckLoader.LoadDeck(playerName);
+                bool hasDeck = deck.CivicDeck.Count > 0 || deck.MilitaryDeck.Count > 0;
+                
+                return Ok(new { player = playerName, hasDeck });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error checking deck for player {Player}", playerName);
+                return StatusCode(500, "Error checking deck");
+            }
         }
 
         [HttpGet("deck/{playerName}/{deckId}")]
         public async Task<IActionResult> GetSpecificDeck(string playerName, string deckId)
         {
-            var deck = await _deckService.GetDeckAsync(playerName, deckId);
-            if (deck == null)
-                return NotFound($"No deck found for {playerName} with ID {deckId}");
+            try
+            {
+                var deck = _deckLoader.LoadDeck(playerName);
+                
+                if (deck.CivicDeck.Count == 0 && deck.MilitaryDeck.Count == 0)
+                    return NotFound($"No deck found for {playerName}");
 
-            return Ok(deck);
+                return Ok(deck);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error getting specific deck for player {Player}", playerName);
+                return StatusCode(500, "Error retrieving deck");
+            }
         }
 
         [HttpDelete("deck/{playerName}")]
         public async Task<IActionResult> DeleteDeck(string playerName)
         {
-            await _deckService.DeleteDeckAsync(playerName);
-            return Ok(new { message = $"Deleted deck for {playerName}" });
+            try
+            {
+                // For now, we can't easily delete from in-memory storage
+                // This would need to be implemented in DeckLoaderService
+                _logger.LogWarning("⚠️ Delete deck not implemented for in-memory storage");
+                return Ok(new { message = $"Delete operation noted for {playerName} (not implemented for in-memory storage)" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error deleting deck for player {Player}", playerName);
+                return StatusCode(500, "Error deleting deck");
+            }
         }
     }
 }

@@ -1,0 +1,887 @@
+@page "/manual-game/{gameId}"
+@using Empire.Shared.Models
+@using Empire.Shared.Models.Enums
+@using Empire.Client.Services
+@using Empire.Client.Components
+@inject GameHubService GameHub
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+
+<PageTitle>Empire TCG - Manual Game</PageTitle>
+
+<div class="manual-game-container">
+    @if (IsLoading)
+    {
+        <div class="loading-screen">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading game...</span>
+            </div>
+            <p>Connecting to game...</p>
+        </div>
+    }
+    else if (GameState != null)
+    {
+        <!-- Game Board -->
+        <div class="game-board">
+            <!-- Opponent Area -->
+            <div class="opponent-area">
+                <div class="player-info opponent">
+                    <div class="player-name">@OpponentName</div>
+                    <div class="player-stats">
+                        <span class="morale">❤️ @OpponentMorale</span>
+                        <span class="tier">⭐ @OpponentTier</span>
+                    </div>
+                </div>
+
+                <!-- Opponent Hand (face down) -->
+                <div class="hand-zone opponent-hand">
+                    <div class="zone-label">Opponent Hand</div>
+                    <div class="cards-container">
+                        @for (int i = 0; i < OpponentHandCount; i++)
+                        {
+                            <div class="card-slot">
+                                <CardComponent CardId="0" IsFaceDown="true" IsDraggable="false" />
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Opponent Heartland -->
+                <div class="heartland-zone opponent-heartland" 
+                     @ondragover="HandleDragOver" 
+                     @ondrop="@(e => HandleDrop(e, "OpponentHeartland"))">
+                    <div class="zone-label">Opponent Heartland</div>
+                    <div class="cards-container">
+                        @foreach (var card in OpponentHeartlandCards)
+                        {
+                            <div class="card-slot">
+                                <CardComponent CardId="@card.CardId" 
+                                             IsTapped="@card.IsTapped" 
+                                             IsFaceDown="@card.IsFaceDown"
+                                             Counters="@card.Counters"
+                                             CurrentZone="OpponentHeartland"
+                                             GameId="@GameId"
+                                             PlayerId="@CurrentPlayerId"
+                                             IsDraggable="false" />
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Territories -->
+            <div class="territories-area">
+                @for (int i = 1; i <= 3; i++)
+                {
+                    <div class="territory territory-@i" 
+                         @ondragover="HandleDragOver" 
+                         @ondrop="@(e => HandleDrop(e, $"Territory{i}"))">
+                        <div class="territory-header">
+                            <div class="territory-label">Territory @i</div>
+                            @if (TerritorySettlements.ContainsKey(i))
+                            {
+                                <div class="settlement-info">
+                                    <span class="settlement-name">@TerritorySettlements[i].Name</span>
+                                    <span class="settlement-owner">(@TerritorySettlements[i].Owner)</span>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Opponent units in territory -->
+                        <div class="territory-section opponent-section">
+                            <div class="section-label">Opponent</div>
+                            <div class="cards-container">
+                                @foreach (var card in GetTerritoryCards(i, false))
+                                {
+                                    <div class="card-slot">
+                                        <CardComponent CardId="@card.CardId" 
+                                                     IsTapped="@card.IsTapped" 
+                                                     IsFaceDown="@card.IsFaceDown"
+                                                     Counters="@card.Counters"
+                                                     CurrentZone="@($"Territory{i}")"
+                                                     GameId="@GameId"
+                                                     PlayerId="@CurrentPlayerId"
+                                                     IsDraggable="false" />
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        <!-- Player units in territory -->
+                        <div class="territory-section player-section">
+                            <div class="section-label">You</div>
+                            <div class="cards-container">
+                                @foreach (var card in GetTerritoryCards(i, true))
+                                {
+                                    <div class="card-slot">
+                                        <CardComponent CardId="@card.CardId" 
+                                                     IsTapped="@card.IsTapped" 
+                                                     IsFaceDown="@card.IsFaceDown"
+                                                     Counters="@card.Counters"
+                                                     CurrentZone="@($"Territory{i}")"
+                                                     GameId="@GameId"
+                                                     PlayerId="@CurrentPlayerId"
+                                                     OnCardMoved="HandleCardMoved" />
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <!-- Player Area -->
+            <div class="player-area">
+                <!-- Player Heartland -->
+                <div class="heartland-zone player-heartland" 
+                     @ondragover="HandleDragOver" 
+                     @ondrop="@(e => HandleDrop(e, "Heartland"))">
+                    <div class="zone-label">Your Heartland</div>
+                    <div class="cards-container">
+                        @foreach (var card in PlayerHeartlandCards)
+                        {
+                            <div class="card-slot">
+                                <CardComponent CardId="@card.CardId" 
+                                             IsTapped="@card.IsTapped" 
+                                             IsFaceDown="@card.IsFaceDown"
+                                             Counters="@card.Counters"
+                                             CurrentZone="Heartland"
+                                             GameId="@GameId"
+                                             PlayerId="@CurrentPlayerId"
+                                             OnCardMoved="HandleCardMoved" />
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Player Hand -->
+                <div class="hand-zone player-hand" 
+                     @ondragover="HandleDragOver" 
+                     @ondrop="@(e => HandleDrop(e, "Hand"))">
+                    <div class="zone-label">Your Hand</div>
+                    <div class="cards-container">
+                        @foreach (var card in PlayerHandCards)
+                        {
+                            <div class="card-slot">
+                                <CardComponent CardId="@card.CardId" 
+                                             IsTapped="@card.IsTapped" 
+                                             IsFaceDown="@card.IsFaceDown"
+                                             Counters="@card.Counters"
+                                             CurrentZone="Hand"
+                                             GameId="@GameId"
+                                             PlayerId="@CurrentPlayerId"
+                                             OnCardMoved="HandleCardMoved" />
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="player-info current">
+                    <div class="player-name">@CurrentPlayerName</div>
+                    <div class="player-stats">
+                        <span class="morale">❤️ @PlayerMorale</span>
+                        <span class="tier">⭐ @PlayerTier</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Side Zones -->
+            <div class="side-zones">
+                <!-- Graveyards -->
+                <div class="graveyard-zone" 
+                     @ondragover="HandleDragOver" 
+                     @ondrop="@(e => HandleDrop(e, "Graveyard"))">
+                    <div class="zone-label">Graveyard</div>
+                    <div class="graveyard-count">@PlayerGraveyardCards.Count</div>
+                    @if (PlayerGraveyardCards.Any())
+                    {
+                        <CardComponent CardId="@PlayerGraveyardCards.Last().CardId" 
+                                     CurrentZone="Graveyard"
+                                     GameId="@GameId"
+                                     PlayerId="@CurrentPlayerId"
+                                     OnCardMoved="HandleCardMoved" />
+                    }
+                </div>
+
+                <!-- Decks -->
+                <div class="deck-zones">
+                    <div class="deck-zone army-deck" @onclick="() => DrawFromDeck('Army')">
+                        <div class="zone-label">Army Deck</div>
+                        <div class="deck-count">@ArmyDeckCount</div>
+                        <CardComponent CardId="0" IsFaceDown="true" IsDraggable="false" />
+                    </div>
+                    <div class="deck-zone civic-deck" @onclick="() => DrawFromDeck('Civic')">
+                        <div class="zone-label">Civic Deck</div>
+                        <div class="deck-count">@CivicDeckCount</div>
+                        <CardComponent CardId="0" IsFaceDown="true" IsDraggable="false" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Manual Play Controls -->
+        <div class="controls-panel">
+            <ManualPlayControls GameId="@GameId" 
+                              PlayerId="@CurrentPlayerId" 
+                              CurrentPhase="@CurrentPhase" 
+                              CurrentRound="@CurrentRound"
+                              InitiativeHolder="@InitiativeHolder"
+                              PlayerMorale="@PlayerMorale"
+                              PlayerTier="@PlayerTier"
+                              HasActionPriority="@HasActionPriority"
+                              HasInitiative="@HasInitiative" />
+        </div>
+    }
+    else
+    {
+        <div class="error-screen">
+            <h3>Game not found</h3>
+            <p>The requested game could not be loaded.</p>
+            <button class="btn btn-primary" @onclick="() => Navigation.NavigateTo(\"/lobby\")">
+                Return to Lobby
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string GameId { get; set; } = "";
+
+    private bool IsLoading = true;
+    private ManualGameState? GameState;
+    private string CurrentPlayerId = "";
+    private string CurrentPlayerName = "";
+    private string OpponentName = "";
+    private GamePhase CurrentPhase = GamePhase.Strategy;
+    private int CurrentRound = 1;
+    private string InitiativeHolder = "";
+    private bool HasActionPriority = false;
+    private bool HasInitiative = false;
+
+    // Player stats
+    private int PlayerMorale = 25;
+    private int PlayerTier = 1;
+    private int OpponentMorale = 25;
+    private int OpponentTier = 1;
+
+    // Card collections
+    private List<ManualCard> PlayerHandCards = new();
+    private List<ManualCard> PlayerHeartlandCards = new();
+    private List<ManualCard> PlayerGraveyardCards = new();
+    private List<ManualCard> OpponentHeartlandCards = new();
+    private Dictionary<int, List<ManualCard>> PlayerTerritoryCards = new();
+    private Dictionary<int, List<ManualCard>> OpponentTerritoryCards = new();
+    private Dictionary<int, SettlementInfo> TerritorySettlements = new();
+
+    // Deck counts
+    private int ArmyDeckCount = 30;
+    private int CivicDeckCount = 15;
+    private int OpponentHandCount = 7;
+
+    public class ManualCard
+    {
+        public int CardId { get; set; }
+        public bool IsTapped { get; set; }
+        public bool IsFaceDown { get; set; }
+        public Dictionary<string, int> Counters { get; set; } = new();
+    }
+
+    public class SettlementInfo
+    {
+        public string Name { get; set; } = "";
+        public string Owner { get; set; } = "";
+    }
+
+    public class ManualGameState
+    {
+        public string GameId { get; set; } = "";
+        public string Player1Id { get; set; } = "";
+        public string Player2Id { get; set; } = "";
+        public GamePhase CurrentPhase { get; set; }
+        public int CurrentRound { get; set; }
+        public string InitiativeHolder { get; set; } = "";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user == null)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        CurrentPlayerId = user.Id.ToString();
+        CurrentPlayerName = user.Username;
+
+        // Subscribe to hub events
+        GameHub.OnManualGameStarted += OnGameStarted;
+        GameHub.OnCardMovedManual += OnCardMoved;
+        GameHub.OnCardTappedToggled += OnCardTappedToggled;
+        GameHub.OnCardFlipped += OnCardFlipped;
+        GameHub.OnCounterAdded += OnCounterAdded;
+        GameHub.OnCounterRemoved += OnCounterRemoved;
+        GameHub.OnMoraleAdjustedManual += OnMoraleAdjusted;
+        GameHub.OnTierSet += OnTierSet;
+        GameHub.OnCardsDrawn += OnCardsDrawn;
+        GameHub.OnDeckShuffled += OnDeckShuffled;
+        GameHub.OnPhaseAdvanced += OnPhaseAdvanced;
+        GameHub.OnRoundAdvanced += OnRoundAdvanced;
+        GameHub.OnActionPriorityPassed += OnActionPriorityPassed;
+
+        await GameHub.ConnectAsync(GameId);
+        await InitializeGame();
+    }
+
+    private async Task InitializeGame()
+    {
+        // Initialize mock game state for demonstration
+        GameState = new ManualGameState
+        {
+            GameId = GameId,
+            Player1Id = CurrentPlayerId,
+            Player2Id = "opponent",
+            CurrentPhase = GamePhase.Strategy,
+            CurrentRound = 1,
+            InitiativeHolder = CurrentPlayerId
+        };
+
+        OpponentName = "Opponent";
+        InitiativeHolder = CurrentPlayerId;
+        HasInitiative = true;
+        HasActionPriority = true;
+
+        // Initialize card collections with mock data
+        PlayerHandCards = new List<ManualCard>
+        {
+            new() { CardId = 1 },
+            new() { CardId = 2 },
+            new() { CardId = 3 },
+            new() { CardId = 4 }
+        };
+
+        PlayerHeartlandCards = new List<ManualCard>
+        {
+            new() { CardId = 5 },
+            new() { CardId = 6, IsTapped = true }
+        };
+
+        // Initialize territory cards
+        for (int i = 1; i <= 3; i++)
+        {
+            PlayerTerritoryCards[i] = new List<ManualCard>();
+            OpponentTerritoryCards[i] = new List<ManualCard>();
+        }
+
+        IsLoading = false;
+        StateHasChanged();
+    }
+
+    private List<ManualCard> GetTerritoryCards(int territory, bool isPlayer)
+    {
+        var cards = isPlayer ? PlayerTerritoryCards : OpponentTerritoryCards;
+        return cards.ContainsKey(territory) ? cards[territory] : new List<ManualCard>();
+    }
+
+    private async Task HandleDragOver(DragEventArgs e)
+    {
+        e.DataTransfer.DropEffect = "move";
+    }
+
+    private async Task HandleDrop(DragEventArgs e, string toZone)
+    {
+        var data = await JSRuntime.InvokeAsync<string>("getDragData", e);
+        if (!string.IsNullOrEmpty(data))
+        {
+            var dragInfo = System.Text.Json.JsonSerializer.Deserialize<DragInfo>(data);
+            if (dragInfo != null)
+            {
+                await MoveCardBetweenZones(dragInfo.CardId, dragInfo.Zone, toZone);
+            }
+        }
+    }
+
+    private async Task HandleCardMoved((int cardId, string fromZone, string toZone) moveInfo)
+    {
+        await MoveCardBetweenZones(moveInfo.cardId, moveInfo.fromZone, moveInfo.toZone);
+    }
+
+    private async Task MoveCardBetweenZones(int cardId, string fromZone, string toZone)
+    {
+        // Find and remove card from source zone
+        ManualCard? card = null;
+        
+        switch (fromZone)
+        {
+            case "Hand":
+                card = PlayerHandCards.FirstOrDefault(c => c.CardId == cardId);
+                if (card != null) PlayerHandCards.Remove(card);
+                break;
+            case "Heartland":
+                card = PlayerHeartlandCards.FirstOrDefault(c => c.CardId == cardId);
+                if (card != null) PlayerHeartlandCards.Remove(card);
+                break;
+            case "Graveyard":
+                card = PlayerGraveyardCards.FirstOrDefault(c => c.CardId == cardId);
+                if (card != null) PlayerGraveyardCards.Remove(card);
+                break;
+            default:
+                if (fromZone.StartsWith("Territory"))
+                {
+                    var territoryNum = int.Parse(fromZone.Replace("Territory", ""));
+                    if (PlayerTerritoryCards.ContainsKey(territoryNum))
+                    {
+                        card = PlayerTerritoryCards[territoryNum].FirstOrDefault(c => c.CardId == cardId);
+                        if (card != null) PlayerTerritoryCards[territoryNum].Remove(card);
+                    }
+                }
+                break;
+        }
+
+        // Add card to destination zone
+        if (card != null)
+        {
+            switch (toZone)
+            {
+                case "Hand":
+                    PlayerHandCards.Add(card);
+                    break;
+                case "Heartland":
+                    PlayerHeartlandCards.Add(card);
+                    break;
+                case "Graveyard":
+                    PlayerGraveyardCards.Add(card);
+                    break;
+                default:
+                    if (toZone.StartsWith("Territory"))
+                    {
+                        var territoryNum = int.Parse(toZone.Replace("Territory", ""));
+                        if (!PlayerTerritoryCards.ContainsKey(territoryNum))
+                            PlayerTerritoryCards[territoryNum] = new List<ManualCard>();
+                        PlayerTerritoryCards[territoryNum].Add(card);
+                    }
+                    break;
+            }
+
+            await GameHub.MoveCardManual(GameId, CurrentPlayerId, cardId, fromZone, toZone);
+            StateHasChanged();
+        }
+    }
+
+    private async Task DrawFromDeck(string deckType)
+    {
+        await GameHub.DrawCardsManual(GameId, CurrentPlayerId, deckType, 1);
+    }
+
+    // Event handlers
+    private async Task OnGameStarted(string player1Id, string player2Id)
+    {
+        // Handle game started
+    }
+
+    private async Task OnCardMoved(string playerId, int cardId, string fromZone, string toZone, int? position)
+    {
+        if (playerId != CurrentPlayerId)
+        {
+            // Handle opponent card movement
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnCardTappedToggled(string playerId, int cardId, bool isTapped)
+    {
+        // Update card tapped state
+        var allCards = PlayerHandCards.Concat(PlayerHeartlandCards)
+                                    .Concat(PlayerGraveyardCards)
+                                    .Concat(PlayerTerritoryCards.Values.SelectMany(x => x));
+        
+        var card = allCards.FirstOrDefault(c => c.CardId == cardId);
+        if (card != null)
+        {
+            card.IsTapped = isTapped;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnCardFlipped(string playerId, int cardId, bool faceUp)
+    {
+        // Update card face state
+        var allCards = PlayerHandCards.Concat(PlayerHeartlandCards)
+                                    .Concat(PlayerGraveyardCards)
+                                    .Concat(PlayerTerritoryCards.Values.SelectMany(x => x));
+        
+        var card = allCards.FirstOrDefault(c => c.CardId == cardId);
+        if (card != null)
+        {
+            card.IsFaceDown = !faceUp;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnCounterAdded(string playerId, int cardId, string counterType, int amount)
+    {
+        // Update card counters
+        var allCards = PlayerHandCards.Concat(PlayerHeartlandCards)
+                                    .Concat(PlayerGraveyardCards)
+                                    .Concat(PlayerTerritoryCards.Values.SelectMany(x => x));
+        
+        var card = allCards.FirstOrDefault(c => c.CardId == cardId);
+        if (card != null)
+        {
+            if (!card.Counters.ContainsKey(counterType))
+                card.Counters[counterType] = 0;
+            card.Counters[counterType] += amount;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnCounterRemoved(string playerId, int cardId, string counterType, int amount)
+    {
+        // Remove card counters
+        var allCards = PlayerHandCards.Concat(PlayerHeartlandCards)
+                                    .Concat(PlayerGraveyardCards)
+                                    .Concat(PlayerTerritoryCards.Values.SelectMany(x => x));
+        
+        var card = allCards.FirstOrDefault(c => c.CardId == cardId);
+        if (card != null && card.Counters.ContainsKey(counterType))
+        {
+            card.Counters[counterType] = Math.Max(0, card.Counters[counterType] - amount);
+            if (card.Counters[counterType] == 0)
+                card.Counters.Remove(counterType);
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnMoraleAdjusted(string playerId, int amount)
+    {
+        if (playerId == CurrentPlayerId)
+        {
+            PlayerMorale = Math.Max(0, PlayerMorale + amount);
+        }
+        else
+        {
+            OpponentMorale = Math.Max(0, OpponentMorale + amount);
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnTierSet(string playerId, int newTier)
+    {
+        if (playerId == CurrentPlayerId)
+        {
+            PlayerTier = newTier;
+        }
+        else
+        {
+            OpponentTier = newTier;
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnCardsDrawn(string playerId, string deckType, int count)
+    {
+        if (playerId == CurrentPlayerId)
+        {
+            // Add cards to hand (mock implementation)
+            for (int i = 0; i < count; i++)
+            {
+                PlayerHandCards.Add(new ManualCard { CardId = Random.Shared.Next(100, 999) });
+            }
+            
+            if (deckType == "Army")
+                ArmyDeckCount = Math.Max(0, ArmyDeckCount - count);
+            else
+                CivicDeckCount = Math.Max(0, CivicDeckCount - count);
+        }
+        else
+        {
+            OpponentHandCount += count;
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnDeckShuffled(string playerId, string deckType)
+    {
+        // Handle deck shuffle
+        StateHasChanged();
+    }
+
+    private async Task OnPhaseAdvanced(string playerId, string newPhase)
+    {
+        if (Enum.TryParse<GamePhase>(newPhase, out var phase))
+        {
+            CurrentPhase = phase;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnRoundAdvanced(string playerId, int newRound)
+    {
+        CurrentRound = newRound;
+        StateHasChanged();
+    }
+
+    private async Task OnActionPriorityPassed(string playerId)
+    {
+        HasActionPriority = playerId != CurrentPlayerId;
+        StateHasChanged();
+    }
+
+    public class DragInfo
+    {
+        public int CardId { get; set; }
+        public string Zone { get; set; } = "";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        // Unsubscribe from events
+        GameHub.OnManualGameStarted -= OnGameStarted;
+        GameHub.OnCardMovedManual -= OnCardMoved;
+        GameHub.OnCardTappedToggled -= OnCardTappedToggled;
+        GameHub.OnCardFlipped -= OnCardFlipped;
+        GameHub.OnCounterAdded -= OnCounterAdded;
+        GameHub.OnCounterRemoved -= OnCounterRemoved;
+        GameHub.OnMoraleAdjustedManual -= OnMoraleAdjusted;
+        GameHub.OnTierSet -= OnTierSet;
+        GameHub.OnCardsDrawn -= OnCardsDrawn;
+        GameHub.OnDeckShuffled -= OnDeckShuffled;
+        GameHub.OnPhaseAdvanced -= OnPhaseAdvanced;
+        GameHub.OnRoundAdvanced -= OnRoundAdvanced;
+        GameHub.OnActionPriorityPassed -= OnActionPriorityPassed;
+
+        await GameHub.DisposeAsync();
+    }
+}
+
+<style>
+    .manual-game-container {
+        height: 100vh;
+        display: flex;
+        background: linear-gradient(135deg, #1a1a2e, #16213e);
+        color: white;
+        overflow: hidden;
+    }
+
+    .loading-screen, .error-screen {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+    }
+
+    .game-board {
+        flex: 1;
+        display: grid;
+        grid-template-areas: 
+            "opponent opponent opponent"
+            "territories territories side-zones"
+            "player player side-zones";
+        grid-template-rows: 1fr 2fr 1fr;
+        grid-template-columns: 1fr 1fr auto;
+        gap: 10px;
+        padding: 10px;
+        min-height: 0;
+    }
+
+    .opponent-area {
+        grid-area: opponent;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .territories-area {
+        grid-area: territories;
+        display: flex;
+        gap: 10px;
+    }
+
+    .player-area {
+        grid-area: player;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .side-zones {
+        grid-area: side-zones;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        width: 200px;
+    }
+
+    .territory {
+        flex: 1;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    .territory-header {
+        margin-bottom: 10px;
+        text-align: center;
+    }
+
+    .territory-label {
+        font-weight: bold;
+        color: #ffd93d;
+    }
+
+    .settlement-info {
+        font-size: 0.8rem;
+        color: #4ecdc4;
+    }
+
+    .territory-section {
+        flex: 1;
+        margin-bottom: 10px;
+        min-height: 0;
+    }
+
+    .section-label {
+        font-size: 0.8rem;
+        margin-bottom: 5px;
+        color: #888;
+    }
+
+    .hand-zone, .heartland-zone {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        padding: 10px;
+        min-height: 120px;
+    }
+
+    .zone-label {
+        font-size: 0.9rem;
+        font-weight: bold;
+        margin-bottom: 10px;
+        color: #ffd93d;
+    }
+
+    .cards-container {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        min-height: 80px;
+    }
+
+    .card-slot {
+        width: 60px;
+        height: 84px;
+        flex-shrink: 0;
+    }
+
+    .player-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+    }
+
+    .player-info.current {
+        border: 2px solid #4ecdc4;
+    }
+
+    .player-info.opponent {
+        border: 2px solid #ff6b6b;
+    }
+
+    .player-name {
+        font-weight: bold;
+        font-size: 1.1rem;
+    }
+
+    .player-stats {
+        display: flex;
+        gap: 15px;
+    }
+
+    .morale, .tier {
+        font-weight: bold;
+    }
+
+    .graveyard-zone, .deck-zone {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        padding: 10px;
+        text-align: center;
+        position: relative;
+        height: 120px;
+    }
+
+    .deck-zones {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .deck-zone {
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .deck-zone:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .graveyard-count, .deck-count {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        font-weight: bold;
+    }
+
+    .controls-panel {
+        width: 350px;
+        flex-shrink: 0;
+        overflow-y: auto;
+    }
+
+    .opponent-hand .card-slot {
+        width: 40px;
+        height: 56px;
+    }
+
+    /* Drag and drop styles */
+    .cards-container {
+        min-height: 80px;
+        border: 2px dashed transparent;
+        transition: border-color 0.2s;
+    }
+
+    .cards-container:hover {
+        border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    /* Zone highlighting during drag */
+    .zone-highlight {
+        border-color: #4ecdc4 !important;
+        background: rgba(78, 205, 196, 0.1);
+    }
+</style>
+
+<script>
+    window.getDragData = (event) => {
+        return event.dataTransfer.getData("text/plain");
+    };
+</script>

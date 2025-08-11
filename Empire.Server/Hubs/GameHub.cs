@@ -264,5 +264,358 @@ namespace Empire.Server.Hubs
             await Clients.Group(gameId).SendAsync("GameStarted", gameId);
             Console.WriteLine($"🚀 Game {gameId} started");
         }
+
+        // Game Room specific methods for lobby functionality
+
+        /// <summary>
+        /// Join a specific game room for lobby functionality
+        /// </summary>
+        public async Task JoinGameRoom(string lobbyId)
+        {
+            if (string.IsNullOrWhiteSpace(lobbyId))
+            {
+                Console.WriteLine($"⚠️ Invalid lobbyId on JoinGameRoom: {lobbyId}");
+                return;
+            }
+
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"lobby_{lobbyId}");
+            Console.WriteLine($"🏠 {Context.ConnectionId} joined lobby room {lobbyId}");
+        }
+
+        /// <summary>
+        /// Leave a specific game room
+        /// </summary>
+        public async Task LeaveGameRoom(string lobbyId)
+        {
+            if (string.IsNullOrWhiteSpace(lobbyId))
+                return;
+
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"lobby_{lobbyId}");
+            Console.WriteLine($"🚪 {Context.ConnectionId} left lobby room {lobbyId}");
+        }
+
+        /// <summary>
+        /// Notify when a player joins the lobby
+        /// </summary>
+        public async Task NotifyPlayerJoinedLobby(string lobbyId, string username)
+        {
+            if (string.IsNullOrWhiteSpace(lobbyId) || string.IsNullOrWhiteSpace(username))
+                return;
+
+            await Clients.Group($"lobby_{lobbyId}").SendAsync("PlayerJoined", lobbyId, username);
+            Console.WriteLine($"👋 Player {username} joined lobby {lobbyId}");
+        }
+
+        /// <summary>
+        /// Notify when a player leaves the lobby
+        /// </summary>
+        public async Task NotifyPlayerLeftLobby(string lobbyId, string username)
+        {
+            if (string.IsNullOrWhiteSpace(lobbyId) || string.IsNullOrWhiteSpace(username))
+                return;
+
+            await Clients.Group($"lobby_{lobbyId}").SendAsync("PlayerLeft", lobbyId, username);
+            Console.WriteLine($"👋 Player {username} left lobby {lobbyId}");
+        }
+
+        /// <summary>
+        /// Notify when a player's ready status changes
+        /// </summary>
+        public async Task NotifyPlayerReady(string lobbyId, bool ready)
+        {
+            if (string.IsNullOrWhiteSpace(lobbyId))
+                return;
+
+            // We'll need to get the player ID from the context or pass it as a parameter
+            // For now, using a placeholder - this should be enhanced with proper user context
+            var playerId = Context.UserIdentifier ?? Context.ConnectionId;
+            
+            await Clients.OthersInGroup($"lobby_{lobbyId}").SendAsync("PlayerReady", lobbyId, playerId, ready);
+            Console.WriteLine($"✅ Player {playerId} ready status: {ready} in lobby {lobbyId}");
+        }
+
+        /// <summary>
+        /// Notify when the game starts from lobby
+        /// </summary>
+        public async Task NotifyLobbyGameStarted(string lobbyId)
+        {
+            if (string.IsNullOrWhiteSpace(lobbyId))
+                return;
+
+            await Clients.Group($"lobby_{lobbyId}").SendAsync("GameStarted", lobbyId);
+            Console.WriteLine($"🚀 Game started from lobby {lobbyId}");
+        }
+
+        /// <summary>
+        /// Start a game from lobby - integrates with LobbyService
+        /// </summary>
+        public async Task StartGameFromLobby(string lobbyId)
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+                if (userId == 0)
+                {
+                    await Clients.Caller.SendAsync("Error", "Authentication required");
+                    return;
+                }
+
+                // The actual game start logic is handled by the LobbyController
+                // This method is for SignalR coordination
+                await Clients.Group($"lobby_{lobbyId}").SendAsync("GameStarting", lobbyId);
+                Console.WriteLine($"🎮 Game starting initiated for lobby {lobbyId} by user {userId}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error starting game from lobby {lobbyId}: {ex.Message}");
+                await Clients.Caller.SendAsync("Error", "Failed to start game");
+            }
+        }
+
+        private int GetCurrentUserId()
+        {
+            // Extract user ID from claims or connection context
+            if (Context.User?.Identity?.IsAuthenticated == true)
+            {
+                var userIdClaim = Context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                return int.TryParse(userIdClaim, out var userId) ? userId : 0;
+            }
+            return 0;
+        }
+
+        // ========================================
+        // MANUAL PLAY METHODS (Cockatrice-style)
+        // ========================================
+
+        /// <summary>
+        /// Manual Play: Pass action priority to opponent
+        /// </summary>
+        public async Task PassActionPriority(string gameId, string playerId)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("ActionPriorityPassed", playerId);
+            Console.WriteLine($"⏭️ Action priority passed by {playerId} in game {gameId}");
+        }
+
+        /// <summary>
+        /// Manual Play: Pass initiative (end of round)
+        /// </summary>
+        public async Task PassInitiativeManual(string gameId, string playerId)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("InitiativePassed", playerId);
+            Console.WriteLine($"🔄 Initiative passed by {playerId} in game {gameId}");
+        }
+
+        /// <summary>
+        /// Manual Play: Move card between zones
+        /// </summary>
+        public async Task MoveCardManual(string gameId, string playerId, int cardId, string fromZone, string toZone, int? position = null)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("CardMovedManual", playerId, cardId, fromZone, toZone, position);
+            await PassActionPriority(gameId, playerId);
+            Console.WriteLine($"📦 Manual: Card {cardId} moved from {fromZone} to {toZone} by {playerId} in game {gameId}");
+        }
+
+        /// <summary>
+        /// Manual Play: Move multiple cards between zones
+        /// </summary>
+        public async Task MoveMultipleCardsManual(string gameId, string playerId, List<int> cardIds, string fromZone, string toZone)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId) || cardIds == null || !cardIds.Any())
+                return;
+
+            await Clients.Group(gameId).SendAsync("MultipleCardsMovedManual", playerId, cardIds, fromZone, toZone);
+            await PassActionPriority(gameId, playerId);
+            Console.WriteLine($"📦 Manual: {cardIds.Count} cards moved from {fromZone} to {toZone} by {playerId} in game {gameId}");
+        }
+
+        /// <summary>
+        /// Manual Play: Toggle card tapped/untapped state
+        /// </summary>
+        public async Task ToggleCardTappedManual(string gameId, string playerId, int cardId, bool isTapped)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("CardTappedToggled", playerId, cardId, isTapped);
+            Console.WriteLine($"🔄 Manual: Card {cardId} {(isTapped ? "tapped" : "untapped")} by {playerId} in game {gameId}");
+        }
+
+        /// <summary>
+        /// Manual Play: Flip card face up/down
+        /// </summary>
+        public async Task FlipCardManual(string gameId, string playerId, int cardId, bool faceUp)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("CardFlipped", playerId, cardId, faceUp);
+            Console.WriteLine($"🔄 Manual: Card {cardId} flipped {(faceUp ? "face up" : "face down")} by {playerId} in game {gameId}");
+        }
+
+        /// <summary>
+        /// Manual Play: Add counters to card
+        /// </summary>
+        public async Task AddCounterManual(string gameId, string playerId, int cardId, string counterType, int amount)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("CounterAdded", playerId, cardId, counterType, amount);
+            Console.WriteLine($"➕ Manual: Added {amount} {counterType} counter(s) to card {cardId} by {playerId} in game {gameId}");
+        }
+
+        /// <summary>
+        /// Manual Play: Remove counters from card
+        /// </summary>
+        public async Task RemoveCounterManual(string gameId, string playerId, int cardId, string counterType, int amount)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("CounterRemoved", playerId, cardId, counterType, amount);
+            Console.WriteLine($"➖ Manual: Removed {amount} {counterType} counter(s) from card {cardId} by {playerId} in game {gameId}");
+        }
+
+        /// <summary>
+        /// Manual Play: Adjust player morale
+        /// </summary>
+        public async Task AdjustMoraleManual(string gameId, string playerId, int amount)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("MoraleAdjusted", playerId, amount);
+            Console.WriteLine($"💔 Manual: Morale adjusted by {amount} for {playerId} in game {gameId}");
+        }
+
+        /// <summary>
+        /// Manual Play: Set player tier
+        /// </summary>
+        public async Task SetTierManual(string gameId, string playerId, int newTier)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("TierSet", playerId, newTier);
+            Console.WriteLine($"🏆 Manual: Tier set to {newTier} for {playerId} in game {gameId}");
+        }
+
+        /// <summary>
+        /// Manual Play: Draw cards from deck
+        /// </summary>
+        public async Task DrawCardsManual(string gameId, string playerId, string deckType, int count)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("CardsDrawn", playerId, deckType, count);
+            await PassActionPriority(gameId, playerId);
+            Console.WriteLine($"🃏 Manual: Drew {count} {deckType} card(s) for {playerId} in game {gameId}");
+        }
+
+        /// <summary>
+        /// Manual Play: Shuffle deck
+        /// </summary>
+        public async Task ShuffleDeckManual(string gameId, string playerId, string deckType)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("DeckShuffled", playerId, deckType);
+            Console.WriteLine($"🔀 Manual: {deckType} deck shuffled for {playerId} in game {gameId}");
+        }
+
+        /// <summary>
+        /// Manual Play: Untap all units (batch operation)
+        /// </summary>
+        public async Task UntapAllUnitsManual(string gameId, string playerId)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("AllUnitsUntapped", playerId);
+            Console.WriteLine($"🔄 Manual: All units untapped for {playerId} in game {gameId}");
+        }
+
+        /// <summary>
+        /// Manual Play: Advance game phase
+        /// </summary>
+        public async Task AdvancePhaseManual(string gameId, string playerId, GamePhase newPhase)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("PhaseAdvanced", playerId, newPhase.ToString());
+            Console.WriteLine($"⏰ Manual: Phase advanced to {newPhase} by {playerId} in game {gameId}");
+        }
+
+        /// <summary>
+        /// Manual Play: Advance round
+        /// </summary>
+        public async Task AdvanceRoundManual(string gameId, string playerId, int newRound)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("RoundAdvanced", playerId, newRound);
+            Console.WriteLine($"🔄 Manual: Round advanced to {newRound} by {playerId} in game {gameId}");
+        }
+
+        /// <summary>
+        /// Manual Play: Ping system for highlighting
+        /// </summary>
+        public async Task PingManual(string gameId, string playerId, string targetType, string targetId, string message)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("Ping", playerId, targetType, targetId, message);
+            Console.WriteLine($"📍 Manual: Ping from {playerId} on {targetType} {targetId}: {message} in game {gameId}");
+        }
+
+        /// <summary>
+        /// Manual Play: Chat message
+        /// </summary>
+        public async Task SendChatMessageManual(string gameId, string playerId, string message)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId) || string.IsNullOrWhiteSpace(message))
+                return;
+
+            await Clients.Group(gameId).SendAsync("ChatMessage", playerId, message, DateTime.UtcNow);
+            Console.WriteLine($"💬 Manual: Chat message from {playerId} in game {gameId}: {message}");
+        }
+
+        /// <summary>
+        /// Manual Play: Start game from lobby (initialize manual game state)
+        /// </summary>
+        public async Task StartManualGame(string gameId, string player1Id, string player2Id)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(player1Id) || string.IsNullOrWhiteSpace(player2Id))
+                return;
+
+            await Clients.Group(gameId).SendAsync("ManualGameStarted", player1Id, player2Id);
+            Console.WriteLine($"🚀 Manual: Game started between {player1Id} and {player2Id} in game {gameId}");
+        }
+
+        /// <summary>
+        /// Manual Play: Update full game state (for synchronization)
+        /// </summary>
+        public async Task UpdateGameStateManual(string gameId, object gameState)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || gameState == null)
+                return;
+
+            await Clients.Group(gameId).SendAsync("GameStateUpdatedManual", gameState);
+            Console.WriteLine($"🔄 Manual: Game state updated for game {gameId}");
+        }
     }
 }

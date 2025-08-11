@@ -1,6 +1,7 @@
 ﻿using Empire.Shared.Models;
 using Empire.Shared.Models.Enums;
 using Empire.Server.Services;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -10,15 +11,15 @@ namespace Empire.Server.Services
     {
         private readonly ICardService _cardService;
         private readonly BoardService _boardService;
-        private readonly MongoDbService _mongoDbService;
+        private readonly ConcurrentDictionary<string, GameState> _gameStates;
 
         public GameState GameState { get; private set; }
 
-        public GameStateService(ICardService cardService, BoardService boardService, MongoDbService mongoDbService)
+        public GameStateService(ICardService cardService, BoardService boardService)
         {
             _cardService = cardService;
             _boardService = boardService;
-            _mongoDbService = mongoDbService;
+            _gameStates = new ConcurrentDictionary<string, GameState>();
             GameState = new GameState();
         }
 
@@ -329,18 +330,14 @@ namespace Empire.Server.Services
             return GetOpponentId(loser.Key);
         }
 
-        // Persistence
+        // Persistence (In-Memory)
         
         public async Task SaveGameState()
         {
             try
             {
-                var collection = _mongoDbService.GameDatabase.GetCollection<GameState>("GameStates");
-                await collection.ReplaceOneAsync(
-                    gs => gs.GameId == GameState.GameId,
-                    GameState,
-                    new MongoDB.Driver.ReplaceOptions { IsUpsert = true }
-                );
+                _gameStates.AddOrUpdate(GameState.GameId, GameState, (key, oldValue) => GameState);
+                await Task.CompletedTask; // Keep async signature for compatibility
             }
             catch (Exception ex)
             {
@@ -352,17 +349,31 @@ namespace Empire.Server.Services
         {
             try
             {
-                var collection = _mongoDbService.GameDatabase.GetCollection<GameState>("GameStates");
-                var loadedState = await collection.Find(gs => gs.GameId == gameId).FirstOrDefaultAsync();
-                if (loadedState != null)
+                if (_gameStates.TryGetValue(gameId, out var loadedState))
                 {
                     GameState = loadedState;
                 }
+                await Task.CompletedTask; // Keep async signature for compatibility
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error loading game state: {ex.Message}");
             }
+        }
+
+        public GameState? GetGameState(string gameId)
+        {
+            return _gameStates.TryGetValue(gameId, out var gameState) ? gameState : null;
+        }
+
+        public void RemoveGameState(string gameId)
+        {
+            _gameStates.TryRemove(gameId, out _);
+        }
+
+        public List<string> GetActiveGameIds()
+        {
+            return _gameStates.Keys.ToList();
         }
 
         // Utility Methods

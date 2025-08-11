@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Mvc;
 using Empire.Shared.Models;
 using Empire.Shared.Models.DTOs;
 using Empire.Server.Services;
-using Empire.Server.Interfaces;
 
 namespace Empire.Server.Controllers
 {

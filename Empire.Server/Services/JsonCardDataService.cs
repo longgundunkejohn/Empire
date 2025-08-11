@@ -1,5 +1,5 @@
 using Empire.Shared.Models;
-using Empire.Server.Interfaces;
+using Empire.Server.Services;
 using System.Text.Json;
 
 namespace Empire.Server.Services
@@ -73,9 +73,9 @@ namespace Empire.Server.Services
                         CurrentDamage = 0,
                         Cost = cd.Cost,
                         Attack = cd.Attack,
-                        Defence = cd.Defence,
+                        Defense = cd.Defence,
                         Tier = cd.Tier,
-                        Unique = cd.Unique
+                        IsUnique = !string.IsNullOrEmpty(cd.Unique) && cd.Unique.ToLower() == "true"
                     });
                 }
                 else

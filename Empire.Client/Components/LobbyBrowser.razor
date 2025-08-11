@@ -1,0 +1,400 @@
+@using Empire.Shared.Models
+@using Empire.Client.Services
+@inject HttpClient Http
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<div class="lobby-browser">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3>Game Lobbies</h3>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary" @onclick="RefreshLobbies">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+            <button class="btn btn-primary" @onclick="ShowCreateModal">
+                <i class="fas fa-plus"></i> Create Game
+            </button>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-4">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading lobbies...</p>
+        </div>
+    }
+    else if (lobbies == null || !lobbies.Any())
+    {
+        <div class="text-center py-5">
+            <i class="fas fa-gamepad fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">No active games</h5>
+            <p class="text-muted">Be the first to create a game!</p>
+            <button class="btn btn-primary" @onclick="ShowCreateModal">
+                <i class="fas fa-plus"></i> Create Game
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            @foreach (var lobby in lobbies)
+            {
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card lobby-card h-100">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">@lobby.Name</h6>
+                            <span class="badge @GetStatusBadgeClass(lobby.Status.ToString())">
+                                @lobby.Status.ToString()
+                            </span>
+                        </div>
+                        <div class="card-body">
+                            <div class="lobby-info">
+                                <div class="player-slots mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <small class="text-muted">Players</small>
+                                        <small class="text-muted">@GetPlayerCount(lobby)/2</small>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <div class="player-slot @(lobby.Player1Id.HasValue ? "occupied" : "empty")">
+                                                @if (lobby.Player1Id.HasValue)
+                                                {
+                                                    <i class="fas fa-user"></i>
+                                                    <span>Player 1</span>
+                                                }
+                                                else
+                                                {
+                                                    <i class="fas fa-user-plus"></i>
+                                                    <span>Open</span>
+                                                }
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="player-slot @(lobby.Player2Id.HasValue ? "occupied" : "empty")">
+                                                @if (lobby.Player2Id.HasValue)
+                                                {
+                                                    <i class="fas fa-user"></i>
+                                                    <span>Player 2</span>
+                                                }
+                                                else
+                                                {
+                                                    <i class="fas fa-user-plus"></i>
+                                                    <span>Open</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                @if (lobby.Spectators?.Any() == true || lobby.MaxSpectators > 0)
+                                {
+                                    <div class="spectator-info mb-2">
+                                        <small class="text-muted">
+                                            <i class="fas fa-eye"></i>
+                                            Spectators: @(lobby.Spectators?.Count ?? 0)/@lobby.MaxSpectators
+                                        </small>
+                                    </div>
+                                }
+
+                                <div class="lobby-meta">
+                                    <small class="text-muted">
+                                        Created: @lobby.CreatedDate.ToString("HH:mm")
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            @{
+                                var buttonInfo = GetLobbyButtonInfo(lobby);
+                            }
+                            <button class="btn @buttonInfo.CssClass btn-sm w-100" 
+                                    @onclick="() => HandleLobbyAction(lobby.Id, buttonInfo.Action)" 
+                                    disabled="@buttonInfo.Disabled">
+                                <i class="fas @buttonInfo.Icon"></i> @buttonInfo.Text
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @if (errorMessage != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="ClearError"></button>
+        </div>
+    }
+</div>
+
+<style>
+    .lobby-browser {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .lobby-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        border: 1px solid #dee2e6;
+    }
+
+    .lobby-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .player-slot {
+        padding: 8px;
+        border-radius: 4px;
+        text-align: center;
+        font-size: 0.875rem;
+        transition: all 0.2s;
+    }
+
+    .player-slot.occupied {
+        background-color: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+    }
+
+    .player-slot.empty {
+        background-color: #f8f9fa;
+        border: 1px dashed #dee2e6;
+        color: #6c757d;
+    }
+
+    .player-slot i {
+        margin-right: 4px;
+    }
+
+    .badge.bg-waiting {
+        background-color: #ffc107 !important;
+    }
+
+    .badge.bg-ready {
+        background-color: #28a745 !important;
+    }
+
+    .badge.bg-in-progress {
+        background-color: #17a2b8 !important;
+    }
+
+    .badge.bg-completed {
+        background-color: #6c757d !important;
+    }
+
+    .spectator-info {
+        border-top: 1px solid #dee2e6;
+        padding-top: 8px;
+    }
+
+    .lobby-meta {
+        font-size: 0.75rem;
+    }
+</style>
+
+@code {
+    [Parameter] public EventCallback<string> OnJoinLobby { get; set; }
+    [Parameter] public EventCallback OnCreateGame { get; set; }
+
+    private List<GameLobby>? lobbies;
+    private bool isLoading = true;
+    private string? errorMessage;
+    private Timer? refreshTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshLobbies();
+        
+        // Auto-refresh every 10 seconds
+        refreshTimer = new Timer(async _ => await InvokeAsync(RefreshLobbies), null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+    }
+
+    private async Task RefreshLobbies()
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            var response = await Http.GetAsync("/api/lobby");
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                lobbies = System.Text.Json.JsonSerializer.Deserialize<List<GameLobby>>(json, new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+            }
+            else
+            {
+                errorMessage = "Failed to load lobbies";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading lobbies: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ShowCreateModal()
+    {
+        await OnCreateGame.InvokeAsync();
+    }
+
+    private async Task JoinAsPlayer(string lobbyId)
+    {
+        await OnJoinLobby.InvokeAsync(lobbyId);
+    }
+
+    private async Task JoinAsSpectator(string lobbyId)
+    {
+        // TODO: Implement spectator join
+        await JSRuntime.InvokeVoidAsync("alert", "Spectator mode coming soon!");
+    }
+
+    private async Task EnterLobby(string lobbyId)
+    {
+        Navigation.NavigateTo($"/lobby/{lobbyId}");
+    }
+
+    private string GetStatusBadgeClass(string status)
+    {
+        return status.ToLower() switch
+        {
+            "waiting" => "badge bg-warning",
+            "ready" => "badge bg-success",
+            "in-progress" => "badge bg-info",
+            "completed" => "badge bg-secondary",
+            _ => "badge bg-secondary"
+        };
+    }
+
+    private int GetPlayerCount(GameLobby lobby)
+    {
+        int count = 0;
+        if (lobby.Player1Id.HasValue) count++;
+        if (lobby.Player2Id.HasValue) count++;
+        return count;
+    }
+
+    private async Task<bool> CanJoinAsPlayer(GameLobby lobby)
+    {
+        if (lobby.Status != LobbyStatus.WaitingForPlayers) return false;
+        if (await IsPlayerInLobby(lobby)) return false;
+        return !lobby.Player1Id.HasValue || !lobby.Player2Id.HasValue;
+    }
+
+    private async Task<bool> CanSpectate(GameLobby lobby)
+    {
+        if (await IsPlayerInLobby(lobby)) return false;
+        var spectatorCount = lobby.Spectators?.Count ?? 0;
+        return spectatorCount < lobby.MaxSpectators;
+    }
+
+    private async Task<bool> IsPlayerInLobby(GameLobby lobby)
+    {
+        var currentUser = await AuthService.GetCurrentUserAsync();
+        var currentUserId = currentUser?.Id.ToString();
+        return lobby.Player1Id.ToString() == currentUserId || lobby.Player2Id.ToString() == currentUserId;
+    }
+
+    private LobbyButtonInfo GetLobbyButtonInfo(GameLobby lobby)
+    {
+        // This is a synchronous method that determines button state
+        // We'll use cached user info or make assumptions for now
+        var currentUser = AuthService.GetCurrentUserAsync().Result; // Not ideal but needed for sync context
+        var currentUserId = currentUser?.Id;
+
+        if (currentUserId.HasValue && (lobby.Player1Id == currentUserId || lobby.Player2Id == currentUserId))
+        {
+            return new LobbyButtonInfo
+            {
+                Text = "Enter Lobby",
+                Icon = "fa-arrow-right",
+                CssClass = "btn-primary",
+                Action = "enter",
+                Disabled = false
+            };
+        }
+
+        if (lobby.Status == LobbyStatus.WaitingForPlayers && (!lobby.Player1Id.HasValue || !lobby.Player2Id.HasValue))
+        {
+            return new LobbyButtonInfo
+            {
+                Text = "Join Game",
+                Icon = "fa-sign-in-alt",
+                CssClass = "btn-success",
+                Action = "join",
+                Disabled = false
+            };
+        }
+
+        var spectatorCount = lobby.Spectators?.Count ?? 0;
+        if (spectatorCount < lobby.MaxSpectators)
+        {
+            return new LobbyButtonInfo
+            {
+                Text = "Spectate",
+                Icon = "fa-eye",
+                CssClass = "btn-outline-secondary",
+                Action = "spectate",
+                Disabled = false
+            };
+        }
+
+        return new LobbyButtonInfo
+        {
+            Text = "Full",
+            Icon = "fa-lock",
+            CssClass = "btn-secondary",
+            Action = "none",
+            Disabled = true
+        };
+    }
+
+    private async Task HandleLobbyAction(string lobbyId, string action)
+    {
+        switch (action)
+        {
+            case "join":
+                await JoinAsPlayer(lobbyId);
+                break;
+            case "spectate":
+                await JoinAsSpectator(lobbyId);
+                break;
+            case "enter":
+                await EnterLobby(lobbyId);
+                break;
+        }
+    }
+
+    private void ClearError()
+    {
+        errorMessage = null;
+    }
+
+    public void Dispose()
+    {
+        refreshTimer?.Dispose();
+    }
+
+    private class LobbyButtonInfo
+    {
+        public string Text { get; set; } = "";
+        public string Icon { get; set; } = "";
+        public string CssClass { get; set; } = "";
+        public string Action { get; set; } = "";
+        public bool Disabled { get; set; }
+    }
+}

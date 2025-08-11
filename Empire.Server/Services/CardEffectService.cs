@@ -1,6 +1,6 @@
 using Empire.Shared.Models;
 using Empire.Shared.Models.Enums;
-using Empire.Server.Interfaces;
+using Empire.Server.Services;
 
 namespace Empire.Server.Services
 {
@@ -22,11 +22,14 @@ namespace Empire.Server.Services
         {
             try
             {
-                var card = await _cardService.GetCardAsync(cardId);
-                if (card == null)
+                var cardData = _cardService.GetCardById(cardId);
+                if (cardData == null)
                 {
                     return CardEffectResult.Failed("Card not found");
                 }
+
+                // Convert CardData to Card
+                var card = new Card(cardData);
 
                 _logger.LogInformation("Applying effect for card {CardId} ({CardName}) by player {PlayerId}", 
                     cardId, card.Name, playerId);
@@ -253,7 +256,7 @@ namespace Empire.Server.Services
         {
             // Basic mana cost calculation
             // Higher tier players pay less for cards
-            int baseCost = card.ManaCost ?? 1;
+            int baseCost = card.Cost;
             int tierDiscount = Math.Max(0, playerTier - 1);
             return Math.Max(1, baseCost - tierDiscount);
         }

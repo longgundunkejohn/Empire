@@ -1,34 +1,29 @@
 ﻿using System.Globalization;
 using CsvHelper;
-using Empire.Server.Interfaces;
 using Empire.Shared.Models.DTOs;
-using MongoDB.Driver;
 using Empire.Shared.Models;
+using System.Collections.Concurrent;
 
 namespace Empire.Server.Services
 {
     public class DeckLoaderService
     {
-        private readonly IMongoCollection<RawDeckEntry> _rawDeckCollection;
         private readonly ILogger<DeckLoaderService> _logger;
         private readonly ICardDatabaseService _cardDatabase;
-        private readonly IMongoCollection<RawDeckEntry> _deckCollection;
         private readonly string _imagePath;
+        private readonly ConcurrentDictionary<string, List<RawDeckEntry>> _playerDecks;
 
         public Dictionary<int, string> CardDictionary { get; private set; } = new();
 
         public DeckLoaderService(
             IHostEnvironment env,
-            IMongoDbService mongo,
             ILogger<DeckLoaderService> logger,
             ICardDatabaseService cardDatabase)
         {
             _logger = logger;
             _cardDatabase = cardDatabase;
             _imagePath = Path.Combine(env.ContentRootPath, "wwwroot", "images", "Cards");
-
-            _deckCollection = mongo.DeckDatabase.GetCollection<RawDeckEntry>("PlayerDecks");
-            _rawDeckCollection = mongo.DeckDatabase.GetCollection<RawDeckEntry>("RawDeckEntries");
+            _playerDecks = new ConcurrentDictionary<string, List<RawDeckEntry>>();
 
             LoadImageMappings();
             _logger.LogInformation("✅ DeckLoaderService initialized with {Count} image mappings.", CardDictionary.Count);
@@ -79,28 +74,21 @@ namespace Empire.Server.Services
 
         public void SaveDeckToDatabase(string player, List<RawDeckEntry> rawDeck)
         {
-            var filter = Builders<RawDeckEntry>.Filter.Eq("Player", player);
-            _rawDeckCollection.DeleteMany(filter);
-
             foreach (var entry in rawDeck)
             {
                 entry.DeckType = entry.DeckType?.Trim();
                 entry.Player = player;
             }
 
-            _rawDeckCollection.InsertMany(rawDeck);
+            _playerDecks.AddOrUpdate(player, rawDeck, (key, oldValue) => rawDeck);
             _logger.LogInformation("💾 Saved raw deck for player {Player} with {Count} entries.", player, rawDeck.Count);
         }
 
-
         public PlayerDeck LoadDeck(string player)
         {
-            var filter = Builders<RawDeckEntry>.Filter.Eq("Player", player);
-            var rawDeck = _deckCollection.Find(filter).ToList();
-
-            if (!rawDeck.Any())
+            if (!_playerDecks.TryGetValue(player, out var rawDeck) || !rawDeck.Any())
             {
-                _logger.LogWarning("❌ No deck found in DB for player {Player}.", player);
+                _logger.LogWarning("❌ No deck found in memory for player {Player}.", player);
                 return new PlayerDeck();
             }
 
@@ -161,9 +149,14 @@ namespace Empire.Server.Services
                 : "Unknown Card";
         }
 
-        public IMongoCollection<RawDeckEntry> GetRawDeckCollection()
+        public List<RawDeckEntry> GetPlayerDeckEntries(string player)
         {
-            return _rawDeckCollection;
+            return _playerDecks.TryGetValue(player, out var deck) ? deck : new List<RawDeckEntry>();
+        }
+
+        public List<string> GetAllPlayerNames()
+        {
+            return _playerDecks.Keys.ToList();
         }
 
 

@@ -21,6 +21,7 @@ builder.Services.AddScoped(sp => new HttpClient
 });
 
 // 🔧 Register your API services
+builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<GameApi>();
 builder.Services.AddScoped<GameHubService>();
 builder.Services.AddSingleton<GameStateClientService>();

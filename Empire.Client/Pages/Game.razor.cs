@@ -243,9 +243,9 @@ namespace Empire.Client.Pages
             await InvokeAsync(StateHasChanged);
         }
 
-        private async Task HandlePlayerJoined(string joinedPlayerId)
+        private async Task HandlePlayerJoined(string lobbyId, string username)
         {
-            ChatLog.Add(("System", $"👋 {joinedPlayerId} joined the game"));
+            ChatLog.Add(("System", $"👋 {username} joined the game"));
             await RefreshGameState();
         }
 

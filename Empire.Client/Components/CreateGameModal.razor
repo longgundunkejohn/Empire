@@ -1,0 +1,454 @@
+@using Empire.Shared.Models
+@using Empire.Client.Services
+@inject HttpClient HttpClient
+@inject IAuthService AuthService
+
+<div class="modal-overlay" @onclick="OnCancel">
+    <div class="modal-content" @onclick:stopPropagation="true">
+        <div class="modal-header">
+            <h4>Create New Game</h4>
+            <button class="close-button" @onclick="OnCancel">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div class="modal-body">
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger">
+                    @errorMessage
+                </div>
+            }
+
+            <div class="form-group">
+                <label for="gameName">Game Name</label>
+                <input type="text" id="gameName" class="form-control" @bind="gameName" 
+                       placeholder="Enter game name" maxlength="50" />
+                <small class="form-text">Choose a name for your game lobby</small>
+            </div>
+
+            <div class="form-group">
+                <label for="maxSpectators">Max Spectators</label>
+                <select id="maxSpectators" class="form-control" @bind="maxSpectators">
+                    <option value="0">No Spectators</option>
+                    <option value="2">2 Spectators</option>
+                    <option value="5">5 Spectators</option>
+                    <option value="10">10 Spectators</option>
+                </select>
+                <small class="form-text">How many people can watch your game</small>
+            </div>
+
+            <div class="form-group">
+                <label for="selectedDeck">Your Deck</label>
+                <select id="selectedDeck" class="form-control" @bind="selectedDeckId">
+                    <option value="">Select a deck...</option>
+                    @if (userDecks?.Any() == true)
+                    {
+                        @foreach (var deck in userDecks)
+                        {
+                            <option value="@deck.Id">@deck.DeckName</option>
+                        }
+                    }
+                </select>
+                <small class="form-text">
+                    @if (userDecks?.Any() != true)
+                    {
+                        <span class="text-warning">No decks found. <a href="/deck-builder">Create a deck first</a></span>
+                    }
+                    else
+                    {
+                        <span>Choose the deck you want to play with</span>
+                    }
+                </small>
+            </div>
+
+            @if (!string.IsNullOrEmpty(selectedDeckId) && selectedDeck != null)
+            {
+                <div class="deck-preview">
+                    <h6>Deck Preview: @selectedDeck.DeckName</h6>
+                    <div class="deck-stats">
+                        <span class="army-count">Army: @GetArmyCardCount() cards</span>
+                        <span class="civic-count">Civic: @GetCivicCardCount() cards</span>
+                    </div>
+                    @if (!IsDeckValid())
+                    {
+                        <div class="deck-validation-error">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            Invalid deck: Must have exactly 30 Army cards and 15 Civic cards
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="OnCancel" disabled="@isCreating">
+                Cancel
+            </button>
+            <button class="btn btn-primary" @onclick="CreateGame" disabled="@(!CanCreateGame() || isCreating)">
+                @if (isCreating)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    <span>Creating...</span>
+                }
+                else
+                {
+                    <span>Create Game</span>
+                }
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        width: 90%;
+        max-width: 500px;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 24px;
+        border-bottom: 1px solid #e1e5e9;
+    }
+
+    .modal-header h4 {
+        margin: 0;
+        color: #333;
+    }
+
+    .close-button {
+        background: none;
+        border: none;
+        font-size: 1.2rem;
+        color: #666;
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 4px;
+        transition: all 0.3s ease;
+    }
+
+    .close-button:hover {
+        background: #f8f9fa;
+        color: #333;
+    }
+
+    .modal-body {
+        padding: 24px;
+    }
+
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        padding: 20px 24px;
+        border-top: 1px solid #e1e5e9;
+        background: #f8f9fa;
+        border-radius: 0 0 12px 12px;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        color: #333;
+        font-weight: 500;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 12px 16px;
+        border: 2px solid #e1e5e9;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: border-color 0.3s ease;
+        box-sizing: border-box;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: #007bff;
+        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+    }
+
+    .form-text {
+        display: block;
+        margin-top: 4px;
+        color: #666;
+        font-size: 0.85rem;
+    }
+
+    .text-warning {
+        color: #856404;
+    }
+
+    .deck-preview {
+        background: #f8f9fa;
+        border: 1px solid #e1e5e9;
+        border-radius: 8px;
+        padding: 16px;
+        margin-top: 16px;
+    }
+
+    .deck-preview h6 {
+        margin: 0 0 8px 0;
+        color: #333;
+    }
+
+    .deck-stats {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 8px;
+    }
+
+    .army-count {
+        color: #dc3545;
+        font-weight: 500;
+    }
+
+    .civic-count {
+        color: #28a745;
+        font-weight: 500;
+    }
+
+    .deck-validation-error {
+        color: #dc3545;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+    }
+
+    .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .btn-primary {
+        background: #007bff;
+        color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        background: #0056b3;
+    }
+
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+        background: #545b62;
+    }
+
+    .alert {
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+
+    .alert-danger {
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+    }
+
+    .spinner-border-sm {
+        width: 1rem;
+        height: 1rem;
+        border-width: 0.1em;
+    }
+
+    .spinner-border {
+        display: inline-block;
+        border: 0.25em solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: spinner-border 0.75s linear infinite;
+    }
+
+    @@keyframes spinner-border {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+</style>
+
+@code {
+    [Parameter] public EventCallback<string> OnGameCreated { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private string gameName = "";
+    private int maxSpectators = 0;
+    private string selectedDeckId = "";
+    private string errorMessage = "";
+    private bool isCreating = false;
+    private List<UserDeck>? userDecks;
+
+    private UserDeck? selectedDeck => userDecks?.FirstOrDefault(d => d.Id.ToString() == selectedDeckId);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserDecks();
+    }
+
+    private async Task LoadUserDecks()
+    {
+        try
+        {
+            var response = await HttpClient.GetAsync("api/deckbuilder/user-decks");
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                userDecks = System.Text.Json.JsonSerializer.Deserialize<List<UserDeck>>(json, new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Failed to load your decks: " + ex.Message;
+        }
+    }
+
+    private async Task CreateGame()
+    {
+        if (!CanCreateGame())
+            return;
+
+        isCreating = true;
+        errorMessage = "";
+
+        try
+        {
+            var request = new
+            {
+                Name = gameName.Trim(),
+                MaxSpectators = maxSpectators,
+                DeckId = int.Parse(selectedDeckId)
+            };
+
+            var response = await HttpClient.PostAsJsonAsync("api/lobby", request);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                var result = System.Text.Json.JsonSerializer.Deserialize<GameLobby>(content, new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                if (result != null && OnGameCreated.HasDelegate)
+                {
+                    await OnGameCreated.InvokeAsync(result.Id);
+                }
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                errorMessage = $"Failed to create game: {errorContent}";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Error creating game: " + ex.Message;
+        }
+        finally
+        {
+            isCreating = false;
+        }
+    }
+
+    private bool CanCreateGame()
+    {
+        return !string.IsNullOrWhiteSpace(gameName) && 
+               !string.IsNullOrEmpty(selectedDeckId) && 
+               IsDeckValid();
+    }
+
+    private bool IsDeckValid()
+    {
+        if (selectedDeck == null) return false;
+        
+        var armyCount = GetArmyCardCount();
+        var civicCount = GetCivicCardCount();
+        
+        return armyCount == 30 && civicCount == 15;
+    }
+
+    private int GetArmyCardCount()
+    {
+        if (selectedDeck?.ArmyCards == null) return 0;
+        
+        try
+        {
+            var armyCards = System.Text.Json.JsonSerializer.Deserialize<List<int>>(selectedDeck.ArmyCards);
+            return armyCards?.Count ?? 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private int GetCivicCardCount()
+    {
+        if (selectedDeck?.CivicCards == null) return 0;
+        
+        try
+        {
+            var civicCards = System.Text.Json.JsonSerializer.Deserialize<List<int>>(selectedDeck.CivicCards);
+            return civicCards?.Count ?? 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    public class UserDeck
+    {
+        public int Id { get; set; }
+        public string DeckName { get; set; } = "";
+        public string ArmyCards { get; set; } = "";
+        public string CivicCards { get; set; } = "";
+    }
+}

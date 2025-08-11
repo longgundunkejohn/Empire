@@ -1,17 +1,9 @@
 ﻿using Empire.Shared.Models;
-using MongoDB.Bson.Serialization.Attributes;
-using MongoDB.Bson;
-
 
 namespace Empire.Shared.Models
 {
-
-    [BsonIgnoreExtraElements]
     public class GameState
     {
-        // Explicit ObjectId for Mongo, not using string for GameId
-        [BsonId]
-        [BsonRepresentation(BsonType.ObjectId)]
         public string GameId { get; set; } = string.Empty;
 
         // Player Information
@@ -23,13 +15,22 @@ namespace Empire.Shared.Models
         public Dictionary<string, int> PlayerTiers { get; set; } = new(); // I-IV (1-4) based on settled territories
         public int CurrentRound { get; set; } = 1;
         
-        // Initiative System
-        public string? InitiativeHolder { get; set; }
+        // Initiative System (Empire-specific dual priority)
+        public string? InitiativeHolder { get; set; } // Passed after each round
+        public string? ActionPriorityHolder { get; set; } // Passed after each action
         public bool WaitingForBothPlayersToPass { get; set; } = false;
         public string? LastPlayerToPass { get; set; }
         
+        // Manual Play State
+        public bool GameStarted { get; set; } = false;
+        public DateTime? LastActionTime { get; set; }
+        public List<string> ActionLog { get; set; } = new(); // Simple action history
+        
         // Phase Management
         public GamePhase CurrentPhase { get; set; } = GamePhase.Strategy;
+        
+        // Action Tracking
+        public Dictionary<string, List<string>> PlayerActionsThisRound { get; set; } = new(); // Track actions per player per round
         
         // Territory System (3 territories)
         public Dictionary<string, string> TerritoryOccupants { get; set; } = new(); // "territory-1" → "player1"

@@ -1,9 +1,19 @@
 ﻿@page "/"
+@using Empire.Client.Services
+@inject IAuthService AuthService
 @inject NavigationManager Nav
 
 @code {
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        Nav.NavigateTo("/lobby", true);
+        // Check if user is authenticated
+        if (await AuthService.IsAuthenticatedAsync())
+        {
+            Nav.NavigateTo("/lobby", true);
+        }
+        else
+        {
+            Nav.NavigateTo("/login", true);
+        }
     }
 }

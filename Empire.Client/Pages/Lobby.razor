@@ -1,403 +1,194 @@
 ﻿@page "/lobby"
-@inject GameApi GameApi
-@inject NavigationManager Nav
-@inject HttpClient Http
-@using Empire.Client.Services
 @using Empire.Shared.Models
-@using Empire.Shared.DTOs
-@using Microsoft.AspNetCore.Components.Forms
-@using System.Net.Http.Headers
+@using Empire.Client.Services
+@using Empire.Client.Components
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@inject AuthService AuthService
 
-<div class="container py-4">
+<PageTitle>Game Lobby</PageTitle>
 
-    <h3>Empire Lobby</h3>
-
-    <div class="mb-3">
-        <label class="form-label">Your Name</label>
-        <input type="text"
-               class="form-control"
-               placeholder="Enter your name"
-               value="@_createPlayerName"
-               @oninput="OnNameChanged" />
-
-    </div>
-
-    @if (deckList?.Any() == true)
-
-    {
-        <div class="mb-3">
-            <label class="form-label">Select Deck</label>
-            <select class="form-select" @bind="selectedDeckName">
-                @foreach (var deck in deckList)
-
-                {
-                    <option value="@deck.DeckName">@deck.DeckName</option>
-                }
-            </select>
+<div class="lobby-container">
+    <div class="lobby-header">
+        <h2>Empire TCG - Multiplayer Lobby</h2>
+        <div class="user-info">
+            <i class="fas fa-user"></i>
+            Welcome, @currentUsername
         </div>
-    }
-
-    else if (!string.IsNullOrWhiteSpace(_createPlayerName))
-
-    {
-        <p><em>No decks found for @_createPlayerName</em></p>
-    }
-
-    <div class="mb-3">
-        <button class="btn btn-primary me-2" @onclick="CreateGame" disabled="@(!CanCreateGame)">Create Game</button>
     </div>
 
-    <hr />
+    <div class="lobby-content">
+        @if (showCreateModal)
+        {
+            <CreateGameModal OnGameCreated="OnGameCreated" OnCancel="HideCreateModal" />
+        }
 
-    <h4>Open Games</h4>
-    @if (games?.Any() == true)
+        <LobbyBrowser OnJoinLobby="OnJoinLobby" OnCreateGame="ShowCreateModal" />
 
-    {
-        <ul class="list-group">
-            @foreach (var game in games)
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger alert-dismissible fade show mt-4" role="alert">
+                @errorMessage
+                <button type="button" class="btn-close" @onclick="ClearError"></button>
+            </div>
+        }
 
-            {
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <div>
-                        <strong>@game.GameId</strong> hosted by <em>@game.HostPlayer</em>
-                    </div>
-                    <button class="btn btn-success btn-sm" @onclick="() => JoinGame(game.GameId)">Join</button>
-                </li>
-            }
-        </ul>
-    }
-
-    else
-
-    {
-        <p>No open games.</p>
-    }
-
-    <hr />
-
-    <h4>Upload New Deck</h4>
-
-    <div class="mb-3">
-        <InputFile OnChange="HandleFileChange" accept=".csv" class="form-control" />
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success alert-dismissible fade show mt-4" role="alert">
+                @successMessage
+                <button type="button" class="btn-close" @onclick="ClearSuccess"></button>
+            </div>
+        }
     </div>
-
-    <div class="mb-3">
-        <input type="text" class="form-control" placeholder="Deck Name (optional)" @bind="uploadDeckName" />
-    </div>
-
-    <div class="mb-3">
-        <button class="btn btn-secondary" @onclick="UploadDeck" disabled="@(!CanUploadDeck)">Upload Deck</button>
-    </div>
-
-    @if (!string.IsNullOrWhiteSpace(uploadStatus))
-
-    {
-        <div class="alert alert-info">@uploadStatus</div>
-    }
-
 </div>
 
+<style>
+    .lobby-container {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        padding: 20px;
+    }
+
+    .lobby-header {
+        text-align: center;
+        color: white;
+        margin-bottom: 30px;
+        padding: 20px;
+    }
+
+    .lobby-header h2 {
+        font-size: 2.5rem;
+        margin-bottom: 10px;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .user-info {
+        font-size: 1.1rem;
+        opacity: 0.9;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .lobby-content {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 12px;
+        padding: 30px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .alert {
+        border-radius: 8px;
+        border: none;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .alert-danger {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+
+    .alert-success {
+        background-color: #d4edda;
+        color: #155724;
+    }
+
+    .btn-close {
+        background: none;
+        border: none;
+        font-size: 1.2rem;
+        opacity: 0.7;
+        cursor: pointer;
+    }
+
+    .btn-close:hover {
+        opacity: 1;
+    }
+
+    @@media (max-width: 768px) {
+        .lobby-container {
+            padding: 10px;
+        }
+
+        .lobby-header h2 {
+            font-size: 2rem;
+        }
+
+        .lobby-content {
+            padding: 20px;
+        }
+    }
+</style>
+
 @code {
-    private List<GamePreview> games = new();
-
-    private List<PlayerDeck> deckList = new();
-
-
-
-    private string selectedDeckName = "";
-
-    private string gameId = "";
-
-    private string playerId = "";
-
-    private GameState? gameState;
-
-
-
-    private IBrowserFile? selectedFile;
-
-    private string uploadDeckName = "";
-
-    private string uploadStatus = "";
-
-
-
-    private string _createPlayerName = "";
-
-    private string CreatePlayerName => _createPlayerName;
-
-
-
-    private bool CanUploadDeck => selectedFile != null && !string.IsNullOrWhiteSpace(_createPlayerName);
-
-    private bool CanCreateGame => !string.IsNullOrWhiteSpace(_createPlayerName) && !string.IsNullOrWhiteSpace(selectedDeckName);
-
-
-
-    private async Task UploadDeck()
-    {
-        if (selectedFile == null || string.IsNullOrWhiteSpace(_createPlayerName))
-        {
-            uploadStatus = "❌ Please select a file and enter your name.";
-            return;
-        }
-
-        uploadStatus = "⏳ Uploading deck...";
-        StateHasChanged();
-
-        try
-        {
-            var content = new MultipartFormDataContent();
-            
-            // Increase file size limit to 5MB
-            var fileStream = selectedFile.OpenReadStream(5 * 1024 * 1024);
-            var fileContent = new StreamContent(fileStream);
-            fileContent.Headers.ContentType = new MediaTypeHeaderValue("text/csv");
-
-            content.Add(fileContent, "file", selectedFile.Name);
-
-            var query = $"?playerName={Uri.EscapeDataString(_createPlayerName)}";
-            if (!string.IsNullOrWhiteSpace(uploadDeckName))
-                query += $"&deckName={Uri.EscapeDataString(uploadDeckName)}";
-
-            Console.WriteLine($"[Lobby] 📤 Uploading deck to: api/prelobby/upload{query}");
-            Console.WriteLine($"[Lobby] 📁 File: {selectedFile.Name} ({selectedFile.Size} bytes)");
-
-            var response = await Http.PostAsync($"api/prelobby/upload{query}", content);
-            
-            Console.WriteLine($"[Lobby] 📨 Response: {response.StatusCode}");
-
-            if (response.IsSuccessStatusCode)
-            {
-                uploadStatus = "✅ Upload successful!";
-                await LoadDecksForPlayer();
-            }
-            else
-            {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"[Lobby] ❌ Error content: {errorContent}");
-                uploadStatus = $"❌ Upload failed: {response.ReasonPhrase} - {errorContent}";
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[Lobby] ❌ Exception: {ex}");
-            uploadStatus = $"❌ Upload failed: {ex.Message}";
-        }
-    }
-
-
-
-    private void HandleFileChange(InputFileChangeEventArgs e)
-
-    {
-
-        selectedFile = e.File;
-
-        uploadStatus = $"📂 Selected: {selectedFile.Name}";
-
-    }
-
-
-
-    private async Task LoadDecksForPlayer()
-
-    {
-
-        if (string.IsNullOrWhiteSpace(_createPlayerName))
-
-        {
-
-            deckList.Clear();
-
-            return;
-
-        }
-
-
-
-        try
-
-        {
-
-            deckList = await GameApi.GetDecksForPlayer(_createPlayerName);
-
-            selectedDeckName = deckList.FirstOrDefault()?.DeckName ?? "";
-
-        }
-
-        catch (Exception ex)
-
-        {
-
-            Console.WriteLine($"[Lobby] ❌ Failed to load decks for {_createPlayerName}: {ex.Message}");
-
-        }
-
-    }
-
-
+    private bool showCreateModal = false;
+    private string errorMessage = "";
+    private string successMessage = "";
+    private string currentUsername = "Player";
 
     protected override async Task OnInitializedAsync()
-
     {
-
-        games = await GameApi.GetOpenGames();
-
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    private async Task CreateGame()
-
-    {
-
-        var selectedDeck = deckList.FirstOrDefault(d => d.DeckName == selectedDeckName);
-
-        if (selectedDeck == null) return;
-
-
-
-        var id = await GameApi.CreateGame(_createPlayerName, selectedDeck.Id);
-
-        if (string.IsNullOrWhiteSpace(id)) return;
-
-
-
-        gameId = id;
-
-        playerId = _createPlayerName;
-
-
-
-        await RefreshGameState();
-
-        Nav.NavigateTo($"/game/{gameId}/{playerId}");
-
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    private async Task JoinGame(string id)
-
-    {
-
-        var deck = deckList.FirstOrDefault(d => d.DeckName == selectedDeckName);
-
-        if (deck == null) return;
-
-
-
-        var success = await GameApi.JoinGame(id, _createPlayerName, deck.CivicDeck, deck.MilitaryDeck);
-
-        if (success)
-
+        // Check if user is authenticated
+        if (!await AuthService.IsAuthenticatedAsync())
         {
-
-            gameId = id;
-
-            playerId = _createPlayerName;
-
-            await RefreshGameState();
-
-            Nav.NavigateTo($"/game/{gameId}/{playerId}");
-
+            Navigation.NavigateTo("/login");
+            return;
         }
 
-        else
+        // Load current username
+        currentUsername = await GetCurrentUsername();
+    }
 
+    private async Task ShowCreateModal()
+    {
+        showCreateModal = true;
+    }
+
+    private async Task HideCreateModal()
+    {
+        showCreateModal = false;
+    }
+
+    private async Task OnGameCreated(string lobbyId)
+    {
+        showCreateModal = false;
+        successMessage = "Game created successfully!";
+        
+        // Navigate to the specific lobby page
+        Navigation.NavigateTo($"/lobby/{lobbyId}");
+    }
+
+    private async Task OnJoinLobby(string lobbyId)
+    {
+        try
         {
-
-            Console.WriteLine("❌ Failed to join game.");
-
+            // For now, just navigate to the lobby. In the future, this could handle deck selection
+            Navigation.NavigateTo($"/lobby/{lobbyId}");
         }
-
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to join lobby: {ex.Message}";
+        }
     }
 
-
-
-    private async Task RefreshGameState()
-
+    private void ClearError()
     {
-
-        gameState = await GameApi.GetGameState(gameId);
-
+        errorMessage = "";
     }
 
-
-
-    // 🧠 Watch name input & live update decks
-
-    private async Task OnNameChanged(ChangeEventArgs e)
-
+    private void ClearSuccess()
     {
-
-        _createPlayerName = e.Value?.ToString()?.Trim() ?? "";
-
-        await LoadDecksForPlayer();
-
+        successMessage = "";
     }
 
+    private async Task<string> GetCurrentUsername()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        return user?.Username ?? "Player";
+    }
 }

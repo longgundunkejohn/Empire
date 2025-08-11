@@ -3,13 +3,11 @@ using Empire.Shared.Models;
 using Empire.Shared.Models.DTOs;
 using Empire.Shared.Models.Enums;
 using Empire.Shared.DTOs;
-using Empire.Server.Interfaces;
 using Empire.Server.Services;
 using Empire.Server.Hubs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
-using MongoDB.Driver;
-using MongoDB.Bson;
+using System.Collections.Concurrent;
 
 namespace Empire.Server.Controllers
 {
@@ -17,176 +15,219 @@ namespace Empire.Server.Controllers
     [Route("api/[controller]")]
     public class GameController : ControllerBase
     {
-        private readonly DeckService _deckService;
+        private readonly DeckLoaderService _deckLoader;
         private readonly ICardDatabaseService _cardService;
         private readonly GameStateService _gameStateService;
-        private readonly IMongoCollection<GameState> _gameCollection;
         private readonly IHubContext<GameHub> _hubContext;
+        private readonly ILogger<GameController> _logger;
+        private static readonly ConcurrentDictionary<string, GameState> _gameStates = new();
 
         public GameController(
-            DeckService deckService, 
+            DeckLoaderService deckLoader, 
             ICardDatabaseService cardService, 
             GameStateService gameStateService,
-            IMongoDatabase mongoDb, 
-            IHubContext<GameHub> hubContext)
+            IHubContext<GameHub> hubContext,
+            ILogger<GameController> logger)
         {
-            _deckService = deckService;
+            _deckLoader = deckLoader;
             _cardService = cardService;
             _gameStateService = gameStateService;
-            _gameCollection = mongoDb.GetCollection<GameState>("GameSessions");
             _hubContext = hubContext;
+            _logger = logger;
         }
 
         [HttpPost("create")]
         public async Task<IActionResult> CreateGame([FromBody] GameStartRequest request)
         {
-            var playerDeck = await _deckService.GetDeckAsync(request.Player1, request.DeckId);
-            if (playerDeck == null)
-                return NotFound("No deck found for this player.");
-
-            var civicCards = await _cardService.GetDeckCards(playerDeck.CivicDeck);
-            var militaryCards = await _cardService.GetDeckCards(playerDeck.MilitaryDeck);
-            var allCards = civicCards.Concat(militaryCards).ToList();
-
-            var hand = allCards.Take(5).Select(c => c.CardId).ToList();
-
-            var game = new GameState
+            try
             {
-                GameId = ObjectId.GenerateNewId().ToString(),
-                Player1 = request.Player1,
-                CurrentPhase = GamePhase.Strategy,
-                PlayerDecks = new Dictionary<string, List<Card>> { [request.Player1] = allCards },
-                PlayerHands = new Dictionary<string, List<int>> { [request.Player1] = hand },
-                PlayerBoard = new Dictionary<string, List<BoardCard>> { [request.Player1] = new() },
-                PlayerGraveyards = new Dictionary<string, List<int>> { [request.Player1] = new() },
-                PlayerLifeTotals = new Dictionary<string, int> { [request.Player1] = 20 },
-                PlayerSealedZones = new Dictionary<string, List<int>> { [request.Player1] = new() }
-            };
+                var playerDeck = _deckLoader.LoadDeck(request.Player1);
+                if (playerDeck.CivicDeck.Count == 0 && playerDeck.MilitaryDeck.Count == 0)
+                    return NotFound("No deck found for this player.");
 
-            await _gameCollection.InsertOneAsync(game);
+                var civicCards = await _cardService.GetDeckCards(playerDeck.CivicDeck);
+                var militaryCards = await _cardService.GetDeckCards(playerDeck.MilitaryDeck);
+                var allCards = civicCards.Concat(militaryCards).ToList();
 
-            return Ok(game.GameId); // Only return the GameId string!
+                var hand = allCards.Take(5).Select(c => c.CardId).ToList();
+
+                var gameId = Guid.NewGuid().ToString();
+                var game = new GameState
+                {
+                    GameId = gameId,
+                    Player1 = request.Player1,
+                    CurrentPhase = GamePhase.Strategy,
+                    PlayerDecks = new Dictionary<string, List<Card>> { [request.Player1] = allCards },
+                    PlayerHands = new Dictionary<string, List<int>> { [request.Player1] = hand },
+                    PlayerBoard = new Dictionary<string, List<BoardCard>> { [request.Player1] = new() },
+                    PlayerGraveyards = new Dictionary<string, List<int>> { [request.Player1] = new() },
+                    PlayerLifeTotals = new Dictionary<string, int> { [request.Player1] = 20 },
+                    PlayerSealedZones = new Dictionary<string, List<int>> { [request.Player1] = new() }
+                };
+
+                _gameStates.TryAdd(gameId, game);
+                _logger.LogInformation("✅ Created game {GameId} for player {Player}", gameId, request.Player1);
+
+                return Ok(gameId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error creating game for player {Player}", request.Player1);
+                return StatusCode(500, "Error creating game");
+            }
         }
 
         [HttpGet("open")]
         public async Task<ActionResult<List<GamePreview>>> GetOpenGames()
         {
-            var filter = Builders<GameState>.Filter.Where(g => !string.IsNullOrEmpty(g.Player1) && string.IsNullOrEmpty(g.Player2));
-            var games = await _gameCollection.Find(filter).ToListAsync();
-
-            var previews = games.Select(g => new GamePreview
+            try
             {
-                GameId = g.GameId,
-                HostPlayer = g.Player1,
-                IsJoinable = true
-            }).ToList();
+                var openGames = _gameStates.Values
+                    .Where(g => !string.IsNullOrEmpty(g.Player1) && string.IsNullOrEmpty(g.Player2))
+                    .Select(g => new GamePreview
+                    {
+                        GameId = g.GameId,
+                        HostPlayer = g.Player1,
+                        IsJoinable = true
+                    }).ToList();
 
-            return Ok(previews);
+                return Ok(openGames);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error getting open games");
+                return StatusCode(500, "Error retrieving open games");
+            }
         }
 
         [HttpPost("{gameId}/join/{playerId}")]
         public async Task<IActionResult> JoinGame(string gameId, string playerId, [FromBody] JoinGameRequest deck)
         {
-            var game = await _gameCollection.Find(g => g.GameId == gameId).FirstOrDefaultAsync();
-            if (game == null)
-                return NotFound("Game not found");
+            try
+            {
+                if (!_gameStates.TryGetValue(gameId, out var game))
+                    return NotFound("Game not found");
 
-            if (!string.IsNullOrEmpty(game.Player2))
-                return BadRequest("Game already full");
+                if (!string.IsNullOrEmpty(game.Player2))
+                    return BadRequest("Game already full");
 
-            var civicCards = await _cardService.GetDeckCards(deck.CivicDeck);
-            var militaryCards = await _cardService.GetDeckCards(deck.MilitaryDeck);
-            var allCards = civicCards.Concat(militaryCards).ToList();
+                var civicCards = await _cardService.GetDeckCards(deck.CivicDeck);
+                var militaryCards = await _cardService.GetDeckCards(deck.MilitaryDeck);
+                var allCards = civicCards.Concat(militaryCards).ToList();
 
-            var hand = allCards.Take(5).Select(c => c.CardId).ToList();
+                var hand = allCards.Take(5).Select(c => c.CardId).ToList();
 
-            game.Player2 = playerId;
+                game.Player2 = playerId;
+                game.PlayerDecks[playerId] = allCards;
+                game.PlayerHands[playerId] = hand;
+                game.PlayerBoard[playerId] = new();
+                game.PlayerGraveyards[playerId] = new();
+                game.PlayerLifeTotals[playerId] = 20;
+                game.PlayerSealedZones[playerId] = new();
 
-            game.PlayerDecks[playerId] = allCards;
-            game.PlayerHands[playerId] = hand;
-            game.PlayerBoard[playerId] = new();
-            game.PlayerGraveyards[playerId] = new();
-            game.PlayerLifeTotals[playerId] = 20;
-            game.PlayerSealedZones[playerId] = new();
-
-            await _gameCollection.ReplaceOneAsync(g => g.GameId == gameId, game);
-
-            return Ok(new { message = $"✅ {playerId} joined game {gameId}" });
+                _logger.LogInformation("✅ Player {Player} joined game {GameId}", playerId, gameId);
+                return Ok(new { message = $"✅ {playerId} joined game {gameId}" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error joining game {GameId} for player {Player}", gameId, playerId);
+                return StatusCode(500, "Error joining game");
+            }
         }
 
         [HttpPost("{gameId}/draw/{playerId}/{type}")]
         public async Task<ActionResult<int>> DrawCard(string gameId, string playerId, string type)
         {
-            var game = await _gameCollection.Find(g => g.GameId == gameId).FirstOrDefaultAsync();
-            if (game == null) return NotFound();
+            try
+            {
+                if (!_gameStates.TryGetValue(gameId, out var game))
+                    return NotFound("Game not found");
 
-            if (!game.PlayerDecks.TryGetValue(playerId, out var deck))
-                return BadRequest("Deck not found for player");
+                if (!game.PlayerDecks.TryGetValue(playerId, out var deck))
+                    return BadRequest("Deck not found for player");
 
-            var drawPool = deck.Where(c =>
-                type.ToLower() == "civic" ? DeckUtils.IsCivicCard(c.CardId) : !DeckUtils.IsCivicCard(c.CardId)).ToList();
+                var drawPool = deck.Where(c =>
+                    type.ToLower() == "civic" ? DeckUtils.IsCivicCard(c.CardId) : !DeckUtils.IsCivicCard(c.CardId)).ToList();
 
-            if (!drawPool.Any()) return BadRequest("No cards left of type");
+                if (!drawPool.Any()) return BadRequest("No cards left of type");
 
-            var card = drawPool.First();
-            deck.Remove(card);
+                var card = drawPool.First();
+                deck.Remove(card);
 
-            if (!game.PlayerHands.ContainsKey(playerId))
-                game.PlayerHands[playerId] = new();
+                if (!game.PlayerHands.ContainsKey(playerId))
+                    game.PlayerHands[playerId] = new();
 
-            game.PlayerHands[playerId].Add(card.CardId);
+                game.PlayerHands[playerId].Add(card.CardId);
 
-            await _gameCollection.ReplaceOneAsync(g => g.GameId == gameId, game);
-
-            return Ok(card.CardId);
+                return Ok(card.CardId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error drawing card for player {Player} in game {GameId}", playerId, gameId);
+                return StatusCode(500, "Error drawing card");
+            }
         }
 
         [HttpGet("{gameId}/state")]
         public async Task<ActionResult<GameState>> GetGameState(string gameId)
         {
-            var state = await _gameCollection.Find(g => g.GameId == gameId).FirstOrDefaultAsync();
-            return state == null ? NotFound() : Ok(state);
+            try
+            {
+                if (!_gameStates.TryGetValue(gameId, out var state))
+                    return NotFound("Game not found");
+
+                return Ok(state);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error getting game state for {GameId}", gameId);
+                return StatusCode(500, "Error retrieving game state");
+            }
         }
 
         [HttpPost("{gameId}/move")]
         public async Task<IActionResult> SubmitMove(string gameId, [FromBody] GameMove move)
         {
-            var game = await _gameCollection.Find(g => g.GameId == gameId).FirstOrDefaultAsync();
-            if (game == null)
-                return NotFound("Game not found");
-
-            // Add move to history
-            game.MoveHistory.Add(move);
-
-            // Process the move based on type
-            switch (move.MoveType?.ToLowerInvariant())
+            try
             {
-                case "shuffledeck":
-                    await ProcessShuffleDeck(game, move.PlayerId);
-                    break;
-                case "playcard":
-                    if (move.CardId.HasValue)
-                        await ProcessPlayCard(game, move.PlayerId, move.CardId.Value);
-                    break;
-                case "exertcard":
-                    if (move.CardId.HasValue)
-                        await ProcessExertCard(game, move.PlayerId, move.CardId.Value);
-                    break;
-                case "endturn":
-                    await ProcessEndTurn(game, move.PlayerId);
-                    break;
-                default:
-                    return BadRequest($"Unknown move type: {move.MoveType}");
+                if (!_gameStates.TryGetValue(gameId, out var game))
+                    return NotFound("Game not found");
+
+                // Add move to history
+                game.MoveHistory.Add(move);
+
+                // Process the move based on type
+                switch (move.MoveType?.ToLowerInvariant())
+                {
+                    case "shuffledeck":
+                        await ProcessShuffleDeck(game, move.PlayerId);
+                        break;
+                    case "playcard":
+                        if (move.CardId.HasValue)
+                            await ProcessPlayCard(game, move.PlayerId, move.CardId.Value);
+                        break;
+                    case "exertcard":
+                        if (move.CardId.HasValue)
+                            await ProcessExertCard(game, move.PlayerId, move.CardId.Value);
+                        break;
+                    case "endturn":
+                        await ProcessEndTurn(game, move.PlayerId);
+                        break;
+                    default:
+                        return BadRequest($"Unknown move type: {move.MoveType}");
+                }
+
+                // Notify clients about the move and game state update
+                await _hubContext.Clients.Group(gameId).SendAsync("MoveSubmitted", move);
+                await _hubContext.Clients.Group(gameId).SendAsync("GameStateUpdated", gameId);
+
+                return Ok(new { message = $"Move {move.MoveType} processed successfully" });
             }
-
-            // Save updated game state
-            await _gameCollection.ReplaceOneAsync(g => g.GameId == gameId, game);
-
-            // Notify clients about the move and game state update
-            await _hubContext.Clients.Group(gameId).SendAsync("MoveSubmitted", move);
-            await _hubContext.Clients.Group(gameId).SendAsync("GameStateUpdated", gameId);
-
-            return Ok(new { message = $"Move {move.MoveType} processed successfully" });
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Error submitting move for game {GameId}", gameId);
+                return StatusCode(500, "Error processing move");
+            }
         }
 
         private async Task ProcessShuffleDeck(GameState game, string playerId)
@@ -248,9 +289,9 @@ namespace Empire.Server.Controllers
             // Advance game phase
             game.CurrentPhase = game.CurrentPhase switch
             {
-                GamePhase.Strategy => GamePhase.Action,
-                GamePhase.Action => GamePhase.Resolution,
-                GamePhase.Resolution => GamePhase.Strategy,
+                GamePhase.Strategy => GamePhase.Battle,
+                GamePhase.Battle => GamePhase.Replenishment,
+                GamePhase.Replenishment => GamePhase.Strategy,
                 _ => GamePhase.Strategy
             };
 
@@ -284,6 +325,7 @@ namespace Empire.Server.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "❌ Error creating Empire game {GameId}", gameId);
                 return BadRequest($"Failed to initialize Empire game: {ex.Message}");
             }
         }
@@ -307,6 +349,7 @@ namespace Empire.Server.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "❌ Error setting up deck for player {Player} in game {GameId}", playerId, gameId);
                 return BadRequest($"Failed to setup player deck: {ex.Message}");
             }
         }
@@ -333,6 +376,7 @@ namespace Empire.Server.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "❌ Error deploying army card for player {Player} in game {GameId}", request.PlayerId, gameId);
                 return BadRequest($"Failed to deploy army card: {ex.Message}");
             }
         }
@@ -359,6 +403,7 @@ namespace Empire.Server.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "❌ Error playing villager for player {Player} in game {GameId}", request.PlayerId, gameId);
                 return BadRequest($"Failed to play villager: {ex.Message}");
             }
         }
@@ -385,6 +430,7 @@ namespace Empire.Server.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "❌ Error settling territory for player {Player} in game {GameId}", request.PlayerId, gameId);
                 return BadRequest($"Failed to settle territory: {ex.Message}");
             }
         }
@@ -411,6 +457,7 @@ namespace Empire.Server.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "❌ Error committing units for player {Player} in game {GameId}", request.PlayerId, gameId);
                 return BadRequest($"Failed to commit units: {ex.Message}");
             }
         }
@@ -448,6 +495,7 @@ namespace Empire.Server.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "❌ Error passing initiative for player {Player} in game {GameId}", request.PlayerId, gameId);
                 return BadRequest($"Failed to pass initiative: {ex.Message}");
             }
         }
@@ -474,6 +522,7 @@ namespace Empire.Server.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "❌ Error drawing cards for player {Player} in game {GameId}", request.PlayerId, gameId);
                 return BadRequest($"Failed to draw cards: {ex.Message}");
             }
         }
@@ -504,6 +553,7 @@ namespace Empire.Server.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "❌ Error updating morale for player {Player} in game {GameId}", request.PlayerId, gameId);
                 return BadRequest($"Failed to update morale: {ex.Message}");
             }
         }

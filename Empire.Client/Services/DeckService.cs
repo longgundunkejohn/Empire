@@ -84,5 +84,24 @@ namespace Empire.Client.Services
         {
             return await GetDecksByTypeAsync("Military");
         }
+
+        public async Task<List<UserDeck>> GetUserDecksAsync()
+        {
+            try
+            {
+                var response = await _httpClient.GetAsync("api/deckbuilder/user-decks");
+                response.EnsureSuccessStatusCode();
+                
+                var json = await response.Content.ReadAsStringAsync();
+                var userDecks = JsonSerializer.Deserialize<List<UserDeck>>(json, _jsonOptions);
+                
+                return userDecks ?? new List<UserDeck>();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching user decks: {ex.Message}");
+                return new List<UserDeck>();
+            }
+        }
     }
 }

@@ -1,27 +1,22 @@
-﻿using Empire.Server.Interfaces;
+﻿using Empire.Server.Services;
 using Empire.Shared.Models;
 using Empire.Shared.Models.DTOs;
-using MongoDB.Driver;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using System.Collections.Concurrent;
 
 namespace Empire.Server.Services
 {
     public class GameSessionService
     {
         private readonly ILogger<GameSessionService> _logger;
-        private readonly IMongoCollection<GameState> _gameCollection;
-        private readonly CardFactory _cardFactory;
+        private readonly ICardDatabaseService _cardDatabase;
+        private static readonly ConcurrentDictionary<string, GameState> _gameSessions = new();
 
         public GameState? GameState { get; private set; }
 
-        public GameSessionService(IMongoDatabase database, CardFactory cardFactory, ILogger<GameSessionService> logger)
+        public GameSessionService(ICardDatabaseService cardDatabase, ILogger<GameSessionService> logger)
         {
-            _gameCollection = database.GetCollection<GameState>("GameSessions");
-            _cardFactory = cardFactory;
+            _cardDatabase = cardDatabase;
             _logger = logger;
         }
 
@@ -47,16 +42,16 @@ namespace Empire.Server.Services
                 MoveHistory = new List<GameMove>()
             };
 
-            Console.WriteLine($"[CreateGame] Received name: '{player1Id}', deck: {player1Deck.Count} entries");
+            _logger.LogInformation("✅ Created game session {GameId} for player {Player} with {DeckCount} cards", 
+                gameState.GameId, player1Id, fullDeck.Count);
 
-            await _gameCollection.InsertOneAsync(gameState);
+            _gameSessions.TryAdd(gameState.GameId, gameState);
             return gameState.GameId;
         }
 
         public async Task<bool> JoinGame(string gameId, string playerId, List<Card> deck)
         {
-            var gameState = await _gameCollection.Find(gs => gs.GameId == gameId).FirstOrDefaultAsync();
-            if (gameState == null || !string.IsNullOrEmpty(gameState.Player2))
+            if (!_gameSessions.TryGetValue(gameId, out var gameState) || !string.IsNullOrEmpty(gameState.Player2))
                 return false;
 
             // ✅ Ensure each card has its DeckType set
@@ -77,7 +72,7 @@ namespace Empire.Server.Services
                 gameState.InitiativeHolder = Random.Shared.Next(2) == 0 ? gameState.Player1 : playerId;
             }
 
-            await _gameCollection.ReplaceOneAsync(gs => gs.GameId == gameId, gameState);
+            _logger.LogInformation("✅ Player {Player} joined game {GameId}", playerId, gameId);
             return true;
         }
 
@@ -96,29 +91,31 @@ namespace Empire.Server.Services
         {
             try
             {
-                var filter = Builders<GameState>.Filter.Where(gs => !string.IsNullOrEmpty(gs.Player1) && string.IsNullOrEmpty(gs.Player2));
-                var results = await _gameCollection.Find(filter).ToListAsync();
+                var openGames = _gameSessions.Values
+                    .Where(gs => !string.IsNullOrEmpty(gs.Player1) && string.IsNullOrEmpty(gs.Player2))
+                    .ToList();
 
-                Console.WriteLine($"[ListOpenGames] Found {results.Count} open games.");
-                return results;
+                _logger.LogInformation("📋 Found {Count} open games", openGames.Count);
+                return openGames;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ListOpenGames] Error: {ex.Message}");
+                _logger.LogError(ex, "❌ Error listing open games");
                 return new List<GameState>();
             }
         }
 
         public async Task<GameState?> GetGameState(string gameId)
         {
-            var state = await _gameCollection.Find(gs => gs.GameId == gameId).FirstOrDefaultAsync();
+            _gameSessions.TryGetValue(gameId, out var state);
             GameState = state;
             return state;
         }
 
         public async Task SaveGameState(string gameId, GameState state)
         {
-            await _gameCollection.ReplaceOneAsync(gs => gs.GameId == gameId, state);
+            _gameSessions.TryUpdate(gameId, state, _gameSessions.GetValueOrDefault(gameId));
+            await Task.CompletedTask;
         }
 
         private PlayerDeck ConvertRawDeckToPlayerDeck(string playerName, List<RawDeckEntry> rawDeck)
@@ -150,27 +147,63 @@ namespace Empire.Server.Services
 
         private async Task<List<Card>> HydrateDeckFromPlayerDeckAsync(PlayerDeck deck)
         {
-            var civicCards = await _cardFactory.CreateDeckAsync(deck.CivicDeck, "Civic");
-            var militaryCards = await _cardFactory.CreateDeckAsync(deck.MilitaryDeck, "Military");
+            var civicCards = await GetDeckCards(deck.CivicDeck, "Civic");
+            var militaryCards = await GetDeckCards(deck.MilitaryDeck, "Military");
 
-            Console.WriteLine($"✅ Hydrated {civicCards.Count} civic + {militaryCards.Count} military = {civicCards.Count + militaryCards.Count} total cards");
+            _logger.LogInformation("✅ Hydrated {CivicCount} civic + {MilitaryCount} military = {TotalCount} total cards",
+                civicCards.Count, militaryCards.Count, civicCards.Count + militaryCards.Count);
 
             return civicCards.Concat(militaryCards).ToList();
         }
 
+        private async Task<List<Card>> GetDeckCards(List<int> cardIds, string deckType)
+        {
+            var allCardData = _cardDatabase.GetAllCards()
+                .Where(cd => cardIds.Contains(cd.CardID))
+                .ToDictionary(cd => cd.CardID, cd => cd);
+
+            var result = new List<Card>();
+
+            foreach (var id in cardIds)
+            {
+                if (allCardData.TryGetValue(id, out var cd))
+                {
+                    result.Add(new Card
+                    {
+                        CardId = cd.CardID,
+                        Name = cd.Name,
+                        CardText = cd.CardText,
+                        Faction = cd.Faction,
+                        Type = cd.CardType,
+                        DeckType = deckType,
+                        ImagePath = cd.ImageFileName ?? "images/Cards/placeholder.jpg",
+                        IsExerted = false,
+                        CurrentDamage = 0
+                    });
+                }
+                else
+                {
+                    _logger.LogWarning("❌ Card ID {CardId} not found in database", id);
+                }
+            }
+
+            return result;
+        }
+
         public async Task<bool> ApplyMove(string gameId, GameMove move)
         {
-            var gameState = await _gameCollection.Find(gs => gs.GameId == gameId).FirstOrDefaultAsync();
-            if (gameState == null) return false;
+            if (!_gameSessions.TryGetValue(gameId, out var gameState))
+                return false;
 
-            if (!ValidateMove(gameState, move)) return false;
+            if (!ValidateMove(gameState, move)) 
+                return false;
 
             await ProcessMoveAsync(gameState, move);
-            await _gameCollection.ReplaceOneAsync(gs => gs.GameId == gameId, gameState);
             return true;
         }
 
         private bool ValidateMove(GameState gameState, GameMove move) => true;
+        
         private void ShuffleDeck(GameState gameState, string playerId)
         {
             if (!gameState.PlayerDecks.TryGetValue(playerId, out var cards))
@@ -197,7 +230,6 @@ namespace Empire.Server.Services
                     _logger.LogInformation("[Move] Player {Player} shuffled their deck", player);
                     break;
 
-
                 case "PlayCard":
                     if (!move.CardId.HasValue) break;
 
@@ -222,9 +254,9 @@ namespace Empire.Server.Services
                         Damage = 0
                     });
 
-
                     _logger.LogInformation("[PlayCard] Player '{Player}' played card ID {CardId}", player, cardId);
                     break;
+
                 case "JoinGame":
                     if (!gameState.PlayerDecks.ContainsKey(player))
                     {
@@ -254,11 +286,12 @@ namespace Empire.Server.Services
 
         private async Task<List<Card>> HydrateDeckFromIdsAsync(List<int> civicIds, List<int> militaryIds)
         {
-            var civicCards = await _cardFactory.CreateDeckAsync(civicIds, "Civic");
-            var militaryCards = await _cardFactory.CreateDeckAsync(militaryIds, "Military");
+            var civicCards = await GetDeckCards(civicIds, "Civic");
+            var militaryCards = await GetDeckCards(militaryIds, "Military");
 
             return civicCards.Concat(militaryCards).ToList();
         }
+
         private Deck GetDeckObject(GameState gameState, string playerId)
         {
             if (!gameState.PlayerDecks.TryGetValue(playerId, out var cards))
@@ -266,6 +299,5 @@ namespace Empire.Server.Services
 
             return new Deck(cards);
         }
-
     }
 }
