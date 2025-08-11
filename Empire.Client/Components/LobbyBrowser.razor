@@ -311,23 +311,9 @@
 
     private LobbyButtonInfo GetLobbyButtonInfo(GameLobby lobby)
     {
-        // This is a synchronous method that determines button state
-        // We'll use cached user info or make assumptions for now
-        var currentUser = AuthService.GetCurrentUserAsync().Result; // Not ideal but needed for sync context
-        var currentUserId = currentUser?.Id;
-
-        if (currentUserId.HasValue && (lobby.Player1Id == currentUserId || lobby.Player2Id == currentUserId))
-        {
-            return new LobbyButtonInfo
-            {
-                Text = "Enter Lobby",
-                Icon = "fa-arrow-right",
-                CssClass = "btn-primary",
-                Action = "enter",
-                Disabled = false
-            };
-        }
-
+        // For now, just show basic join/spectate options
+        // We'll improve this with proper async user checking later
+        
         if (lobby.Status == LobbyStatus.WaitingForPlayers && (!lobby.Player1Id.HasValue || !lobby.Player2Id.HasValue))
         {
             return new LobbyButtonInfo

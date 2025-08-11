@@ -10,9 +10,8 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 
 // 🌍 Dynamic API base URL — switch between dev & prod automatically
 var apiBaseUrl = builder.HostEnvironment.IsDevelopment()
-    ? "http://134.209.20.47:5000"
+    ? builder.HostEnvironment.BaseAddress
     : "https://empirecardgame.com";
-
 
 // 🧠 Register HttpClient with correct base address
 builder.Services.AddScoped(sp => new HttpClient
@@ -21,7 +20,8 @@ builder.Services.AddScoped(sp => new HttpClient
 });
 
 // 🔧 Register your API services
-builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<IAuthService>(provider => provider.GetRequiredService<AuthService>());
 builder.Services.AddScoped<GameApi>();
 builder.Services.AddScoped<GameHubService>();
 builder.Services.AddSingleton<GameStateClientService>();

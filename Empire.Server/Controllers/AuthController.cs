@@ -90,6 +90,7 @@ namespace Empire.Server.Controllers
         }
 
         [HttpPost("validate-token")]
+        [Microsoft.AspNetCore.Authorization.Authorize]
         public IActionResult ValidateToken()
         {
             // If the request reaches here, the JWT middleware has already validated the token
@@ -98,7 +99,7 @@ namespace Empire.Server.Controllers
 
             if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(username))
             {
-                return Unauthorized(new { message = "Invalid token" });
+                return Unauthorized(new { valid = false, message = "Invalid token" });
             }
 
             return Ok(new
