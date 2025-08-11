@@ -3,6 +3,9 @@ using Empire.Server.Interfaces;
 using Empire.Server.Services;
 using Empire.Shared.Models;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Server.IIS;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Driver;
 using System.Text.Json;
@@ -18,9 +21,27 @@ builder.Services.AddSingleton<IMongoClient>(sp =>
 builder.Services.AddSingleton<IMongoDatabase>(sp =>
     sp.GetRequiredService<IMongoClient>().GetDatabase(sp.GetRequiredService<IConfiguration>()["MongoDB:DatabaseName"]));
 
-// ✅ JSON
+// ✅ JSON & File Upload Configuration
 builder.Services.AddControllers().AddJsonOptions(opts =>
     opts.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase);
+
+// ✅ Configure file upload limits
+builder.Services.Configure<IISServerOptions>(options =>
+{
+    options.MaxRequestBodySize = 10 * 1024 * 1024; // 10MB
+});
+
+builder.Services.Configure<KestrelServerOptions>(options =>
+{
+    options.Limits.MaxRequestBodySize = 10 * 1024 * 1024; // 10MB
+});
+
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.ValueLengthLimit = int.MaxValue;
+    options.MultipartBodyLengthLimit = 10 * 1024 * 1024; // 10MB
+    options.MultipartHeadersLengthLimit = int.MaxValue;
+});
 
 // ✅ Game services
 builder.Services.AddScoped<IMongoDbService, MongoDbService>();

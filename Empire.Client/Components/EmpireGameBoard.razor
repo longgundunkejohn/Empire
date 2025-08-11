@@ -1,0 +1,465 @@
+@using Empire.Shared.Models
+@using Empire.Shared.Models.Enums
+@using Empire.Client.Services
+
+<div class="empire-game-board">
+    <!-- Phase and Initiative Display -->
+    <div class="empire-status-header">
+        <div class="phase-display">
+            <div class="phase-indicator @CurrentPhase.ToString().ToLower()">
+                <span class="phase-icon">@GetPhaseIcon(CurrentPhase)</span>
+                <span class="phase-name">@CurrentPhase</span>
+            </div>
+        </div>
+        
+        <div class="initiative-display">
+            <div class="initiative-holder @(IsPlayerTurn ? "player-turn" : "opponent-turn")">
+                <span class="initiative-icon">⚡</span>
+                <span class="initiative-text">@(IsPlayerTurn ? "Your Initiative" : "Opponent's Initiative")</span>
+            </div>
+        </div>
+        
+        <div class="round-display">
+            <span class="round-label">Round:</span>
+            <span class="round-number">@CurrentRound</span>
+        </div>
+    </div>
+
+    <!-- Territory Grid -->
+    <div class="territory-grid">
+        @for (int i = 1; i <= 3; i++)
+        {
+            <TerritoryComponent 
+                TerritoryId="@($"territory-{i}")"
+                TerritoryName="@GetTerritoryName(i)"
+                PlayerSettlements="@GetPlayerSettlements(i)"
+                OpponentSettlements="@GetOpponentSettlements(i)"
+                AdvancingUnits="@GetAdvancingUnits(i)"
+                OccupyingUnits="@GetOccupyingUnits(i)"
+                IsOccupiedByPlayer="@IsOccupiedByPlayer(i)"
+                OnCardDrop="@OnTerritoryCardDrop"
+                OnSettleTerritory="@OnSettleTerritory" />
+        }
+    </div>
+
+    <!-- Player Zones -->
+    <div class="player-zones">
+        <!-- Heartland -->
+        <div class="zone heartland-zone">
+            <div class="zone-header">
+                <h3>🏰 Heartland</h3>
+                <span class="zone-count">@PlayerHeartland.Count units</span>
+            </div>
+            <div class="card-container" @ondrop="@((e) => OnZoneDrop(e, "heartland"))" @ondragover:preventDefault>
+                @foreach (var cardId in PlayerHeartland)
+                {
+                    <div class="card-slot @(IsCardExerted(cardId) ? "exerted" : "")">
+                        <CardComponent 
+                            CardId="@cardId" 
+                            IsExerted="@IsCardExerted(cardId)"
+                            OnClick="@OnCardClick"
+                            OnDoubleClick="@OnCardDoubleClick"
+                            OnDragStart="@OnCardDragStart" />
+                    </div>
+                }
+                @if (!PlayerHeartland.Any())
+                {
+                    <div class="empty-zone-message">
+                        <p>Deploy army cards here</p>
+                        <small>Double-click army cards in hand or drag & drop</small>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Villagers -->
+        <div class="zone villagers-zone">
+            <div class="zone-header">
+                <h3>👥 Villagers</h3>
+                <span class="zone-count">@PlayerVillagers.Count villagers</span>
+            </div>
+            <div class="card-container" @ondrop="@((e) => OnZoneDrop(e, "villagers"))" @ondragover:preventDefault>
+                @foreach (var cardId in PlayerVillagers)
+                {
+                    <div class="card-slot">
+                        <CardComponent 
+                            CardId="@cardId" 
+                            IsExerted="false"
+                            OnClick="@OnCardClick"
+                            OnDoubleClick="@OnCardDoubleClick"
+                            OnDragStart="@OnCardDragStart" />
+                    </div>
+                }
+                @if (!PlayerVillagers.Any())
+                {
+                    <div class="empty-zone-message">
+                        <p>Play villagers here</p>
+                        <small>Double-click villager cards in hand (once per round)</small>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Hand Zones -->
+    <div class="hand-zones">
+        <!-- Army Hand -->
+        <div class="hand-zone army-hand">
+            <div class="hand-header">
+                <h3>⚔️ Army Hand</h3>
+                <span class="hand-count">@PlayerArmyHand.Count cards</span>
+            </div>
+            <div class="hand-container">
+                @foreach (var cardId in PlayerArmyHand)
+                {
+                    <div class="hand-card">
+                        <CardComponent 
+                            CardId="@cardId" 
+                            IsExerted="false"
+                            OnClick="@OnHandCardClick"
+                            OnDoubleClick="@OnHandCardDoubleClick"
+                            OnDragStart="@OnCardDragStart" />
+                    </div>
+                }
+                @if (!PlayerArmyHand.Any())
+                {
+                    <div class="empty-hand-message">No army cards</div>
+                }
+            </div>
+        </div>
+
+        <!-- Civic Hand -->
+        <div class="hand-zone civic-hand">
+            <div class="hand-header">
+                <h3>🏛️ Civic Hand</h3>
+                <span class="hand-count">@PlayerCivicHand.Count cards</span>
+            </div>
+            <div class="hand-container">
+                @foreach (var cardId in PlayerCivicHand)
+                {
+                    <div class="hand-card">
+                        <CardComponent 
+                            CardId="@cardId" 
+                            IsExerted="false"
+                            OnClick="@OnHandCardClick"
+                            OnDoubleClick="@OnHandCardDoubleClick"
+                            OnDragStart="@OnCardDragStart" />
+                    </div>
+                }
+                @if (!PlayerCivicHand.Any())
+                {
+                    <div class="empty-hand-message">No civic cards</div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public GamePhase CurrentPhase { get; set; } = GamePhase.Strategy;
+    [Parameter] public bool IsPlayerTurn { get; set; }
+    [Parameter] public int CurrentRound { get; set; } = 1;
+    [Parameter] public List<int> PlayerHeartland { get; set; } = new();
+    [Parameter] public List<int> PlayerVillagers { get; set; } = new();
+    [Parameter] public List<int> PlayerArmyHand { get; set; } = new();
+    [Parameter] public List<int> PlayerCivicHand { get; set; } = new();
+    [Parameter] public GameState? GameState { get; set; }
+    [Parameter] public string PlayerId { get; set; } = string.Empty;
+    
+    [Parameter] public EventCallback<int> OnCardClick { get; set; }
+    [Parameter] public EventCallback<int> OnCardDoubleClick { get; set; }
+    [Parameter] public EventCallback<int> OnHandCardClick { get; set; }
+    [Parameter] public EventCallback<int> OnHandCardDoubleClick { get; set; }
+    [Parameter] public EventCallback<int> OnCardDragStart { get; set; }
+    [Parameter] public EventCallback<(int cardId, string zone)> OnZoneDrop { get; set; }
+    [Parameter] public EventCallback<(int cardId, string territoryId)> OnTerritoryCardDrop { get; set; }
+    [Parameter] public EventCallback<(int cardId, string territoryId)> OnSettleTerritory { get; set; }
+
+    private string GetPhaseIcon(GamePhase phase)
+    {
+        return phase switch
+        {
+            GamePhase.Strategy => "🎯",
+            GamePhase.Battle => "⚔️",
+            GamePhase.Replenishment => "🔄",
+            _ => "❓"
+        };
+    }
+
+    private string GetTerritoryName(int territoryIndex)
+    {
+        return territoryIndex switch
+        {
+            1 => "Northern Frontier",
+            2 => "Central Highlands",
+            3 => "Southern Reaches",
+            _ => $"Territory {territoryIndex}"
+        };
+    }
+
+    private List<int> GetPlayerSettlements(int territoryIndex)
+    {
+        var territoryId = $"territory-{territoryIndex}";
+        return GameState?.TerritorySettlements.GetValueOrDefault(territoryId, new()) ?? new();
+    }
+
+    private List<int> GetOpponentSettlements(int territoryIndex)
+    {
+        // For now, return empty - this would need opponent data
+        return new List<int>();
+    }
+
+    private List<int> GetAdvancingUnits(int territoryIndex)
+    {
+        var territoryId = $"territory-{territoryIndex}";
+        return GameState?.TerritoryAdvancingUnits.GetValueOrDefault(territoryId, new()) ?? new();
+    }
+
+    private List<int> GetOccupyingUnits(int territoryIndex)
+    {
+        var territoryId = $"territory-{territoryIndex}";
+        return GameState?.TerritoryOccupyingUnits.GetValueOrDefault(territoryId, new()) ?? new();
+    }
+
+    private bool IsOccupiedByPlayer(int territoryIndex)
+    {
+        var territoryId = $"territory-{territoryIndex}";
+        return GameState?.TerritoryOccupants.GetValueOrDefault(territoryId) == PlayerId;
+    }
+
+    private bool IsCardExerted(int cardId)
+    {
+        // This would need to be tracked in the game state
+        // For now, return false
+        return false;
+    }
+
+    private async Task OnZoneDrop(DragEventArgs e, string zone)
+    {
+        // Handle dropping cards into zones
+        await Task.CompletedTask;
+    }
+}
+
+<style>
+.empire-game-board {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    gap: 1rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, #2c1810 0%, #4a2c1a 100%);
+    color: #f4f1e8;
+}
+
+.empire-status-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.3);
+    border: 2px solid #8b4513;
+    border-radius: 8px;
+}
+
+.phase-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-weight: bold;
+}
+
+.phase-indicator.strategy {
+    background: linear-gradient(135deg, #2196f3, #1976d2);
+}
+
+.phase-indicator.battle {
+    background: linear-gradient(135deg, #f44336, #d32f2f);
+}
+
+.phase-indicator.replenishment {
+    background: linear-gradient(135deg, #4caf50, #388e3c);
+}
+
+.initiative-holder {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-weight: bold;
+}
+
+.initiative-holder.player-turn {
+    background: linear-gradient(135deg, #4caf50, #388e3c);
+    color: white;
+}
+
+.initiative-holder.opponent-turn {
+    background: linear-gradient(135deg, #ff9800, #f57c00);
+    color: white;
+}
+
+.round-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #d4af37;
+}
+
+.territory-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    flex: 1;
+    min-height: 300px;
+}
+
+.player-zones {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    min-height: 150px;
+}
+
+.zone {
+    border: 2px solid #8b4513;
+    border-radius: 8px;
+    background: rgba(139, 69, 19, 0.1);
+    padding: 1rem;
+}
+
+.zone-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #8b4513;
+}
+
+.zone-header h3 {
+    margin: 0;
+    color: #d4af37;
+}
+
+.zone-count {
+    color: #888;
+    font-size: 0.9rem;
+}
+
+.card-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-height: 80px;
+    padding: 0.5rem;
+    border: 1px dashed #8b4513;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.card-slot {
+    position: relative;
+}
+
+.card-slot.exerted {
+    transform: rotate(90deg);
+    opacity: 0.7;
+}
+
+.empty-zone-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    color: #888;
+    font-style: italic;
+    text-align: center;
+    padding: 1rem;
+}
+
+.hand-zones {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 1rem;
+    border-radius: 8px;
+}
+
+.hand-zone {
+    border: 1px solid #8b4513;
+    border-radius: 6px;
+    padding: 0.5rem;
+    background: rgba(139, 69, 19, 0.05);
+}
+
+.hand-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid #8b4513;
+}
+
+.hand-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: #d4af37;
+}
+
+.hand-count {
+    color: #888;
+    font-size: 0.8rem;
+}
+
+.hand-container {
+    display: flex;
+    gap: 0.25rem;
+    overflow-x: auto;
+    padding: 0.25rem;
+    min-height: 100px;
+}
+
+.hand-card {
+    flex-shrink: 0;
+}
+
+.empty-hand-message {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100px;
+    color: #888;
+    font-style: italic;
+    text-align: center;
+}
+
+/* Responsive design */
+@media (max-width: 1200px) {
+    .territory-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .player-zones {
+        grid-template-columns: 1fr;
+    }
+    
+    .hand-zones {
+        grid-template-columns: 1fr;
+    }
+    
+    .empire-status-header {
+        flex-direction: column;
+        gap: 1rem;
+    }
+}
+</style>

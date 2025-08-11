@@ -8,13 +8,13 @@
 @if (isLoading)
 {
     <div class="loading-container">
-        <p>Loading game...</p>
+        <p>Loading Empire game...</p>
         <div class="spinner"></div>
     </div>
 }
 else if (!string.IsNullOrEmpty(errorMessage))
 {
-        <div class="error-container">
+    <div class="error-container">
         <p class="error-message">Error: @errorMessage</p>
         <button class="btn btn-primary" @onclick="RefreshGameState">Retry</button>
     </div>
@@ -22,128 +22,534 @@ else if (!string.IsNullOrEmpty(errorMessage))
 else if (gameState == null)
 {
     <div class="error-container">
-        <p>Game not found</p>
+        <p>Empire game not found</p>
         <button class="btn btn-secondary" @onclick="NavigateToLobby">Back to Lobby</button>
     </div>
 }
 else
 {
-    <div class="game-layout">
-        <div class="status-bar">
-            <div class="morale">You: @PlayerLifeTotal | Opponent: @OpponentLifeTotal</div>
-            <div class="phase-info">Phase: @CurrentPhase @(IsMyTurn ? "- Your Turn" : "- Opponent Turn")</div>
-            <div class="controls">
-                <button class="btn-pass" @onclick="EndTurn" disabled="@(!IsMyTurn)">End Turn</button>
-                <button class="btn-commit" @onclick="ShuffleDeck" disabled="@(!IsMyTurn)">Shuffle</button>
+    <div class="empire-game-layout">
+        <!-- Empire Status Bar -->
+        <div class="empire-status-bar">
+            <div class="empire-morale">
+                <div class="morale-display">
+                    <span class="morale-label">Your Morale:</span>
+                    <span class="morale-value @(PlayerLifeTotal <= 5 ? "critical" : "")">@PlayerLifeTotal</span>
+                </div>
+                <div class="morale-display">
+                    <span class="morale-label">Opponent Morale:</span>
+                    <span class="morale-value @(OpponentLifeTotal <= 5 ? "critical" : "")">@OpponentLifeTotal</span>
+                </div>
+            </div>
+            
+            <div class="empire-phase-info">
+                <div class="phase-indicator">
+                    <span class="phase-label">Phase:</span>
+                    <span class="phase-value @CurrentPhase.ToLower()">@CurrentPhase</span>
+                </div>
+                <div class="initiative-indicator">
+                    <span class="initiative-label">Initiative:</span>
+                    <span class="initiative-value @(IsMyTurn ? "your-turn" : "opponent-turn")">
+                        @(IsMyTurn ? "Your Turn" : "Opponent's Turn")
+                    </span>
+                </div>
+            </div>
+
+            <div class="empire-controls">
+                <button class="btn-empire btn-pass" @onclick="PassInitiative" disabled="@(!IsMyTurn)">
+                    Pass Initiative
+                </button>
+                <button class="btn-empire btn-unexert" @onclick="() => HandleChatCommand(\"/unexert\")" disabled="@(!IsMyTurn)">
+                    Unexert All
+                </button>
             </div>
         </div>
 
-        <div class="battlefield">
-            <div class="territory-row">
-                @for (int i = 0; i < 3; i++)
+        <!-- Empire Territory Board -->
+        <div class="empire-battlefield">
+            <div class="territory-board">
+                @for (int i = 1; i <= 3; i++)
                 {
-                    <div class="territory-cell">
-                        <div class="zone-label">Opponent Settlement</div>
-                        <div class="card-row drop-zone">
-                            @if (OpponentBoard.Any())
-                            {
-                                @foreach (var boardCard in OpponentBoard.Where(bc => GetCardType(bc.CardId) == "Settlement"))
+                    <div class="territory-column" data-territory="territory-@i">
+                        <!-- Opponent Settlement Zone -->
+                        <div class="zone opponent-settlement">
+                            <div class="zone-label">Opponent Settlement</div>
+                            <div class="card-zone drop-zone">
+                                @{
+                                    var opponentSettlements = OpponentBoard.Where(bc => GetCardType(bc.CardId) == "Settlement");
+                                }
+                                @foreach (var boardCard in opponentSettlements)
                                 {
                                     <CardComponent CardId="@boardCard.CardId" IsExerted="@boardCard.IsExerted" 
                                                    OnClick="HandleOpponentCardClick" OnDoubleClick="HandleOpponentCardDoubleClick" />
                                 }
-                            }
+                            </div>
                         </div>
-                        <div class="zone-label">Territory</div>
-                        <div class="card-row drop-zone">
-                            @if (OpponentBoard.Any())
-                            {
-                                @foreach (var boardCard in OpponentBoard.Where(bc => GetCardType(bc.CardId) == "Unit"))
+
+                        <!-- Territory Combat Zone -->
+                        <div class="zone territory-combat">
+                            <div class="zone-label">Territory @i</div>
+                            <div class="card-zone drop-zone territory-zone">
+                                @{
+                                    // Show advancing and occupying units
+                                    var territoryUnits = OpponentBoard.Where(bc => GetCardType(bc.CardId) == "Unit").Take(2);
+                                }
+                                @foreach (var boardCard in territoryUnits)
                                 {
                                     <CardComponent CardId="@boardCard.CardId" IsExerted="@boardCard.IsExerted" 
                                                    OnClick="HandleOpponentCardClick" OnDoubleClick="HandleOpponentCardDoubleClick" />
                                 }
-                            }
+                            </div>
                         </div>
-                        <div class="zone-label">Your Settlement</div>
-                        <div class="card-row drop-zone">
-                            @foreach (var boardCard in PlayerBoard.Where(bc => GetCardType(bc.CardId) == "Settlement"))
-                            {
-                                <CardComponent CardId="@boardCard.CardId" IsExerted="@boardCard.IsExerted" 
-                                               OnClick="HandleCardClick" OnDoubleClick="HandleCardDoubleClick" />
-                            }
+
+                        <!-- Player Settlement Zone -->
+                        <div class="zone player-settlement">
+                            <div class="zone-label">Your Settlement</div>
+                            <div class="card-zone drop-zone" @ondrop="OnCardDrop" @ondragover:preventDefault>
+                                @{
+                                    var playerSettlements = PlayerBoard.Where(bc => GetCardType(bc.CardId) == "Settlement");
+                                }
+                                @foreach (var boardCard in playerSettlements)
+                                {
+                                    <CardComponent CardId="@boardCard.CardId" IsExerted="@boardCard.IsExerted" 
+                                                   OnClick="HandleCardClick" OnDoubleClick="HandleCardDoubleClick" 
+                                                   OnDragStart="OnDragStart" />
+                                }
+                            </div>
                         </div>
                     </div>
                 }
             </div>
         </div>
 
-        <div class="row">
-            <div class="stack">
-                <div class="zone-label">Your Units</div>
-                <div class="card-row drop-zone" @ondrop="OnCardDrop" @ondragover:preventDefault>
-                    @foreach (var boardCard in PlayerBoard.Where(bc => GetCardType(bc.CardId) == "Unit"))
+        <!-- Empire Player Zones -->
+        <div class="empire-player-zones">
+            <!-- Heartland (Army Units) -->
+            <div class="zone heartland">
+                <div class="zone-label">Your Heartland (@PlayerHeartland.Count units)</div>
+                <div class="card-zone drop-zone" @ondrop="OnCardDrop" @ondragover:preventDefault>
+                    @foreach (var cardId in PlayerHeartland)
                     {
-                        <CardComponent CardId="@boardCard.CardId" IsExerted="@boardCard.IsExerted" 
+                        var boardCard = PlayerBoard.FirstOrDefault(bc => bc.CardId == cardId);
+                        <CardComponent CardId="@cardId" IsExerted="@(boardCard?.IsExerted ?? false)" 
                                        OnClick="HandleCardClick" OnDoubleClick="HandleCardDoubleClick" 
                                        OnDragStart="OnDragStart" />
                     }
+                    @if (!PlayerHeartland.Any())
+                    {
+                        <div class="empty-zone">No units in heartland</div>
+                    }
                 </div>
             </div>
-            <div class="stack">
-                <div class="zone-label">Your Villagers</div>
-                <div class="card-row drop-zone" @ondrop="OnCardDrop" @ondragover:preventDefault>
-                    @foreach (var boardCard in PlayerBoard.Where(bc => GetCardType(bc.CardId) == "Villager"))
+
+            <!-- Villagers -->
+            <div class="zone villagers">
+                <div class="zone-label">Your Villagers (@PlayerVillagers.Count)</div>
+                <div class="card-zone drop-zone" @ondrop="OnCardDrop" @ondragover:preventDefault>
+                    @foreach (var cardId in PlayerVillagers)
                     {
-                        <CardComponent CardId="@boardCard.CardId" IsExerted="@boardCard.IsExerted" 
+                        var boardCard = PlayerBoard.FirstOrDefault(bc => bc.CardId == cardId);
+                        <CardComponent CardId="@cardId" IsExerted="@(boardCard?.IsExerted ?? false)" 
                                        OnClick="HandleCardClick" OnDoubleClick="HandleCardDoubleClick" 
                                        OnDragStart="OnDragStart" />
+                    }
+                    @if (!PlayerVillagers.Any())
+                    {
+                        <div class="empty-zone">No villagers</div>
                     }
                 </div>
             </div>
         </div>
 
-        <div class="row">
-            <div class="stack">
-                <div class="zone-label">Your Hand (@PlayerHand.Count cards)</div>
+        <!-- Empire Hand Zones -->
+        <div class="empire-hand-zones">
+            <!-- Army Hand -->
+            <div class="hand-zone army-hand">
+                <div class="zone-label">Army Hand (@PlayerArmyHand.Count cards)</div>
                 <div class="hand-area">
-                    @foreach (var cardId in PlayerHand)
+                    @foreach (var cardId in PlayerArmyHand)
                     {
                         <CardComponent CardId="@cardId" IsExerted="false" 
                                        OnClick="HandleHandCardClick" OnDoubleClick="HandleHandCardDoubleClick" 
                                        OnDragStart="OnDragStart" />
                     }
-                    @if (!PlayerHand.Any())
+                    @if (!PlayerArmyHand.Any())
                     {
-                        <div style="color: #888; font-style: italic;">No cards in hand</div>
+                        <div class="empty-hand">No army cards</div>
                     }
                 </div>
             </div>
 
-            <div class="stack">
+            <!-- Civic Hand -->
+            <div class="hand-zone civic-hand">
+                <div class="zone-label">Civic Hand (@PlayerCivicHand.Count cards)</div>
+                <div class="hand-area">
+                    @foreach (var cardId in PlayerCivicHand)
+                    {
+                        <CardComponent CardId="@cardId" IsExerted="false" 
+                                       OnClick="HandleHandCardClick" OnDoubleClick="HandleHandCardDoubleClick" 
+                                       OnDragStart="OnDragStart" />
+                    }
+                    @if (!PlayerCivicHand.Any())
+                    {
+                        <div class="empty-hand">No civic cards</div>
+                    }
+                </div>
+            </div>
+
+            <!-- Deck Zones -->
+            <div class="deck-zone">
                 <div class="zone-label">Decks</div>
-                <div class="card-row">
-                    <CardBackImage DeckCount="@MilitaryDeckCount" CardBackPath="Cardbacks/armyCardback.png" OnDraw="DrawMilitary" />
-                    <CardBackImage DeckCount="@CivicDeckCount" CardBackPath="Cardbacks/civicCardback.png" OnDraw="DrawCivic" />
+                <div class="deck-area">
+                    <div class="deck-stack">
+                        <CardBackImage DeckCount="@MilitaryDeckCount" CardBackPath="Cardbacks/armyCardback.png" OnDraw="DrawMilitary" />
+                        <span class="deck-label">Army (@MilitaryDeckCount)</span>
+                    </div>
+                    <div class="deck-stack">
+                        <CardBackImage DeckCount="@CivicDeckCount" CardBackPath="Cardbacks/civicCardback.png" OnDraw="DrawCivic" />
+                        <span class="deck-label">Civic (@CivicDeckCount)</span>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="chat-box">
+        <!-- Empire Chat & Commands -->
+        <div class="empire-chat-box">
             <div class="chat-log">
-                @foreach (var msg in ChatLog)
+                @foreach (var msg in ChatLog.TakeLast(10))
                 {
-                    <div><strong>@msg.PlayerId:</strong> @msg.Message</div>
+                    <div class="chat-message @(msg.PlayerId == "System" ? "system-message" : "player-message")">
+                        <strong>@msg.PlayerId:</strong> @msg.Message
+                    </div>
                 }
             </div>
-            <input class="form-control" @bind="chatInput" @bind:event="oninput" @onkeydown="HandleChatKey" placeholder="Type message or /shuffle, /endturn..." />
+            <div class="chat-input-area">
+                <input class="form-control" @bind="chatInput" @bind:event="oninput" @onkeydown="HandleChatKey" 
+                       placeholder="Type message or /pass, /draw, /drawcivic, /unexert..." />
+                <div class="chat-commands">
+                    <small>Commands: /pass, /draw, /drawcivic, /unexert</small>
+                </div>
+            </div>
         </div>
 
+        <!-- Empire Action Buttons -->
+        <div class="empire-action-panel">
+            <div class="action-group">
+                <h4>Empire Actions</h4>
+                <button class="btn-empire btn-action" @onclick="() => HandleChatCommand(\"/draw\")" disabled="@(!IsMyTurn)">
+                    Draw Army Card
+                </button>
+                <button class="btn-empire btn-action" @onclick="() => HandleChatCommand(\"/drawcivic\")" disabled="@(!IsMyTurn)">
+                    Draw 2 Civic Cards
+                </button>
+            </div>
+            
+            <div class="action-group">
+                <h4>Quick Actions</h4>
+                <p><strong>Double-click:</strong> Army cards to deploy, Villagers to play, Board cards to exert/unexert</p>
+                <p><strong>Drag & Drop:</strong> Cards from hand to play them</p>
+                <p><strong>Chat Commands:</strong> /pass, /draw, /drawcivic, /unexert</p>
+            </div>
+        </div>
+
+        <!-- Card Preview -->
         @if (ZoomedCard != null)
         {
             <div class="card-preview show" style="top:@PreviewYpx; left:@PreviewXpx;">
                 <img src="@GetCardImagePath(ZoomedCard)" alt="@ZoomedCard.Name" class="card-image" />
+                <div class="card-details">
+                    <h5>@ZoomedCard.Name</h5>
+                    <p><strong>Type:</strong> @ZoomedCard.CardType</p>
+                    @if (!string.IsNullOrEmpty(ZoomedCard.Description))
+                    {
+                        <p><strong>Description:</strong> @ZoomedCard.Description</p>
+                    }
+                </div>
             </div>
         }
     </div>
 }
+
+<style>
+.empire-game-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: linear-gradient(135deg, #2c1810 0%, #4a2c1a 100%);
+    color: #f4f1e8;
+    font-family: 'Cinzel', serif;
+}
+
+.empire-status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.3);
+    border-bottom: 2px solid #8b4513;
+}
+
+.empire-morale {
+    display: flex;
+    gap: 2rem;
+}
+
+.morale-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.morale-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #4caf50;
+}
+
+.morale-value.critical {
+    color: #f44336;
+    animation: pulse 1s infinite;
+}
+
+.empire-phase-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.phase-value {
+    font-weight: bold;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+}
+
+.phase-value.strategy { background-color: #2196f3; }
+.phase-value.battle { background-color: #f44336; }
+.phase-value.replenishment { background-color: #4caf50; }
+
+.initiative-value.your-turn {
+    color: #4caf50;
+    font-weight: bold;
+}
+
+.initiative-value.opponent-turn {
+    color: #ff9800;
+}
+
+.empire-controls {
+    display: flex;
+    gap: 1rem;
+}
+
+.btn-empire {
+    padding: 0.5rem 1rem;
+    border: 2px solid #8b4513;
+    background: linear-gradient(135deg, #d4af37 0%, #b8860b 100%);
+    color: #2c1810;
+    font-weight: bold;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-empire:hover:not(:disabled) {
+    background: linear-gradient(135deg, #ffd700 0%, #daa520 100%);
+    transform: translateY(-2px);
+}
+
+.btn-empire:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.empire-battlefield {
+    flex: 1;
+    padding: 1rem;
+}
+
+.territory-board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    height: 100%;
+}
+
+.territory-column {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    border: 2px solid #8b4513;
+    border-radius: 8px;
+    padding: 0.5rem;
+    background: rgba(139, 69, 19, 0.1);
+}
+
+.zone {
+    border: 1px solid #8b4513;
+    border-radius: 4px;
+    padding: 0.5rem;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.zone-label {
+    font-size: 0.9rem;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 0.5rem;
+    color: #d4af37;
+}
+
+.card-zone {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    min-height: 60px;
+    align-items: center;
+    justify-content: center;
+}
+
+.empire-player-zones {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    padding: 0 1rem;
+}
+
+.empire-hand-zones {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 1rem;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.hand-area {
+    display: flex;
+    gap: 0.25rem;
+    overflow-x: auto;
+    padding: 0.5rem;
+    min-height: 100px;
+}
+
+.deck-area {
+    display: flex;
+    gap: 1rem;
+}
+
+.deck-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.deck-label {
+    font-size: 0.8rem;
+    color: #d4af37;
+}
+
+.empire-chat-box {
+    background: rgba(0, 0, 0, 0.4);
+    border-top: 2px solid #8b4513;
+    padding: 1rem;
+}
+
+.chat-log {
+    height: 100px;
+    overflow-y: auto;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+}
+
+.chat-message {
+    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
+}
+
+.system-message {
+    color: #4caf50;
+    font-style: italic;
+}
+
+.empire-action-panel {
+    position: fixed;
+    top: 50%;
+    right: 1rem;
+    transform: translateY(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    border: 2px solid #8b4513;
+    border-radius: 8px;
+    padding: 1rem;
+    max-width: 300px;
+    z-index: 100;
+}
+
+.action-group {
+    margin-bottom: 1rem;
+}
+
+.action-group h4 {
+    color: #d4af37;
+    margin-bottom: 0.5rem;
+}
+
+.btn-action {
+    display: block;
+    width: 100%;
+    margin-bottom: 0.5rem;
+}
+
+.empty-zone, .empty-hand {
+    color: #888;
+    font-style: italic;
+    text-align: center;
+    padding: 1rem;
+}
+
+.card-preview {
+    position: fixed;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.9);
+    border: 2px solid #d4af37;
+    border-radius: 8px;
+    padding: 1rem;
+    max-width: 350px;
+}
+
+.card-preview .card-image {
+    width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+
+.card-details {
+    margin-top: 0.5rem;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Responsive design */
+@media (max-width: 1200px) {
+    .empire-action-panel {
+        position: relative;
+        top: auto;
+        right: auto;
+        transform: none;
+        margin-top: 1rem;
+    }
+    
+    .territory-board {
+        grid-template-columns: 1fr;
+    }
+    
+    .empire-hand-zones {
+        grid-template-columns: 1fr;
+    }
+}
+</style>

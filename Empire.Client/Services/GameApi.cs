@@ -92,5 +92,83 @@ namespace Empire.Client.Services
 
             return response.IsSuccessStatusCode;
         }
+
+        // Empire-specific API methods
+        
+        public async Task<bool> CreateEmpireGame(string gameId, string player1Id, string player2Id)
+        {
+            var request = new { Player1Id = player1Id, Player2Id = player2Id };
+            var response = await _http.PostAsJsonAsync($"api/game/{gameId}/empire/create", request);
+            return response.IsSuccessStatusCode;
+        }
+
+        public async Task<bool> SetupPlayerDeck(string gameId, string playerId, List<int> armyDeckIds, List<int> civicDeckIds)
+        {
+            var request = new { ArmyDeckIds = armyDeckIds, CivicDeckIds = civicDeckIds };
+            var response = await _http.PostAsJsonAsync($"api/game/{gameId}/empire/setup-deck/{playerId}", request);
+            return response.IsSuccessStatusCode;
+        }
+
+        public async Task<bool> DeployArmyCard(string gameId, string playerId, int cardId, int manaCost)
+        {
+            var request = new { PlayerId = playerId, CardId = cardId, ManaCost = manaCost };
+            var response = await _http.PostAsJsonAsync($"api/game/{gameId}/empire/deploy-army", request);
+            return response.IsSuccessStatusCode;
+        }
+
+        public async Task<bool> PlayVillager(string gameId, string playerId, int cardId)
+        {
+            var request = new { PlayerId = playerId, CardId = cardId };
+            var response = await _http.PostAsJsonAsync($"api/game/{gameId}/empire/play-villager", request);
+            return response.IsSuccessStatusCode;
+        }
+
+        public async Task<bool> SettleTerritory(string gameId, string playerId, int cardId, string territoryId)
+        {
+            var request = new { PlayerId = playerId, CardId = cardId, TerritoryId = territoryId };
+            var response = await _http.PostAsJsonAsync($"api/game/{gameId}/empire/settle-territory", request);
+            return response.IsSuccessStatusCode;
+        }
+
+        public async Task<bool> CommitUnits(string gameId, string playerId, Dictionary<int, string> unitCommitments)
+        {
+            var request = new { PlayerId = playerId, UnitCommitments = unitCommitments };
+            var response = await _http.PostAsJsonAsync($"api/game/{gameId}/empire/commit-units", request);
+            return response.IsSuccessStatusCode;
+        }
+
+        public async Task<bool> PassInitiative(string gameId, string playerId)
+        {
+            var request = new { PlayerId = playerId };
+            var response = await _http.PostAsJsonAsync($"api/game/{gameId}/empire/pass-initiative", request);
+            return response.IsSuccessStatusCode;
+        }
+
+        public async Task<bool> DrawCards(string gameId, string playerId, bool drawArmy = true)
+        {
+            var request = new { PlayerId = playerId, DrawArmy = drawArmy };
+            var response = await _http.PostAsJsonAsync($"api/game/{gameId}/empire/draw-cards", request);
+            return response.IsSuccessStatusCode;
+        }
+
+        public async Task<bool> UpdateMorale(string gameId, string playerId, int damage)
+        {
+            var request = new { PlayerId = playerId, Damage = damage };
+            var response = await _http.PostAsJsonAsync($"api/game/{gameId}/empire/update-morale", request);
+            return response.IsSuccessStatusCode;
+        }
+
+        public async Task<GameState?> GetGameStateAsync(string gameId)
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<GameState>($"api/game/{gameId}/state");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting game state: {ex.Message}");
+                return null;
+            }
+        }
     }
 }

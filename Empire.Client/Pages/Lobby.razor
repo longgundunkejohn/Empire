@@ -135,73 +135,55 @@
 
 
     private async Task UploadDeck()
-
     {
-
         if (selectedFile == null || string.IsNullOrWhiteSpace(_createPlayerName))
-
+        {
+            uploadStatus = "❌ Please select a file and enter your name.";
             return;
+        }
 
-
+        uploadStatus = "⏳ Uploading deck...";
+        StateHasChanged();
 
         try
-
         {
-
             var content = new MultipartFormDataContent();
-
-            var fileStream = selectedFile.OpenReadStream(512000);
-
+            
+            // Increase file size limit to 5MB
+            var fileStream = selectedFile.OpenReadStream(5 * 1024 * 1024);
             var fileContent = new StreamContent(fileStream);
-
             fileContent.Headers.ContentType = new MediaTypeHeaderValue("text/csv");
-
-
 
             content.Add(fileContent, "file", selectedFile.Name);
 
-            content.Add(new StringContent(_createPlayerName), "playerName");
-
-
-
-            if (!string.IsNullOrWhiteSpace(uploadDeckName))
-
-                content.Add(new StringContent(uploadDeckName), "deckName");
-
-
-
             var query = $"?playerName={Uri.EscapeDataString(_createPlayerName)}";
-
             if (!string.IsNullOrWhiteSpace(uploadDeckName))
-
                 query += $"&deckName={Uri.EscapeDataString(uploadDeckName)}";
 
-
+            Console.WriteLine($"[Lobby] 📤 Uploading deck to: api/prelobby/upload{query}");
+            Console.WriteLine($"[Lobby] 📁 File: {selectedFile.Name} ({selectedFile.Size} bytes)");
 
             var response = await Http.PostAsync($"api/prelobby/upload{query}", content);
+            
+            Console.WriteLine($"[Lobby] 📨 Response: {response.StatusCode}");
 
-
-
-            uploadStatus = response.IsSuccessStatusCode
-
-                ? "✅ Upload successful!"
-
-                : $"❌ Upload failed: {response.ReasonPhrase}";
-
-
-
-            await LoadDecksForPlayer();
-
+            if (response.IsSuccessStatusCode)
+            {
+                uploadStatus = "✅ Upload successful!";
+                await LoadDecksForPlayer();
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"[Lobby] ❌ Error content: {errorContent}");
+                uploadStatus = $"❌ Upload failed: {response.ReasonPhrase} - {errorContent}";
+            }
         }
-
         catch (Exception ex)
-
         {
-
+            Console.WriteLine($"[Lobby] ❌ Exception: {ex}");
             uploadStatus = $"❌ Upload failed: {ex.Message}";
-
         }
-
     }
 
 

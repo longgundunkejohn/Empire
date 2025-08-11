@@ -1,0 +1,399 @@
+@page "/deckbuilder"
+@inject HttpClient Http
+@inject NavigationManager Nav
+@using Empire.Shared.Models
+@using Empire.Shared.Models.DTOs
+@using System.Text.Json
+
+<div class="container-fluid py-4">
+    <div class="row">
+        <!-- Card Browser -->
+        <div class="col-md-8">
+            <h3>Card Collection</h3>
+            
+            <!-- Filters -->
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <input type="text" class="form-control" placeholder="Search cards..." @bind="searchTerm" @oninput="FilterCards" />
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" @bind="selectedFaction" @onchange="FilterCards">
+                        <option value="">All Factions</option>
+                        <option value="Amali">Amali</option>
+                        <option value="Kyrushima">Kyrushima</option>
+                        <option value="Hjordict">Hjordict</option>
+                        <option value="Ndembe">Ndembe</option>
+                        <option value="Ohotec">Ohotec</option>
+                        <option value="Neutral">Neutral</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" @bind="selectedType" @onchange="FilterCards">
+                        <option value="">All Types</option>
+                        <option value="Unit">Unit</option>
+                        <option value="Tactic">Tactic</option>
+                        <option value="Settlement">Settlement</option>
+                        <option value="Villager">Villager</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" @bind="selectedCost" @onchange="FilterCards">
+                        <option value="">All Costs</option>
+                        <option value="1">Cost 1</option>
+                        <option value="2">Cost 2</option>
+                        <option value="3">Cost 3</option>
+                        <option value="4">Cost 4</option>
+                        <option value="5">Cost 5+</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Card Grid -->
+            <div class="card-grid">
+                @if (filteredCards?.Any() == true)
+                {
+                    @foreach (var card in filteredCards)
+                    {
+                        <div class="card-item">
+                            <div class="card border @(IsCivicCard(card.CardID) ? "border-info" : "border-warning")">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">@card.CardType</small>
+                                    <span class="badge bg-primary">@card.Cost</span>
+                                </div>
+                                <div class="card-body">
+                                    <h6 class="card-title">@card.Name</h6>
+                                    <p class="card-text small">@card.CardText</p>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted">@card.Faction</small>
+                                        <button class="btn btn-sm btn-success" @onclick="() => AddCardToDeck(card)">
+                                            Add
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <p>Loading cards...</p>
+                }
+            </div>
+        </div>
+
+        <!-- Deck Builder -->
+        <div class="col-md-4">
+            <div class="sticky-top">
+                <h3>Deck Builder</h3>
+                
+                <!-- Player Name -->
+                <div class="mb-3">
+                    <label class="form-label">Player Name</label>
+                    <input type="text" class="form-control" @bind="playerName" placeholder="Enter your name" />
+                </div>
+
+                <!-- Deck Name -->
+                <div class="mb-3">
+                    <label class="form-label">Deck Name</label>
+                    <input type="text" class="form-control" @bind="deckName" placeholder="Enter deck name" />
+                </div>
+
+                <!-- Army Deck -->
+                <div class="mb-4">
+                    <h5>Army Deck (@armyDeck.Count / 30)</h5>
+                    <div class="progress mb-2">
+                        <div class="progress-bar" style="width: @(armyDeck.Count * 100.0 / 30)%"></div>
+                    </div>
+                    <div class="deck-list">
+                        @foreach (var group in armyDeck.GroupBy(c => c.CardID))
+                        {
+                            var card = group.First();
+                            <div class="deck-card-item d-flex justify-content-between align-items-center">
+                                <span>@group.Count()x @card.Name</span>
+                                <button class="btn btn-sm btn-danger" @onclick="() => RemoveCardFromDeck(card, false)">-</button>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Civic Deck -->
+                <div class="mb-4">
+                    <h5>Civic Deck (@civicDeck.Count / 15)</h5>
+                    <div class="progress mb-2">
+                        <div class="progress-bar bg-info" style="width: @(civicDeck.Count * 100.0 / 15)%"></div>
+                    </div>
+                    <div class="deck-list">
+                        @foreach (var group in civicDeck.GroupBy(c => c.CardID))
+                        {
+                            var card = group.First();
+                            <div class="deck-card-item d-flex justify-content-between align-items-center">
+                                <span>@group.Count()x @card.Name</span>
+                                <button class="btn btn-sm btn-danger" @onclick="() => RemoveCardFromDeck(card, true)">-</button>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="d-grid gap-2">
+                    <button class="btn btn-primary" @onclick="SaveDeck" disabled="@(!CanSaveDeck)">
+                        Save Deck
+                    </button>
+                    <button class="btn btn-secondary" @onclick="ExportToCsv">
+                        Export to CSV
+                    </button>
+                    <button class="btn btn-outline-danger" @onclick="ClearDeck">
+                        Clear Deck
+                    </button>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(statusMessage))
+                {
+                    <div class="alert alert-info mt-3">@statusMessage</div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 1rem;
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .card-item .card {
+        height: 100%;
+        transition: transform 0.2s;
+    }
+
+    .card-item .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .deck-list {
+        max-height: 200px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        padding: 0.5rem;
+    }
+
+    .deck-card-item {
+        padding: 0.25rem 0;
+        border-bottom: 1px solid #f8f9fa;
+    }
+
+    .deck-card-item:last-child {
+        border-bottom: none;
+    }
+</style>
+
+@code {
+    private List<CardData> allCards = new();
+    private List<CardData> filteredCards = new();
+    private List<CardData> armyDeck = new();
+    private List<CardData> civicDeck = new();
+
+    private string searchTerm = "";
+    private string selectedFaction = "";
+    private string selectedType = "";
+    private string selectedCost = "";
+    private string playerName = "";
+    private string deckName = "";
+    private string statusMessage = "";
+
+    private bool CanSaveDeck => !string.IsNullOrWhiteSpace(playerName) && 
+                               !string.IsNullOrWhiteSpace(deckName) && 
+                               armyDeck.Count > 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCards();
+        FilterCards();
+    }
+
+    private async Task LoadCards()
+    {
+        try
+        {
+            // Try to load cards from the API first
+            var response = await Http.GetAsync("api/deckbuilder/cards");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var cardsJson = await response.Content.ReadAsStringAsync();
+                allCards = JsonSerializer.Deserialize<List<CardData>>(cardsJson, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                }) ?? new List<CardData>();
+                
+                statusMessage = $"Loaded {allCards.Count} cards from database";
+            }
+            else
+            {
+                // Fallback to sample cards if API fails
+                allCards = GenerateSampleCards();
+                statusMessage = $"Using sample cards ({allCards.Count} cards) - API unavailable";
+            }
+        }
+        catch (Exception ex)
+        {
+            // Fallback to sample cards if there's an error
+            allCards = GenerateSampleCards();
+            statusMessage = $"Using sample cards - Error: {ex.Message}";
+        }
+    }
+
+    private List<CardData> GenerateSampleCards()
+    {
+        var cards = new List<CardData>();
+        
+        // Sample Army Cards (1001-1079)
+        cards.Add(new CardData { CardID = 1001, Name = "Conscript", CardType = "Unit", Faction = "Amali", Cost = 1, CardText = "Basic infantry unit" });
+        cards.Add(new CardData { CardID = 1002, Name = "Knight of Songdu", CardType = "Unit", Faction = "Amali", Cost = 3, CardText = "Elite cavalry unit" });
+        cards.Add(new CardData { CardID = 1003, Name = "Amali Archer", CardType = "Unit", Faction = "Amali", Cost = 2, CardText = "Ranged unit" });
+        cards.Add(new CardData { CardID = 1004, Name = "Battle Charge", CardType = "Tactic", Faction = "Amali", Cost = 2, CardText = "Give a unit +2 attack this turn" });
+        cards.Add(new CardData { CardID = 1005, Name = "Kyrushima Samurai", CardType = "Unit", Faction = "Kyrushima", Cost = 4, CardText = "Honor-bound warrior" });
+        cards.Add(new CardData { CardID = 1006, Name = "Hjordict Berserker", CardType = "Unit", Faction = "Hjordict", Cost = 3, CardText = "Fierce northern warrior" });
+        cards.Add(new CardData { CardID = 1007, Name = "Ndembe Spearman", CardType = "Unit", Faction = "Ndembe", Cost = 2, CardText = "Tribal warrior" });
+        cards.Add(new CardData { CardID = 1008, Name = "Ohotec Scout", CardType = "Unit", Faction = "Ohotec", Cost = 1, CardText = "Fast reconnaissance unit" });
+        cards.Add(new CardData { CardID = 1009, Name = "Neutral Mercenary", CardType = "Unit", Faction = "Neutral", Cost = 3, CardText = "Hired sword" });
+        cards.Add(new CardData { CardID = 1010, Name = "War Banner", CardType = "Tactic", Faction = "Neutral", Cost = 1, CardText = "Boost nearby units" });
+
+        // Sample Civic Cards (1080-1099)
+        cards.Add(new CardData { CardID = 1080, Name = "Consecrated Paladin", CardType = "Settlement", Faction = "Amali", Cost = 3, CardText = "Holy warrior settlement" });
+        cards.Add(new CardData { CardID = 1081, Name = "High Priestess Stella", CardType = "Villager", Faction = "Amali", Cost = 4, CardText = "Religious leader" });
+        cards.Add(new CardData { CardID = 1082, Name = "Market Square", CardType = "Settlement", Faction = "Neutral", Cost = 2, CardText = "Trade hub" });
+        cards.Add(new CardData { CardID = 1083, Name = "Temple of Light", CardType = "Settlement", Faction = "Amali", Cost = 3, CardText = "Sacred building" });
+        cards.Add(new CardData { CardID = 1084, Name = "Wise Elder", CardType = "Villager", Faction = "Neutral", Cost = 2, CardText = "Provides counsel" });
+        cards.Add(new CardData { CardID = 1085, Name = "Blacksmith", CardType = "Villager", Faction = "Neutral", Cost = 2, CardText = "Crafts weapons" });
+        cards.Add(new CardData { CardID = 1086, Name = "Monastery", CardType = "Settlement", Faction = "Kyrushima", Cost = 4, CardText = "Center of learning" });
+        cards.Add(new CardData { CardID = 1087, Name = "Farmer", CardType = "Villager", Faction = "Neutral", Cost = 1, CardText = "Provides food" });
+
+        return cards;
+    }
+
+    private void FilterCards()
+    {
+        filteredCards = allCards.Where(card =>
+            (string.IsNullOrWhiteSpace(searchTerm) || card.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrWhiteSpace(selectedFaction) || card.Faction == selectedFaction) &&
+            (string.IsNullOrWhiteSpace(selectedType) || card.CardType == selectedType) &&
+            (string.IsNullOrWhiteSpace(selectedCost) || 
+             (selectedCost == "5" && card.Cost >= 5) || 
+             (selectedCost != "5" && card.Cost.ToString() == selectedCost))
+        ).ToList();
+
+        StateHasChanged();
+    }
+
+    private void AddCardToDeck(CardData card)
+    {
+        if (IsCivicCard(card.CardID))
+        {
+            if (civicDeck.Count < 15)
+            {
+                civicDeck.Add(card);
+                statusMessage = $"Added {card.Name} to Civic deck";
+            }
+            else
+            {
+                statusMessage = "Civic deck is full (15 cards max)";
+            }
+        }
+        else
+        {
+            if (armyDeck.Count < 30)
+            {
+                armyDeck.Add(card);
+                statusMessage = $"Added {card.Name} to Army deck";
+            }
+            else
+            {
+                statusMessage = "Army deck is full (30 cards max)";
+            }
+        }
+    }
+
+    private void RemoveCardFromDeck(CardData card, bool fromCivic)
+    {
+        if (fromCivic)
+        {
+            civicDeck.Remove(card);
+            statusMessage = $"Removed {card.Name} from Civic deck";
+        }
+        else
+        {
+            armyDeck.Remove(card);
+            statusMessage = $"Removed {card.Name} from Army deck";
+        }
+    }
+
+    private bool IsCivicCard(int cardId)
+    {
+        var lastTwoDigits = cardId % 100;
+        return lastTwoDigits >= 80 && lastTwoDigits <= 99;
+    }
+
+    private async Task SaveDeck()
+    {
+        try
+        {
+            var civicCardIds = civicDeck.Select(c => c.CardID).ToList();
+            var militaryCardIds = armyDeck.Select(c => c.CardID).ToList();
+
+            var playerDeck = new PlayerDeck(playerName, civicCardIds, militaryCardIds)
+            {
+                DeckName = deckName
+            };
+
+            // Save via API (you'll need to implement this endpoint)
+            var response = await Http.PostAsJsonAsync("api/deckbuilder/save", playerDeck);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                statusMessage = "✅ Deck saved successfully!";
+            }
+            else
+            {
+                statusMessage = "❌ Failed to save deck";
+            }
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"❌ Error saving deck: {ex.Message}";
+        }
+    }
+
+    private void ExportToCsv()
+    {
+        var csvLines = new List<string> { "Card ID,Count" };
+        
+        // Add army cards
+        foreach (var group in armyDeck.GroupBy(c => c.CardID))
+        {
+            csvLines.Add($"{group.Key},{group.Count()}");
+        }
+        
+        // Add civic cards
+        foreach (var group in civicDeck.GroupBy(c => c.CardID))
+        {
+            csvLines.Add($"{group.Key},{group.Count()}");
+        }
+
+        var csvContent = string.Join("\n", csvLines);
+        statusMessage = $"CSV Export:\n{csvContent}";
+    }
+
+    private void ClearDeck()
+    {
+        armyDeck.Clear();
+        civicDeck.Clear();
+        statusMessage = "Deck cleared";
+    }
+}

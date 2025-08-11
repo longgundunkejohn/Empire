@@ -19,7 +19,7 @@ namespace Empire.Client.Pages
         [Inject] public GameApi GameApi { get; set; } = default!;
         [Inject] public NavigationManager NavigationManager { get; set; } = default!;
         [Inject] public GameHubService HubService { get; set; } = default!;
-        [Inject] public GameStateClientService GameStateService { get; set; } = default!;
+        [Inject] public EmpireGameService EmpireGameService { get; set; } = default!;
         [Inject] public CardService CardService { get; set; } = default!;
         [Inject] public DeckService DeckService { get; set; } = default!;
 
@@ -34,17 +34,25 @@ namespace Empire.Client.Pages
         private List<(string PlayerId, string Message)> ChatLog = new();
         private List<CardData> allCards = new();
 
-        // Properties that get data from the state service
-        private GameState? gameState => GameStateService.CurrentGameState;
-        private List<int> PlayerHand => GameStateService.GetPlayerHandIds(playerId);
-        private List<BoardCard> PlayerBoard => GameStateService.GetPlayerBoard(playerId);
-        private List<BoardCard> OpponentBoard => GameStateService.GetPlayerBoard(GameStateService.GetOpponentId(playerId) ?? "");
-        private int CivicDeckCount => GameStateService.GetDeckCount(playerId, "civic");
-        private int MilitaryDeckCount => GameStateService.GetDeckCount(playerId, "military");
-        private int PlayerLifeTotal => GameStateService.GetPlayerLifeTotal(playerId);
-        private int OpponentLifeTotal => GameStateService.GetPlayerLifeTotal(GameStateService.GetOpponentId(playerId) ?? "");
-        private string CurrentPhase => GameStateService.GetCurrentPhase();
-        private bool IsMyTurn => GameStateService.IsPlayerTurn(playerId);
+        // Empire-specific properties
+        private GameState? gameState => EmpireGameService.CurrentGameState;
+        private List<int> PlayerArmyHand => gameState?.PlayerArmyHands.GetValueOrDefault(playerId, new()) ?? new();
+        private List<int> PlayerCivicHand => gameState?.PlayerCivicHands.GetValueOrDefault(playerId, new()) ?? new();
+        private List<int> PlayerHand => PlayerArmyHand.Concat(PlayerCivicHand).ToList();
+        private List<int> PlayerHeartland => gameState?.PlayerHeartlands.GetValueOrDefault(playerId, new()) ?? new();
+        private List<int> PlayerVillagers => gameState?.PlayerVillagers.GetValueOrDefault(playerId, new()) ?? new();
+        
+        // Legacy compatibility - convert to BoardCard format
+        private List<BoardCard> PlayerBoard => PlayerHeartland.Concat(PlayerVillagers)
+            .Select(cardId => new BoardCard(cardId)).ToList();
+        private List<BoardCard> OpponentBoard => GetOpponentBoard();
+        
+        private int CivicDeckCount => gameState?.PlayerCivicDecks.GetValueOrDefault(playerId, new())?.Count ?? 0;
+        private int MilitaryDeckCount => gameState?.PlayerArmyDecks.GetValueOrDefault(playerId, new())?.Count ?? 0;
+        private int PlayerLifeTotal => EmpireGameService.GetPlayerMorale(playerId);
+        private int OpponentLifeTotal => EmpireGameService.GetPlayerMorale(GetOpponentId());
+        private string CurrentPhase => EmpireGameService.GetCurrentPhaseString();
+        private bool IsMyTurn => EmpireGameService.IsMyTurn();
 
         protected override async Task OnInitializedAsync()
         {
@@ -57,14 +65,14 @@ namespace Empire.Client.Pages
                 allCards = await CardService.GetAllCardsAsync();
                 ChatLog.Add(("System", $"📚 Loaded {allCards.Count} cards from server"));
 
-                // Initialize with real data or fallback to mock
-                await InitializeGameState();
+                // Initialize Empire game
+                await EmpireGameService.InitializeGame(gameId, playerId);
 
-                // Load initial game state
-                await RefreshGameState();
-
-                // Connect to SignalR hub
-                await HubService.ConnectAsync(gameId);
+                // Subscribe to Empire events
+                EmpireGameService.OnPhaseChanged += HandleEmpirePhaseChanged;
+                EmpireGameService.OnInitiativeChanged += HandleInitiativeChanged;
+                EmpireGameService.OnMoraleChanged += HandleMoraleChanged;
+                EmpireGameService.OnGameWon += HandleGameWon;
 
                 // Subscribe to SignalR events
                 HubService.OnBoardUpdate += HandleBoardUpdate;
@@ -77,62 +85,113 @@ namespace Empire.Client.Pages
                 HubService.OnPlayerJoined += HandlePlayerJoined;
                 HubService.OnGameStarted += HandleGameStarted;
 
-                // Subscribe to state changes
-                GameStateService.OnStateChanged += StateHasChanged;
+                // Empire-specific SignalR events
+                HubService.OnActionTaken += HandleActionTaken;
+                HubService.OnInitiativePassed += HandleInitiativePassed;
+                HubService.OnPlayerPassed += HandlePlayerPassed;
+                HubService.OnPhaseTransition += HandlePhaseTransition;
+                HubService.OnCardExertionToggled += HandleCardExertionToggled;
+                HubService.OnCardMoved += HandleCardMoved;
+                HubService.OnDamageAssigned += HandleDamageAssigned;
+                HubService.OnMoraleUpdated += HandleMoraleUpdated;
+                HubService.OnAllCardsUnexerted += HandleAllCardsUnexerted;
 
                 isLoading = false;
+                ChatLog.Add(("System", "🏛️ Empire game initialized!"));
             }
             catch (Exception ex)
             {
-                errorMessage = $"Failed to initialize game: {ex.Message}";
+                errorMessage = $"Failed to initialize Empire game: {ex.Message}";
                 isLoading = false;
             }
         }
 
-        private async Task InitializeGameState()
+        // Empire Event Handlers
+        private async Task HandleEmpirePhaseChanged(GamePhase phase, string initiativeHolder)
         {
-            if (allCards.Any())
-            {
-                // Create a game state with real cards
-                var militaryCards = allCards.Where(c => c.CardType is "Unit" or "Tactic" or "Battle Tactic" or "Chronicle" or "Skirmisher").ToList();
-                var civicCards = allCards.Where(c => c.CardType is "Settlement" or "Villager").ToList();
-
-                var mockState = new GameState
-                {
-                    GameId = gameId,
-                    CurrentPhase = GamePhase.Strategy,
-                    Player1 = playerId,
-                    Player2 = "opponent",
-                    InitiativeHolder = playerId,
-                    PriorityPlayer = playerId,
-                    PlayerHands = new Dictionary<string, List<int>>
-                    {
-                        [playerId] = militaryCards.Take(7).Select(c => c.CardID).ToList(),
-                        ["opponent"] = militaryCards.Skip(7).Take(7).Select(c => c.CardID).ToList()
-                    },
-                    PlayerBoard = new Dictionary<string, List<BoardCard>>
-                    {
-                        [playerId] = new List<BoardCard>(),
-                        ["opponent"] = new List<BoardCard>()
-                    },
-                    PlayerLifeTotals = new Dictionary<string, int>
-                    {
-                        [playerId] = 20,
-                        ["opponent"] = 20
-                    }
-                };
-
-                GameStateService.UpdateGameState(mockState);
-                ChatLog.Add(("System", "🎮 Initialized with real card data"));
-            }
-            else
-            {
-                ChatLog.Add(("System", "⚠️ No cards loaded, using fallback data"));
-            }
+            ChatLog.Add(("System", $"⏰ Phase: {phase} | Initiative: {initiativeHolder}"));
+            await InvokeAsync(StateHasChanged);
         }
 
+        private async Task HandleInitiativeChanged(string newInitiativeHolder)
+        {
+            var isYourTurn = newInitiativeHolder == playerId;
+            ChatLog.Add(("System", isYourTurn ? "🎯 Your turn!" : "⏳ Opponent's turn"));
+            await InvokeAsync(StateHasChanged);
+        }
+
+        private async Task HandleMoraleChanged(string playerId, int newMorale)
+        {
+            ChatLog.Add(("System", $"💔 {playerId} morale: {newMorale}"));
+            await InvokeAsync(StateHasChanged);
+        }
+
+        private async Task HandleGameWon(string winnerId)
+        {
+            var isYouWinner = winnerId == playerId;
+            ChatLog.Add(("System", isYouWinner ? "🎉 You won!" : "💀 You lost!"));
+            await InvokeAsync(StateHasChanged);
+        }
 
         // SignalR Event Handlers
+        private async Task HandleActionTaken(string playerId, string actionType, object actionData)
+        {
+            ChatLog.Add((playerId, $"🎯 {actionType}"));
+            await InvokeAsync(StateHasChanged);
+        }
+
+        private async Task HandleInitiativePassed(string playerId)
+        {
+            ChatLog.Add((playerId, "⏭️ Passed initiative"));
+            await InvokeAsync(StateHasChanged);
+        }
+
+        private async Task HandlePlayerPassed(string playerId)
+        {
+            ChatLog.Add((playerId, "⏸️ Passed"));
+            await InvokeAsync(StateHasChanged);
+        }
+
+        private async Task HandlePhaseTransition(string newPhase, string initiativeHolder)
+        {
+            ChatLog.Add(("System", $"🔄 Phase: {newPhase} | Initiative: {initiativeHolder}"));
+            await InvokeAsync(StateHasChanged);
+        }
+
+        private async Task HandleCardExertionToggled(string playerId, int cardId, bool isExerted)
+        {
+            var card = allCards.FirstOrDefault(c => c.CardID == cardId);
+            var action = isExerted ? "exerted" : "unexerted";
+            ChatLog.Add((playerId, $"⚡ {action} {card?.Name ?? $"Card #{cardId}"}"));
+            await InvokeAsync(StateHasChanged);
+        }
+
+        private async Task HandleCardMoved(string playerId, int cardId, string fromZone, string toZone)
+        {
+            var card = allCards.FirstOrDefault(c => c.CardID == cardId);
+            ChatLog.Add((playerId, $"🔄 Moved {card?.Name ?? $"Card #{cardId}"} from {fromZone} to {toZone}"));
+            await InvokeAsync(StateHasChanged);
+        }
+
+        private async Task HandleDamageAssigned(string playerId, string territoryId, object damageAssignment)
+        {
+            ChatLog.Add((playerId, $"⚔️ Assigned damage in {territoryId}"));
+            await InvokeAsync(StateHasChanged);
+        }
+
+        private async Task HandleMoraleUpdated(string playerId, int newMorale, int damage)
+        {
+            ChatLog.Add(("System", $"💔 {playerId} took {damage} damage (Morale: {newMorale})"));
+            await InvokeAsync(StateHasChanged);
+        }
+
+        private async Task HandleAllCardsUnexerted(string playerId)
+        {
+            ChatLog.Add((playerId, "🔄 Unexerted all cards"));
+            await InvokeAsync(StateHasChanged);
+        }
+
+        // Legacy SignalR handlers (keeping for compatibility)
         private async Task HandleBoardUpdate(BoardPositionUpdate update)
         {
             if (update.GameId == gameId)
@@ -199,90 +258,85 @@ namespace Empire.Client.Pages
             }
         }
 
-        // Game Actions
-        private async Task DrawCard(string type)
+        // Empire Game Actions
+        private async Task DeployArmyCard(int cardId)
         {
             try
             {
-                if (!IsMyTurn)
+                bool success = await EmpireGameService.DeployArmyCard(cardId);
+                if (success)
                 {
-                    ChatLog.Add(("System", "❌ It's not your turn!"));
-                    return;
+                    var card = allCards.FirstOrDefault(c => c.CardID == cardId);
+                    ChatLog.Add((playerId, $"⚔️ Deployed {card?.Name ?? $"Card #{cardId}"}"));
                 }
-
-                // Draw a card from real data
-                var availableCards = type == "civic" 
-                    ? allCards.Where(c => c.CardType is "Settlement" or "Villager").ToList()
-                    : allCards.Where(c => c.CardType is "Unit" or "Tactic" or "Battle Tactic" or "Chronicle" or "Skirmisher").ToList();
-                
-                if (availableCards.Any())
+                else
                 {
-                    var random = new Random();
-                    var drawnCard = availableCards[random.Next(availableCards.Count)];
-                    
-                    // Add to hand
-                    GameStateService.AddCardToHand(playerId, drawnCard.CardID);
-                    
-                    ChatLog.Add((playerId, $"🃏 Drew {drawnCard.Name}"));
-                    await InvokeAsync(StateHasChanged);
+                    ChatLog.Add(("System", "❌ Cannot deploy army card"));
                 }
-            }
-            catch (Exception ex)
-            {
-                ChatLog.Add(("System", $"❌ Error drawing card: {ex.Message}"));
-            }
-        }
-
-        private async Task DrawCivic() => await DrawCard("civic");
-        private async Task DrawMilitary() => await DrawCard("military");
-
-        private void OnDragStart(int cardId) => draggedCardId = cardId;
-
-        private async Task OnCardDrop()
-        {
-            if (!draggedCardId.HasValue || !IsMyTurn) return;
-
-            try
-            {
-                // Move card from hand to board
-                GameStateService.PlayCardFromHand(playerId, draggedCardId.Value);
-                
-                var card = allCards.FirstOrDefault(c => c.CardID == draggedCardId.Value);
-                ChatLog.Add((playerId, $"🎴 Played {card?.Name ?? $"Card #{draggedCardId.Value}"}"));
-                
                 await InvokeAsync(StateHasChanged);
             }
             catch (Exception ex)
             {
-                ChatLog.Add(("System", $"❌ Error playing card: {ex.Message}"));
-            }
-            finally
-            {
-                draggedCardId = null;
-                isDragging = false;
+                ChatLog.Add(("System", $"❌ Error deploying army card: {ex.Message}"));
             }
         }
 
-        // Card click handlers for the new component structure
+        private async Task PlayVillager(int cardId)
+        {
+            try
+            {
+                bool success = await EmpireGameService.PlayVillager(cardId);
+                if (success)
+                {
+                    var card = allCards.FirstOrDefault(c => c.CardID == cardId);
+                    ChatLog.Add((playerId, $"👥 Played villager {card?.Name ?? $"Card #{cardId}"}"));
+                }
+                else
+                {
+                    ChatLog.Add(("System", "❌ Cannot play villager"));
+                }
+                await InvokeAsync(StateHasChanged);
+            }
+            catch (Exception ex)
+            {
+                ChatLog.Add(("System", $"❌ Error playing villager: {ex.Message}"));
+            }
+        }
+
+        private async Task PassInitiative()
+        {
+            try
+            {
+                await EmpireGameService.PassInitiative();
+                ChatLog.Add((playerId, "⏭️ Passed initiative"));
+                await InvokeAsync(StateHasChanged);
+            }
+            catch (Exception ex)
+            {
+                ChatLog.Add(("System", $"❌ Error passing initiative: {ex.Message}"));
+            }
+        }
+
+        // Card interaction handlers
         private async Task HandleCardClick(int cardId)
         {
             var card = allCards.FirstOrDefault(c => c.CardID == cardId);
             Console.WriteLine($"Clicked: {card?.Name ?? "Unknown"} (#{cardId})");
             
-            // If it's a board card, try to exert it
-            if (PlayerBoard.Any(bc => bc.CardId == cardId) && IsMyTurn)
-            {
-                GameStateService.ExertCard(playerId, cardId);
-                ChatLog.Add((playerId, $"⚡ Exerted {card?.Name ?? $"Card #{cardId}"}"));
-                await InvokeAsync(StateHasChanged);
-            }
+            // Show card details or select for action
+            await Task.CompletedTask;
         }
 
         private async Task HandleCardDoubleClick(int cardId)
         {
             var card = allCards.FirstOrDefault(c => c.CardID == cardId);
             Console.WriteLine($"Double-clicked: {card?.Name ?? "Unknown"} (#{cardId})");
-            await Task.CompletedTask;
+            
+            // Toggle exertion for board cards
+            if (PlayerBoard.Any(bc => bc.CardId == cardId) && IsMyTurn)
+            {
+                await EmpireGameService.ToggleCardExertion(cardId);
+            }
         }
 
         private async Task HandleHandCardClick(int cardId)
@@ -294,13 +348,22 @@ namespace Empire.Client.Pages
 
         private async Task HandleHandCardDoubleClick(int cardId)
         {
-            // Double-click to play card from hand
-            if (IsMyTurn)
+            if (!IsMyTurn) return;
+
+            var card = allCards.FirstOrDefault(c => c.CardID == cardId);
+            
+            // Determine action based on card type
+            if (card?.CardType == "Villager")
             {
-                GameStateService.PlayCardFromHand(playerId, cardId);
-                var card = allCards.FirstOrDefault(c => c.CardID == cardId);
-                ChatLog.Add((playerId, $"🎴 Played {card?.Name ?? $"Card #{cardId}"}"));
-                await InvokeAsync(StateHasChanged);
+                await PlayVillager(cardId);
+            }
+            else if (IsArmyCard(card))
+            {
+                await DeployArmyCard(cardId);
+            }
+            else
+            {
+                ChatLog.Add(("System", $"❓ Unknown action for {card?.CardType ?? "Unknown"} card"));
             }
         }
 
@@ -318,6 +381,121 @@ namespace Empire.Client.Pages
             await Task.CompletedTask;
         }
 
+        // Drag and drop
+        private void OnDragStart(int cardId) => draggedCardId = cardId;
+
+        private async Task OnCardDrop()
+        {
+            if (!draggedCardId.HasValue || !IsMyTurn) return;
+
+            try
+            {
+                var card = allCards.FirstOrDefault(c => c.CardID == draggedCardId.Value);
+                
+                // Handle different card types
+                if (card?.CardType == "Villager")
+                {
+                    await PlayVillager(draggedCardId.Value);
+                }
+                else if (IsArmyCard(card))
+                {
+                    await DeployArmyCard(draggedCardId.Value);
+                }
+                else
+                {
+                    ChatLog.Add(("System", $"❓ Cannot play {card?.CardType ?? "Unknown"} card"));
+                }
+            }
+            catch (Exception ex)
+            {
+                ChatLog.Add(("System", $"❌ Error playing card: {ex.Message}"));
+            }
+            finally
+            {
+                draggedCardId = null;
+                isDragging = false;
+            }
+        }
+
+        // Drawing cards (Empire style)
+        private async Task DrawCivic()
+        {
+            try
+            {
+                bool success = await GameApi.DrawCards(gameId, playerId, false); // false = civic
+                if (success)
+                {
+                    ChatLog.Add((playerId, "🃏 Drew 2 civic cards"));
+                }
+                await InvokeAsync(StateHasChanged);
+            }
+            catch (Exception ex)
+            {
+                ChatLog.Add(("System", $"❌ Error drawing civic cards: {ex.Message}"));
+            }
+        }
+
+        private async Task DrawMilitary()
+        {
+            try
+            {
+                bool success = await GameApi.DrawCards(gameId, playerId, true); // true = army
+                if (success)
+                {
+                    ChatLog.Add((playerId, "🃏 Drew 1 army card"));
+                }
+                await InvokeAsync(StateHasChanged);
+            }
+            catch (Exception ex)
+            {
+                ChatLog.Add(("System", $"❌ Error drawing army card: {ex.Message}"));
+            }
+        }
+
+        // Chat and commands
+        private async Task HandleChatKey(KeyboardEventArgs e)
+        {
+            if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(chatInput))
+            {
+                var message = chatInput.Trim();
+                if (message.StartsWith("/"))
+                {
+                    await HandleChatCommand(message);
+                }
+                else
+                {
+                    ChatLog.Add((playerId, message));
+                    await InvokeAsync(StateHasChanged);
+                }
+                chatInput = string.Empty;
+            }
+        }
+
+        private async Task HandleChatCommand(string command)
+        {
+            switch (command.ToLowerInvariant())
+            {
+                case "/pass":
+                    await PassInitiative();
+                    break;
+                case "/draw":
+                    await DrawMilitary();
+                    break;
+                case "/drawcivic":
+                    await DrawCivic();
+                    break;
+                case "/unexert":
+                    await EmpireGameService.UnexertAllCards();
+                    ChatLog.Add((playerId, "🔄 Unexerted all cards"));
+                    break;
+                default:
+                    ChatLog.Add((playerId, $"❓ Unknown command: {command}"));
+                    break;
+            }
+            await InvokeAsync(StateHasChanged);
+        }
+
+        // UI helpers
         private void ShowZoomedCard(CardData card, MouseEventArgs e)
         {
             const int previewWidth = 300, previewHeight = 420, screenWidth = 1920, screenHeight = 1080;
@@ -345,80 +523,31 @@ namespace Empire.Client.Pages
             return "/images/card-placeholder.png";
         }
 
-        private async Task HandleChatKey(KeyboardEventArgs e)
+        private bool IsArmyCard(CardData? card)
         {
-            if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(chatInput))
-            {
-                var message = chatInput.Trim();
-                if (message.StartsWith("/"))
-                {
-                    await HandleChatCommand(message);
-                }
-                else
-                {
-                    ChatLog.Add((playerId, message));
-                    await InvokeAsync(StateHasChanged);
-                }
-                chatInput = string.Empty;
-            }
+            return card?.CardType is "Unit" or "Tactic" or "Battle Tactic" or "Chronicle" or "Skirmisher";
         }
 
-        private async Task HandleChatCommand(string command)
+        private string GetOpponentId()
         {
-            switch (command.ToLowerInvariant())
-            {
-                case "/shuffle":
-                    ChatLog.Add((playerId, "🔀 shuffled their deck."));
-                    break;
-                case "/endturn":
-                    if (IsMyTurn)
-                    {
-                        GameStateService.EndTurn();
-                        ChatLog.Add((playerId, "⏭️ ended their turn."));
-                        await InvokeAsync(StateHasChanged);
-                    }
-                    else
-                    {
-                        ChatLog.Add(("System", "❌ It's not your turn!"));
-                    }
-                    break;
-                case "/draw":
-                    await DrawMilitary();
-                    break;
-                case "/drawcivic":
-                    await DrawCivic();
-                    break;
-                default:
-                    ChatLog.Add((playerId, $"❓ Unknown command: {command}"));
-                    break;
-            }
-            await InvokeAsync(StateHasChanged);
+            return gameState?.Player1 == playerId ? gameState?.Player2 ?? "" : gameState?.Player1 ?? "";
+        }
+
+        private List<BoardCard> GetOpponentBoard()
+        {
+            var opponentId = GetOpponentId();
+            if (string.IsNullOrEmpty(opponentId)) return new();
+            
+            var heartland = gameState?.PlayerHeartlands.GetValueOrDefault(opponentId, new()) ?? new();
+            var villagers = gameState?.PlayerVillagers.GetValueOrDefault(opponentId, new()) ?? new();
+            
+            return heartland.Concat(villagers).Select(cardId => new BoardCard(cardId)).ToList();
         }
 
         private async Task RefreshGameState()
         {
-            await LoadGameState();
-        }
-
-        private async Task LoadGameState()
-        {
-            try
-            {
-                var state = await GameApi.GetGameState(gameId);
-                if (state != null)
-                {
-                    GameStateService.UpdateGameState(state);
-                }
-                else
-                {
-                    // Keep using mock data if server is unavailable
-                    ChatLog.Add(("System", "⚠️ Using mock data - server unavailable"));
-                }
-            }
-            catch (Exception ex)
-            {
-                ChatLog.Add(("System", $"⚠️ Server error: {ex.Message}. Using mock data."));
-            }
+            await EmpireGameService.RefreshGameState();
+            await InvokeAsync(StateHasChanged);
         }
 
         private void NavigateToLobby()
@@ -428,17 +557,27 @@ namespace Empire.Client.Pages
 
         private async Task EndTurn()
         {
-            await HandleChatCommand("/endturn");
+            await PassInitiative();
         }
 
         private async Task ShuffleDeck()
         {
-            await HandleChatCommand("/shuffle");
+            ChatLog.Add((playerId, "🔀 Shuffled deck"));
+            await InvokeAsync(StateHasChanged);
         }
 
         public void Dispose()
         {
-            // Unsubscribe from events
+            // Unsubscribe from Empire events
+            if (EmpireGameService != null)
+            {
+                EmpireGameService.OnPhaseChanged -= HandleEmpirePhaseChanged;
+                EmpireGameService.OnInitiativeChanged -= HandleInitiativeChanged;
+                EmpireGameService.OnMoraleChanged -= HandleMoraleChanged;
+                EmpireGameService.OnGameWon -= HandleGameWon;
+            }
+
+            // Unsubscribe from SignalR events
             if (HubService != null)
             {
                 HubService.OnBoardUpdate -= HandleBoardUpdate;
@@ -450,11 +589,17 @@ namespace Empire.Client.Pages
                 HubService.OnCardPlayed -= HandleCardPlayed;
                 HubService.OnPlayerJoined -= HandlePlayerJoined;
                 HubService.OnGameStarted -= HandleGameStarted;
-            }
-
-            if (GameStateService != null)
-            {
-                GameStateService.OnStateChanged -= StateHasChanged;
+                
+                // Empire-specific events
+                HubService.OnActionTaken -= HandleActionTaken;
+                HubService.OnInitiativePassed -= HandleInitiativePassed;
+                HubService.OnPlayerPassed -= HandlePlayerPassed;
+                HubService.OnPhaseTransition -= HandlePhaseTransition;
+                HubService.OnCardExertionToggled -= HandleCardExertionToggled;
+                HubService.OnCardMoved -= HandleCardMoved;
+                HubService.OnDamageAssigned -= HandleDamageAssigned;
+                HubService.OnMoraleUpdated -= HandleMoraleUpdated;
+                HubService.OnAllCardsUnexerted -= HandleAllCardsUnexerted;
             }
         }
     }

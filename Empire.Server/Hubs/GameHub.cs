@@ -32,6 +32,7 @@ namespace Empire.Server.Hubs
             Console.WriteLine($"👥 {Context.ConnectionId} joined game {gameId}");
         }
 
+        // Legacy methods (keeping for compatibility)
         public async Task SendBoardUpdate(BoardPositionUpdate update)
         {
             if (update == null || string.IsNullOrWhiteSpace(update.GameId))
@@ -64,6 +65,152 @@ namespace Empire.Server.Hubs
             Console.WriteLine($"💬 Chat message sent in game {gameId} from {playerId}");
         }
 
+        // Empire-specific methods
+        
+        /// <summary>
+        /// Empire Initiative System: Player takes an action, initiative passes to opponent
+        /// </summary>
+        public async Task TakeAction(string gameId, string playerId, string actionType, object actionData)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            // Notify all players that an action was taken and initiative has passed
+            await Clients.Group(gameId).SendAsync("ActionTaken", playerId, actionType, actionData);
+            await Clients.Group(gameId).SendAsync("InitiativePassed", playerId);
+            
+            Console.WriteLine($"⚡ Action '{actionType}' taken by {playerId} in game {gameId}, initiative passed");
+        }
+
+        /// <summary>
+        /// Empire Initiative System: Player passes their turn
+        /// </summary>
+        public async Task PassInitiative(string gameId, string playerId)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("PlayerPassed", playerId);
+            Console.WriteLine($"⏭️ Player {playerId} passed initiative in game {gameId}");
+        }
+
+        /// <summary>
+        /// Empire Phase System: Notify when both players have passed and phase should advance
+        /// </summary>
+        public async Task NotifyPhaseTransition(string gameId, GamePhase newPhase, string initiativeHolder)
+        {
+            if (string.IsNullOrWhiteSpace(gameId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("PhaseTransition", newPhase.ToString(), initiativeHolder);
+            Console.WriteLine($"🔄 Phase transition to {newPhase} in game {gameId}, initiative to {initiativeHolder}");
+        }
+
+        /// <summary>
+        /// Empire Card Actions: Deploy army card
+        /// </summary>
+        public async Task DeployArmyCard(string gameId, string playerId, int cardId, int manaCost)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await TakeAction(gameId, playerId, "DeployArmyCard", new { cardId, manaCost });
+        }
+
+        /// <summary>
+        /// Empire Card Actions: Play villager (once per round)
+        /// </summary>
+        public async Task PlayVillager(string gameId, string playerId, int cardId)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await TakeAction(gameId, playerId, "PlayVillager", new { cardId });
+        }
+
+        /// <summary>
+        /// Empire Card Actions: Settle territory (once per round)
+        /// </summary>
+        public async Task SettleTerritory(string gameId, string playerId, int cardId, string territoryId)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await TakeAction(gameId, playerId, "SettleTerritory", new { cardId, territoryId });
+        }
+
+        /// <summary>
+        /// Empire Card Actions: Commit units to territories (once per round)
+        /// </summary>
+        public async Task CommitUnits(string gameId, string playerId, object commitData)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await TakeAction(gameId, playerId, "CommitUnits", commitData);
+        }
+
+        /// <summary>
+        /// Empire Card Actions: Exert/Unexert card (double-click)
+        /// </summary>
+        public async Task ToggleCardExertion(string gameId, string playerId, int cardId, bool isExerted)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("CardExertionToggled", playerId, cardId, isExerted);
+            Console.WriteLine($"🔄 Card {cardId} exertion toggled to {isExerted} by {playerId} in game {gameId}");
+        }
+
+        /// <summary>
+        /// Empire Card Actions: Move card between zones
+        /// </summary>
+        public async Task MoveCard(string gameId, string playerId, int cardId, string fromZone, string toZone)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("CardMoved", playerId, cardId, fromZone, toZone);
+            Console.WriteLine($"📦 Card {cardId} moved from {fromZone} to {toZone} by {playerId} in game {gameId}");
+        }
+
+        /// <summary>
+        /// Empire Combat: Assign damage in territory
+        /// </summary>
+        public async Task AssignDamage(string gameId, string playerId, string territoryId, object damageAssignment)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("DamageAssigned", playerId, territoryId, damageAssignment);
+            Console.WriteLine($"⚔️ Damage assigned in {territoryId} by {playerId} in game {gameId}");
+        }
+
+        /// <summary>
+        /// Empire Morale: Update player morale
+        /// </summary>
+        public async Task UpdateMorale(string gameId, string playerId, int newMorale, int damage)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("MoraleUpdated", playerId, newMorale, damage);
+            Console.WriteLine($"💔 Morale updated for {playerId} to {newMorale} (-{damage}) in game {gameId}");
+        }
+
+        /// <summary>
+        /// Empire Replenishment: Unexert all cards
+        /// </summary>
+        public async Task UnexertAllCards(string gameId, string playerId)
+        {
+            if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(playerId))
+                return;
+
+            await Clients.Group(gameId).SendAsync("AllCardsUnexerted", playerId);
+            Console.WriteLine($"🔄 All cards unexerted for {playerId} in game {gameId}");
+        }
+
+        // Legacy notification methods (keeping for compatibility)
         public async Task NotifyMoveSubmitted(string gameId, GameMove move)
         {
             if (string.IsNullOrWhiteSpace(gameId) || move == null)

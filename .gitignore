@@ -31,3 +31,4 @@ Thumbs.db
 /Empire.puml
 Empire.Server/appsettings.json
 certbot/conf/archive/empirecardgame.com/privkey1.pem
+/Empire.Server/appsettings.Development.json

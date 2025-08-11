@@ -1,6 +1,7 @@
 ﻿// 🔧 FILE: GameController.cs (Empire.Server/Controllers)
 using Empire.Shared.Models;
-using Empire.Shared.DTOs;
+using Empire.Shared.Models.DTOs;
+using Empire.Shared.Models.Enums;
 using Empire.Server.Interfaces;
 using Empire.Server.Services;
 using Empire.Server.Hubs;
@@ -17,13 +18,20 @@ namespace Empire.Server.Controllers
     {
         private readonly DeckService _deckService;
         private readonly ICardDatabaseService _cardService;
+        private readonly GameStateService _gameStateService;
         private readonly IMongoCollection<GameState> _gameCollection;
         private readonly IHubContext<GameHub> _hubContext;
 
-        public GameController(DeckService deckService, ICardDatabaseService cardService, IMongoDatabase mongoDb, IHubContext<GameHub> hubContext)
+        public GameController(
+            DeckService deckService, 
+            ICardDatabaseService cardService, 
+            GameStateService gameStateService,
+            IMongoDatabase mongoDb, 
+            IHubContext<GameHub> hubContext)
         {
             _deckService = deckService;
             _cardService = cardService;
+            _gameStateService = gameStateService;
             _gameCollection = mongoDb.GetCollection<GameState>("GameSessions");
             _hubContext = hubContext;
         }
@@ -256,5 +264,303 @@ namespace Empire.Server.Controllers
 
             await Task.CompletedTask;
         }
+
+        // Empire-specific action endpoints
+        
+        [HttpPost("{gameId}/empire/create")]
+        public async Task<IActionResult> CreateEmpireGame(string gameId, [FromBody] EmpireGameStartRequest request)
+        {
+            try
+            {
+                await _gameStateService.LoadGameState(gameId);
+                await _gameStateService.InitializeEmpireGame(gameId, request.Player1Id, request.Player2Id);
+                
+                // Notify clients that the game has started
+                await _hubContext.Clients.Group(gameId).SendAsync("GameStarted", gameId);
+                await _hubContext.Clients.Group(gameId).SendAsync("GameStateUpdated", gameId);
+                
+                return Ok(new { message = "Empire game initialized successfully" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest($"Failed to initialize Empire game: {ex.Message}");
+            }
+        }
+
+        [HttpPost("{gameId}/empire/setup-deck/{playerId}")]
+        public async Task<IActionResult> SetupPlayerDeck(string gameId, string playerId, [FromBody] EmpireDeckSetupRequest request)
+        {
+            try
+            {
+                await _gameStateService.LoadGameState(gameId);
+                
+                // Get cards from database
+                var armyCards = await _cardService.GetDeckCards(request.ArmyDeckIds);
+                var civicCards = await _cardService.GetDeckCards(request.CivicDeckIds);
+                
+                await _gameStateService.SetupPlayerDecks(playerId, armyCards.ToList(), civicCards.ToList());
+                
+                await _hubContext.Clients.Group(gameId).SendAsync("GameStateUpdated", gameId);
+                
+                return Ok(new { message = "Player deck setup successfully" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest($"Failed to setup player deck: {ex.Message}");
+            }
+        }
+
+        [HttpPost("{gameId}/empire/deploy-army")]
+        public async Task<IActionResult> DeployArmyCard(string gameId, [FromBody] DeployArmyCardRequest request)
+        {
+            try
+            {
+                await _gameStateService.LoadGameState(gameId);
+                
+                bool success = await _gameStateService.DeployArmyCard(request.PlayerId, request.CardId, request.ManaCost);
+                if (!success)
+                {
+                    return BadRequest("Cannot deploy army card - invalid action or insufficient resources");
+                }
+                
+                // Notify clients
+                await _hubContext.Clients.Group(gameId).SendAsync("ActionTaken", request.PlayerId, "DeployArmyCard", new { request.CardId, request.ManaCost });
+                await _hubContext.Clients.Group(gameId).SendAsync("InitiativePassed", request.PlayerId);
+                await _hubContext.Clients.Group(gameId).SendAsync("GameStateUpdated", gameId);
+                
+                return Ok(new { message = "Army card deployed successfully" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest($"Failed to deploy army card: {ex.Message}");
+            }
+        }
+
+        [HttpPost("{gameId}/empire/play-villager")]
+        public async Task<IActionResult> PlayVillager(string gameId, [FromBody] PlayVillagerRequest request)
+        {
+            try
+            {
+                await _gameStateService.LoadGameState(gameId);
+                
+                bool success = await _gameStateService.PlayVillager(request.PlayerId, request.CardId);
+                if (!success)
+                {
+                    return BadRequest("Cannot play villager - invalid action or already played this round");
+                }
+                
+                // Notify clients
+                await _hubContext.Clients.Group(gameId).SendAsync("ActionTaken", request.PlayerId, "PlayVillager", new { request.CardId });
+                await _hubContext.Clients.Group(gameId).SendAsync("InitiativePassed", request.PlayerId);
+                await _hubContext.Clients.Group(gameId).SendAsync("GameStateUpdated", gameId);
+                
+                return Ok(new { message = "Villager played successfully" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest($"Failed to play villager: {ex.Message}");
+            }
+        }
+
+        [HttpPost("{gameId}/empire/settle-territory")]
+        public async Task<IActionResult> SettleTerritory(string gameId, [FromBody] SettleTerritoryRequest request)
+        {
+            try
+            {
+                await _gameStateService.LoadGameState(gameId);
+                
+                bool success = await _gameStateService.SettleTerritory(request.PlayerId, request.CardId, request.TerritoryId);
+                if (!success)
+                {
+                    return BadRequest("Cannot settle territory - invalid action or not occupying territory");
+                }
+                
+                // Notify clients
+                await _hubContext.Clients.Group(gameId).SendAsync("ActionTaken", request.PlayerId, "SettleTerritory", new { request.CardId, request.TerritoryId });
+                await _hubContext.Clients.Group(gameId).SendAsync("InitiativePassed", request.PlayerId);
+                await _hubContext.Clients.Group(gameId).SendAsync("GameStateUpdated", gameId);
+                
+                return Ok(new { message = "Territory settled successfully" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest($"Failed to settle territory: {ex.Message}");
+            }
+        }
+
+        [HttpPost("{gameId}/empire/commit-units")]
+        public async Task<IActionResult> CommitUnits(string gameId, [FromBody] CommitUnitsRequest request)
+        {
+            try
+            {
+                await _gameStateService.LoadGameState(gameId);
+                
+                bool success = await _gameStateService.CommitUnits(request.PlayerId, request.UnitCommitments);
+                if (!success)
+                {
+                    return BadRequest("Cannot commit units - invalid action or already committed this round");
+                }
+                
+                // Notify clients
+                await _hubContext.Clients.Group(gameId).SendAsync("ActionTaken", request.PlayerId, "CommitUnits", request.UnitCommitments);
+                await _hubContext.Clients.Group(gameId).SendAsync("InitiativePassed", request.PlayerId);
+                await _hubContext.Clients.Group(gameId).SendAsync("GameStateUpdated", gameId);
+                
+                return Ok(new { message = "Units committed successfully" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest($"Failed to commit units: {ex.Message}");
+            }
+        }
+
+        [HttpPost("{gameId}/empire/pass-initiative")]
+        public async Task<IActionResult> PassInitiative(string gameId, [FromBody] PassInitiativeRequest request)
+        {
+            try
+            {
+                await _gameStateService.LoadGameState(gameId);
+                
+                bool success = await _gameStateService.PassInitiative(request.PlayerId);
+                if (!success)
+                {
+                    return BadRequest("Cannot pass initiative - not your turn");
+                }
+                
+                // Check if phase should advance
+                var gameState = _gameStateService.GameState;
+                if (gameState.LastPlayerToPass != null)
+                {
+                    // Both players passed, phase will advance
+                    await _hubContext.Clients.Group(gameId).SendAsync("PhaseTransition", gameState.CurrentPhase.ToString(), gameState.InitiativeHolder);
+                }
+                else
+                {
+                    // Just pass initiative
+                    await _hubContext.Clients.Group(gameId).SendAsync("PlayerPassed", request.PlayerId);
+                    await _hubContext.Clients.Group(gameId).SendAsync("InitiativePassed", request.PlayerId);
+                }
+                
+                await _hubContext.Clients.Group(gameId).SendAsync("GameStateUpdated", gameId);
+                
+                return Ok(new { message = "Initiative passed successfully" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest($"Failed to pass initiative: {ex.Message}");
+            }
+        }
+
+        [HttpPost("{gameId}/empire/draw-cards")]
+        public async Task<IActionResult> DrawCards(string gameId, [FromBody] DrawCardsRequest request)
+        {
+            try
+            {
+                await _gameStateService.LoadGameState(gameId);
+                
+                if (request.DrawArmy)
+                {
+                    await _gameStateService.DrawArmyCard(request.PlayerId);
+                }
+                else
+                {
+                    await _gameStateService.DrawCivicCards(request.PlayerId, 2);
+                }
+                
+                await _hubContext.Clients.Group(gameId).SendAsync("GameStateUpdated", gameId);
+                
+                return Ok(new { message = "Cards drawn successfully" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest($"Failed to draw cards: {ex.Message}");
+            }
+        }
+
+        [HttpPost("{gameId}/empire/update-morale")]
+        public async Task<IActionResult> UpdateMorale(string gameId, [FromBody] UpdateMoraleRequest request)
+        {
+            try
+            {
+                await _gameStateService.LoadGameState(gameId);
+                
+                await _gameStateService.UpdateMorale(request.PlayerId, request.Damage);
+                
+                var newMorale = _gameStateService.GameState.PlayerMorale[request.PlayerId];
+                
+                // Notify clients
+                await _hubContext.Clients.Group(gameId).SendAsync("MoraleUpdated", request.PlayerId, newMorale, request.Damage);
+                await _hubContext.Clients.Group(gameId).SendAsync("GameStateUpdated", gameId);
+                
+                // Check for game over
+                if (_gameStateService.IsGameOver())
+                {
+                    var winner = _gameStateService.GetWinner();
+                    await _hubContext.Clients.Group(gameId).SendAsync("GameEnded", winner);
+                }
+                
+                return Ok(new { message = "Morale updated successfully", newMorale });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest($"Failed to update morale: {ex.Message}");
+            }
+        }
+    }
+
+    // Empire-specific request DTOs
+    public class EmpireGameStartRequest
+    {
+        public string Player1Id { get; set; } = string.Empty;
+        public string Player2Id { get; set; } = string.Empty;
+    }
+
+    public class EmpireDeckSetupRequest
+    {
+        public List<int> ArmyDeckIds { get; set; } = new();
+        public List<int> CivicDeckIds { get; set; } = new();
+    }
+
+    public class DeployArmyCardRequest
+    {
+        public string PlayerId { get; set; } = string.Empty;
+        public int CardId { get; set; }
+        public int ManaCost { get; set; }
+    }
+
+    public class PlayVillagerRequest
+    {
+        public string PlayerId { get; set; } = string.Empty;
+        public int CardId { get; set; }
+    }
+
+    public class SettleTerritoryRequest
+    {
+        public string PlayerId { get; set; } = string.Empty;
+        public int CardId { get; set; }
+        public string TerritoryId { get; set; } = string.Empty;
+    }
+
+    public class CommitUnitsRequest
+    {
+        public string PlayerId { get; set; } = string.Empty;
+        public Dictionary<int, string> UnitCommitments { get; set; } = new();
+    }
+
+    public class PassInitiativeRequest
+    {
+        public string PlayerId { get; set; } = string.Empty;
+    }
+
+    public class DrawCardsRequest
+    {
+        public string PlayerId { get; set; } = string.Empty;
+        public bool DrawArmy { get; set; } = true;
+    }
+
+    public class UpdateMoraleRequest
+    {
+        public string PlayerId { get; set; } = string.Empty;
+        public int Damage { get; set; }
     }
 }

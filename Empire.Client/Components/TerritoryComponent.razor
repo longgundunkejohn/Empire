@@ -1,0 +1,336 @@
+@using Empire.Shared.Models
+@using Empire.Client.Components
+
+<div class="territory-component @(IsOccupiedByPlayer ? "player-occupied" : "")">
+    <div class="territory-header">
+        <h4 class="territory-name">@TerritoryName</h4>
+        <div class="territory-status">
+            @if (IsOccupiedByPlayer)
+            {
+                <span class="occupation-status player">🏴 Occupied</span>
+            }
+            else if (OccupyingUnits.Any())
+            {
+                <span class="occupation-status opponent">🏴 Enemy Occupied</span>
+            }
+            else
+            {
+                <span class="occupation-status neutral">🏳️ Neutral</span>
+            }
+        </div>
+    </div>
+
+    <div class="territory-zones">
+        <!-- Opponent Settlement Zone -->
+        <div class="settlement-zone opponent-settlement">
+            <div class="zone-label">Enemy Settlements</div>
+            <div class="card-area">
+                @foreach (var cardId in OpponentSettlements)
+                {
+                    <CardComponent CardId="@cardId" IsExerted="false" 
+                                   OnClick="@((id) => Task.CompletedTask)" 
+                                   OnDoubleClick="@((id) => Task.CompletedTask)" />
+                }
+                @if (!OpponentSettlements.Any())
+                {
+                    <div class="empty-zone">No enemy settlements</div>
+                }
+            </div>
+        </div>
+
+        <!-- Combat Zone -->
+        <div class="combat-zone">
+            <div class="zone-label">Battle Zone</div>
+            <div class="combat-area" @ondrop="@OnCombatDrop" @ondragover:preventDefault>
+                <!-- Advancing Units -->
+                <div class="advancing-units">
+                    <div class="unit-group-label">Advancing</div>
+                    @foreach (var cardId in AdvancingUnits)
+                    {
+                        <CardComponent CardId="@cardId" IsExerted="false" 
+                                       OnClick="@OnCardClick" 
+                                       OnDoubleClick="@OnCardDoubleClick" />
+                    }
+                </div>
+
+                <!-- Occupying Units -->
+                <div class="occupying-units">
+                    <div class="unit-group-label">Occupying</div>
+                    @foreach (var cardId in OccupyingUnits)
+                    {
+                        <CardComponent CardId="@cardId" IsExerted="false" 
+                                       OnClick="@OnCardClick" 
+                                       OnDoubleClick="@OnCardDoubleClick" />
+                    }
+                </div>
+
+                @if (!AdvancingUnits.Any() && !OccupyingUnits.Any())
+                {
+                    <div class="empty-combat">
+                        <p>No units in combat</p>
+                        <small>Drag army units here to advance</small>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Player Settlement Zone -->
+        <div class="settlement-zone player-settlement">
+            <div class="zone-label">Your Settlements</div>
+            <div class="card-area" @ondrop="@OnSettlementDrop" @ondragover:preventDefault>
+                @foreach (var cardId in PlayerSettlements)
+                {
+                    <CardComponent CardId="@cardId" IsExerted="false" 
+                                   OnClick="@OnCardClick" 
+                                   OnDoubleClick="@OnCardDoubleClick" />
+                }
+                @if (!PlayerSettlements.Any())
+                {
+                    <div class="empty-zone">
+                        <p>No settlements</p>
+                        <small>Settle this territory to build here</small>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Territory Actions -->
+    <div class="territory-actions">
+        @if (IsOccupiedByPlayer && PlayerSettlements.Any())
+        {
+            <button class="btn-territory btn-settle" @onclick="@(() => OnSettleTerritory.InvokeAsync((0, TerritoryId)))">
+                🏘️ Settle Territory
+            </button>
+        }
+        @if (AdvancingUnits.Any())
+        {
+            <button class="btn-territory btn-advance" @onclick="@(() => OnAdvanceUnits())">
+                ⚔️ Advance Units
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string TerritoryId { get; set; } = string.Empty;
+    [Parameter] public string TerritoryName { get; set; } = string.Empty;
+    [Parameter] public List<int> PlayerSettlements { get; set; } = new();
+    [Parameter] public List<int> OpponentSettlements { get; set; } = new();
+    [Parameter] public List<int> AdvancingUnits { get; set; } = new();
+    [Parameter] public List<int> OccupyingUnits { get; set; } = new();
+    [Parameter] public bool IsOccupiedByPlayer { get; set; }
+    
+    [Parameter] public EventCallback<(int cardId, string territoryId)> OnCardDrop { get; set; }
+    [Parameter] public EventCallback<(int cardId, string territoryId)> OnSettleTerritory { get; set; }
+
+    private async Task OnCardClick(int cardId)
+    {
+        // Handle card click in territory
+        await Task.CompletedTask;
+    }
+
+    private async Task OnCardDoubleClick(int cardId)
+    {
+        // Handle card double-click in territory
+        await Task.CompletedTask;
+    }
+
+    private async Task OnCombatDrop(DragEventArgs e)
+    {
+        // Handle dropping cards into combat zone
+        await OnCardDrop.InvokeAsync((0, TerritoryId));
+    }
+
+    private async Task OnSettlementDrop(DragEventArgs e)
+    {
+        // Handle dropping cards into settlement zone
+        await OnCardDrop.InvokeAsync((0, TerritoryId));
+    }
+
+    private async Task OnAdvanceUnits()
+    {
+        // Handle advancing units
+        await Task.CompletedTask;
+    }
+}
+
+<style>
+.territory-component {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    border: 2px solid #8b4513;
+    border-radius: 8px;
+    background: rgba(139, 69, 19, 0.1);
+    padding: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.territory-component.player-occupied {
+    border-color: #4caf50;
+    background: rgba(76, 175, 80, 0.1);
+}
+
+.territory-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #8b4513;
+}
+
+.territory-name {
+    margin: 0;
+    color: #d4af37;
+    font-size: 1rem;
+    font-weight: bold;
+}
+
+.occupation-status {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+.occupation-status.player {
+    background: #4caf50;
+    color: white;
+}
+
+.occupation-status.opponent {
+    background: #f44336;
+    color: white;
+}
+
+.occupation-status.neutral {
+    background: #757575;
+    color: white;
+}
+
+.territory-zones {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+}
+
+.settlement-zone, .combat-zone {
+    border: 1px solid #8b4513;
+    border-radius: 4px;
+    padding: 0.5rem;
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.zone-label {
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: #d4af37;
+    margin-bottom: 0.25rem;
+    text-align: center;
+}
+
+.card-area {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    min-height: 60px;
+    justify-content: center;
+    align-items: center;
+}
+
+.combat-area {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-height: 80px;
+}
+
+.advancing-units, .occupying-units {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border: 1px dashed #8b4513;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.unit-group-label {
+    font-size: 0.7rem;
+    color: #888;
+    font-weight: bold;
+    width: 100%;
+    text-align: center;
+    margin-bottom: 0.25rem;
+}
+
+.empty-zone, .empty-combat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #888;
+    font-style: italic;
+    text-align: center;
+    padding: 0.5rem;
+    width: 100%;
+}
+
+.empty-combat {
+    min-height: 60px;
+}
+
+.territory-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    justify-content: center;
+}
+
+.btn-territory {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #8b4513;
+    background: linear-gradient(135deg, #d4af37 0%, #b8860b 100%);
+    color: #2c1810;
+    font-size: 0.8rem;
+    font-weight: bold;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-territory:hover {
+    background: linear-gradient(135deg, #ffd700 0%, #daa520 100%);
+    transform: translateY(-1px);
+}
+
+.btn-settle {
+    background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+    color: white;
+}
+
+.btn-advance {
+    background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+    color: white;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .territory-header {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    
+    .territory-actions {
+        flex-direction: column;
+    }
+    
+    .btn-territory {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+    }
+}
+</style>
