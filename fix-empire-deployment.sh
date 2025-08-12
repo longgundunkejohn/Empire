@@ -1,6 +1,6 @@
-#!/bin/bash
+﻿#!/bin/bash
 
-echo "?? Empire TCG Complete Deployment Fix"
+echo "🔧 Empire TCG Complete Deployment Fix"
 echo "====================================="
 
 # Colors for output
@@ -147,19 +147,19 @@ fi
 
 # Final status summary
 echo ""
-print_success "?? Empire TCG deployment fix completed!"
+print_success "🎉 Empire TCG deployment fix completed!"
 echo ""
-echo "?? Status Summary:"
+echo "📊 Status Summary:"
 echo "  HTTP:  $(curl -s -o /dev/null -w "%{http_code}" http://empirecardgame.com || echo "000")"
 echo "  HTTPS: $(curl -s -o /dev/null -w "%{http_code}" https://empirecardgame.com || echo "000")"
 echo "  Lobby: $(curl -s -o /dev/null -w "%{http_code}" https://empirecardgame.com/lobby || echo "000")"
 echo ""
-echo "?? Your site should now be accessible at:"
+echo "🌐 Your site should now be accessible at:"
 echo "  https://empirecardgame.com"
 echo "  https://www.empirecardgame.com"
 echo "  https://empirecardgame.com/lobby"
 echo ""
-echo "?? Useful commands:"
+echo "📋 Useful commands:"
 echo "  View logs: docker-compose logs -f"
 echo "  Restart:   docker-compose restart"
-echo "  Stop:      docker-compose down"
+echo "  Stop:      docker-compose down"     
