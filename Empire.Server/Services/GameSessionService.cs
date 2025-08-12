@@ -260,23 +260,18 @@ namespace Empire.Server.Services
                 case "JoinGame":
                     if (!gameState.PlayerDecks.ContainsKey(player))
                     {
-                        var joinMove = move as JoinGameMove;
-                        if (joinMove?.PlayerDeck != null)
+                        // For now, just add the player without a deck - deck will be set separately
+                        gameState.PlayerHands[player] = new List<int>();
+                        gameState.PlayerBoard[player] = new List<BoardCard>();
+                        gameState.PlayerGraveyards[player] = new List<int>();
+                        gameState.PlayerLifeTotals[player] = 25;
+
+                        if (string.IsNullOrEmpty(gameState.InitiativeHolder))
                         {
-                            var fullDeck = await HydrateDeckFromIdsAsync(joinMove.PlayerDeck.CivicDeck, joinMove.PlayerDeck.MilitaryDeck);
-                            gameState.PlayerDecks[player] = fullDeck;
-                            gameState.PlayerHands[player] = new List<int>();
-                            gameState.PlayerBoard[player] = new List<BoardCard>();
-                            gameState.PlayerGraveyards[player] = new List<int>();
-                            gameState.PlayerLifeTotals[player] = 25;
-
-                            if (string.IsNullOrEmpty(gameState.InitiativeHolder))
-                            {
-                                gameState.InitiativeHolder = Random.Shared.Next(2) == 0 ? gameState.Player1 : player;
-                            }
-
-                            gameState.Player2 = player;
+                            gameState.InitiativeHolder = Random.Shared.Next(2) == 0 ? gameState.Player1 : player;
                         }
+
+                        gameState.Player2 = player;
                     }
                     break;
             }

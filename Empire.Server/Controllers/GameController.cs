@@ -2,7 +2,6 @@
 using Empire.Shared.Models;
 using Empire.Shared.Models.DTOs;
 using Empire.Shared.Models.Enums;
-using Empire.Shared.DTOs;
 using Empire.Server.Services;
 using Empire.Server.Hubs;
 using Microsoft.AspNetCore.Mvc;
