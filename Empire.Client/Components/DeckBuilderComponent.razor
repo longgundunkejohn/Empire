@@ -60,12 +60,19 @@
                                 <img src="@CardDataService.GetCardImageUrl(card)" alt="@card.Name" class="card-image" />
                                 <div class="card-overlay">
                                     <div class="card-name">@card.Name</div>
-                                    <div class="card-cost">@card.Cost</div>
-                                    @if (card.CardType.Contains("Unit"))
+                                    <div class="card-details">
+                                        <div class="card-cost">Cost: @card.Cost</div>
+                                        @if (card.CardType.Contains("Unit"))
+                                        {
+                                            <div class="card-stats">@card.Attack/@card.Defence</div>
+                                        }
+                                        <div class="card-tier">Tier @card.Tier</div>
+                                        <div class="card-type">@card.CardType</div>
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(card.CardText))
                                     {
-                                        <div class="card-stats">@card.Attack/@card.Defence</div>
+                                        <div class="card-text">@card.CardText</div>
                                     }
-                                    <div class="card-tier">@card.Tier</div>
                                 </div>
                             </div>
                         </div>
@@ -320,19 +327,47 @@
 
     .card-overlay {
         position: absolute;
-        bottom: 0;
+        top: 0;
         left: 0;
         right: 0;
-        background: linear-gradient(transparent, rgba(0,0,0,0.8));
+        bottom: 0;
+        background: rgba(0,0,0,0.7);
         color: white;
         padding: 0.5rem;
-        border-radius: 0 0 8px 8px;
-        font-size: 0.8rem;
+        border-radius: 8px;
+        font-size: 0.75rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
     }
 
     .card-name {
         font-weight: bold;
         margin-bottom: 0.25rem;
+        font-size: 0.85rem;
+        text-align: center;
+    }
+
+    .card-details {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+    }
+
+    .card-text {
+        font-size: 0.65rem;
+        line-height: 1.2;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        margin-top: 0.25rem;
+    }
+
+    .card-cost, .card-stats, .card-tier, .card-type {
+        font-size: 0.7rem;
+        font-weight: 500;
     }
 
     .current-deck {

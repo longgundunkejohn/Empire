@@ -87,12 +87,18 @@ namespace Empire.Client.Services
 
         public string GetCardImageUrl(int cardId)
         {
-            return $"/images/Cards/{cardId}.jpg";
+            // Use card back as fallback since actual card images aren't available
+            return $"/Cardbacks/armyCardback.png";
         }
 
         public string GetCardImageUrl(CardData card)
         {
-            return GetCardImageUrl(card.CardID);
+            // Use appropriate card back based on card type
+            if (card.CardType.Contains("Villager") || card.CardType.Contains("Settlement"))
+            {
+                return "/Cardbacks/civicCardback.png";
+            }
+            return "/Cardbacks/armyCardback.png";
         }
 
         private async Task LoadCardsAsync()
