@@ -46,8 +46,8 @@
   - **Conquest Points:** 30 ✅ EARNED
   - **Spec:** Ensure `dotnet build` succeeds locally before VPS deployment
 
-- [ ] **[P0-005]** Fix Docker Build Process (Python Dependency)
-  - **Conquest Points:** 40
+- [x] **[P0-005]** ✅ Fix Docker Build Process (Python Dependency)
+  - **Conquest Points:** 40 ✅ EARNED
   - **Spec:** Fix missing Python dependency in Docker container for WebAssembly compilation
 
 - [ ] **[P0-006]** Deploy to VPS and Verify

@@ -14,8 +14,6 @@ services:
       - empire-data:/app/data
     networks:
       - empire-network
-    depends_on:
-      - nginx
 
   nginx:
     image: nginx:alpine
