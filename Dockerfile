@@ -16,8 +16,9 @@ COPY Empire.Client/Empire.Client.csproj Empire.Client/
 COPY Empire.Server/Empire.Server.csproj Empire.Server/
 COPY Empire.sln .
 
-# Restore dependencies
+# Restore dependencies for all projects
 RUN dotnet restore Empire.Server/Empire.Server.csproj
+RUN dotnet restore Empire.Client/Empire.Client.csproj
 
 # Copy all source code
 COPY Empire.Shared/ Empire.Shared/
@@ -25,10 +26,10 @@ COPY Empire.Client/ Empire.Client/
 COPY Empire.Server/ Empire.Server/
 
 # Build and publish the Blazor Client (WebAssembly)
-RUN dotnet publish Empire.Client/Empire.Client.csproj -c Release -o /app/client --no-restore
+RUN dotnet publish Empire.Client/Empire.Client.csproj -c Release -o /app/client
 
 # Build and publish the Server
-RUN dotnet publish Empire.Server/Empire.Server.csproj -c Release -o /app/server --no-restore
+RUN dotnet publish Empire.Server/Empire.Server.csproj -c Release -o /app/server
 
 # Copy Blazor client files to server's wwwroot
 RUN mkdir -p /app/server/wwwroot
