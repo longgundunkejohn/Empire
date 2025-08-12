@@ -10,19 +10,28 @@ The site is down because SSL certificates are not properly configured. The nginx
 
 ## Deployment Steps
 
-### Option 1: Automated SSL Setup (Recommended)
-Run the automated SSL setup script:
+### Option 1: Improved Automated SSL Setup (Recommended)
+Run the improved SSL setup script with better error handling:
+```bash
+chmod +x fix-ssl-deployment-v2.sh
+./fix-ssl-deployment-v2.sh
+```
+
+This script will:
+1. Check DNS configuration for both domains
+2. Test challenge directory access (optional)
+3. Start containers with HTTP-only access
+4. Generate SSL certificates using Let's Encrypt
+5. Switch to HTTPS configuration
+6. Test both HTTP and HTTPS access for both domains
+7. Provide detailed error diagnostics if anything fails
+
+### Option 2: Original Automated SSL Setup
+If you prefer the simpler version:
 ```bash
 chmod +x fix-ssl-deployment.sh
 ./fix-ssl-deployment.sh
 ```
-
-This script will:
-1. Check DNS configuration
-2. Start containers with HTTP-only access
-3. Generate SSL certificates using Let's Encrypt
-4. Switch to HTTPS configuration
-5. Test both HTTP and HTTPS access
 
 ### Option 2: Manual SSL Setup
 If you prefer manual control:
@@ -74,11 +83,42 @@ After SSL setup, verify the site is working:
 
 ## Certificate Renewal
 
-SSL certificates expire every 90 days. Set up automatic renewal:
+SSL certificates expire every 90 days. You have several options for renewal:
 
+### Option 1: Automated Renewal Script (Recommended)
+Use the provided renewal script:
 ```bash
-# Add to crontab (crontab -e)
-0 12 * * * cd /path/to/empire && docker-compose run --rm certbot renew && docker-compose restart nginx
+chmod +x renew-ssl-certificates.sh
+./renew-ssl-certificates.sh
+```
+
+This script will:
+- Check certificate expiration dates
+- Only renew if certificates expire within 30 days
+- Restart nginx after renewal
+- Test HTTPS access after renewal
+- Use `--force` flag to renew regardless of expiration date
+
+### Option 2: Manual Renewal
+```bash
+docker-compose run --rm certbot renew
+docker-compose restart nginx
+```
+
+### Option 3: Automatic Cron Job
+Set up automatic renewal (recommended for production):
+```bash
+# Edit crontab
+crontab -e
+
+# Add this line to check for renewal daily at noon
+0 12 * * * cd /root/EmpireRepo && /root/EmpireRepo/renew-ssl-certificates.sh >> /var/log/ssl-renewal.log 2>&1
+```
+
+### Test Renewal
+To test the renewal process without actually renewing:
+```bash
+docker-compose run --rm certbot renew --dry-run
 ```
 
 ## Troubleshooting
