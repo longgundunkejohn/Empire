@@ -89,6 +89,30 @@ namespace Empire.Server.Controllers
             }
         }
 
+        [HttpPost("logout")]
+        public IActionResult Logout()
+        {
+            // For JWT tokens, logout is typically handled client-side by removing the token
+            // But we can log the logout event if needed
+            try
+            {
+                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                var username = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
+                
+                if (!string.IsNullOrEmpty(username))
+                {
+                    _logger.LogInformation("User {Username} logged out", username);
+                }
+
+                return Ok(new { message = "Logout successful" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during logout");
+                return Ok(new { message = "Logout completed" }); // Still return success even if logging fails
+            }
+        }
+
         [HttpPost("validate-token")]
         [Microsoft.AspNetCore.Authorization.Authorize]
         public IActionResult ValidateToken()
