@@ -1,6 +1,8 @@
 @using Empire.Shared.Models
 @using Empire.Client.Services
 @inject CardDataService CardDataService
+@inject DeckService DeckService
+@inject AuthService AuthService
 @inject IJSRuntime JSRuntime
 
 <div class="deck-builder">
@@ -10,6 +12,7 @@
             <span>Cards in Deck: @currentDeck.Count / 60</span>
             <button class="btn btn-primary" @onclick="SaveDeck" disabled="@(!IsValidDeck())">Save Deck</button>
             <button class="btn btn-secondary" @onclick="ClearDeck">Clear Deck</button>
+            <input type="text" @bind="deckName" placeholder="Deck Name" class="form-control deck-name-input" />
         </div>
     </div>
 
@@ -57,7 +60,10 @@
                     {
                         <div class="card-item" @onclick="() => AddCardToDeck(card)">
                             <div class="card-preview">
-                                <img src="@CardDataService.GetCardImageUrl(card)" alt="@card.Name" class="card-image" />
+                                <img src="@CardDataService.GetCardImageUrl(card)" 
+                                     alt="@card.Name" 
+                                     class="card-image" 
+                                     @onerror="HandleImageError" />
                                 <div class="card-overlay">
                                     <div class="card-name">@card.Name</div>
                                     <div class="card-details">
@@ -94,6 +100,14 @@
                     <label>Average Cost:</label>
                     <span>@(currentDeck.Any() ? currentDeck.Average(c => c.Cost).ToString("F1") : "0")</span>
                 </div>
+                <div class="stat">
+                    <label>Army Cards:</label>
+                    <span>@GetArmyCardCount()</span>
+                </div>
+                <div class="stat">
+                    <label>Civic Cards:</label>
+                    <span>@GetCivicCardCount()</span>
+                </div>
             </div>
 
             <div class="deck-breakdown">
@@ -111,7 +125,10 @@
                     var count = cardGroup.Count();
                     
                     <div class="deck-card-item">
-                        <img src="@CardDataService.GetCardImageUrl(card)" alt="@card.Name" class="deck-card-image" />
+                        <img src="@CardDataService.GetCardImageUrl(card)" 
+                             alt="@card.Name" 
+                             class="deck-card-image"
+                             @onerror="HandleImageError" />
                         <div class="deck-card-info">
                             <div class="deck-card-name">@card.Name</div>
                             <div class="deck-card-details">
@@ -145,6 +162,7 @@
     private string selectedCardType = "";
     private string selectedTier = "";
     private string selectedFaction = "";
+    private string deckName = "";
     private bool isLoading = true;
 
     protected override async Task OnInitializedAsync()
@@ -237,15 +255,60 @@
 
     private bool IsValidDeck()
     {
-        return currentDeck.Count >= 40 && currentDeck.Count <= 60;
+        return currentDeck.Count >= 45 && currentDeck.Count <= 60 && 
+               GetArmyCardCount() >= 30 && GetCivicCardCount() >= 15;
+    }
+
+    private int GetArmyCardCount()
+    {
+        return currentDeck.Count(c => IsArmyCard(c));
+    }
+
+    private int GetCivicCardCount()
+    {
+        return currentDeck.Count(c => IsCivicCard(c));
+    }
+
+    private bool IsArmyCard(CardData card)
+    {
+        return card.CardType.Contains("Unit") || card.CardType.Contains("Tactic") || 
+               card.CardType.Contains("Chronicle") || card.CardType.Contains("Skirmisher");
+    }
+
+    private bool IsCivicCard(CardData card)
+    {
+        return card.CardType.Contains("Settlement") || card.CardType.Contains("Villager");
     }
 
     private async Task SaveDeck()
     {
-        if (!IsValidDeck()) return;
+        if (!IsValidDeck() || string.IsNullOrWhiteSpace(deckName)) return;
         
-        // TODO: Implement deck saving logic
-        await JSRuntime.InvokeVoidAsync("alert", $"Deck saved! {currentDeck.Count} cards.");
+        try
+        {
+            var username = await AuthService.GetCurrentUsernameAsync();
+            if (string.IsNullOrEmpty(username))
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Please log in to save decks.");
+                return;
+            }
+
+            var armyCards = currentDeck.Where(IsArmyCard).Select(c => c.CardID).ToList();
+            var civicCards = currentDeck.Where(IsCivicCard).Select(c => c.CardID).ToList();
+            
+            await DeckService.SaveDeckAsync(username, deckName, armyCards, civicCards);
+            await JSRuntime.InvokeVoidAsync("alert", $"Deck '{deckName}' saved successfully!");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error saving deck: {ex.Message}");
+        }
+    }
+
+    private void HandleImageError()
+    {
+        // This will be called if an image fails to load
+        // Could set a fallback image here
     }
 }
 
@@ -270,6 +333,10 @@
         display: flex;
         gap: 1rem;
         align-items: center;
+    }
+
+    .deck-name-input {
+        width: 200px;
     }
 
     .deck-builder-content {
@@ -343,56 +410,29 @@
 
     .card-name {
         font-weight: bold;
-        margin-bottom: 0.25rem;
-        font-size: 0.85rem;
-        text-align: center;
-    }
-
-    .card-details {
-        display: flex;
-        flex-direction: column;
-        gap: 0.2rem;
-    }
-
-    .card-text {
-        font-size: 0.65rem;
-        line-height: 1.2;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        display: -webkit-box;
-        -webkit-line-clamp: 3;
-        -webkit-box-orient: vertical;
-        margin-top: 0.25rem;
-    }
-
-    .card-cost, .card-stats, .card-tier, .card-type {
-        font-size: 0.7rem;
-        font-weight: 500;
+        margin-bottom: 0.5rem;
     }
 
     .current-deck {
         flex: 1;
         display: flex;
         flex-direction: column;
-        border-left: 1px solid #ddd;
-        padding-left: 1rem;
+        max-width: 400px;
     }
 
     .deck-stats {
-        display: flex;
-        gap: 1rem;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
         margin-bottom: 1rem;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
     }
 
     .stat {
         display: flex;
-        flex-direction: column;
-        align-items: center;
-    }
-
-    .stat label {
-        font-size: 0.8rem;
-        color: #666;
+        justify-content: space-between;
     }
 
     .deck-breakdown {
@@ -400,8 +440,10 @@
     }
 
     .type-count {
-        font-size: 0.9rem;
-        margin: 0.25rem 0;
+        padding: 0.25rem;
+        background: #e9ecef;
+        margin-bottom: 0.25rem;
+        border-radius: 4px;
     }
 
     .deck-list {
@@ -414,9 +456,7 @@
         align-items: center;
         gap: 0.5rem;
         padding: 0.5rem;
-        border: 1px solid #eee;
-        border-radius: 4px;
-        margin-bottom: 0.5rem;
+        border-bottom: 1px solid #eee;
     }
 
     .deck-card-image {
@@ -438,8 +478,6 @@
     .deck-card-details {
         font-size: 0.8rem;
         color: #666;
-        display: flex;
-        gap: 0.5rem;
     }
 
     .deck-card-count {

@@ -1,0 +1,457 @@
+@using Empire.Shared.Models
+@using Empire.Client.Services
+@inject CardDataService CardDataService
+@inject IJSRuntime JSRuntime
+
+<div class="manual-card @GetCardClasses()" 
+     draggable="true"
+     @ondragstart="OnCardDragStart"
+     @ondragend="OnCardDragEnd"
+     @oncontextmenu="OnCardRightClick"
+     @oncontextmenu:preventDefault="true"
+     @onclick="OnCardClick"
+     @ondblclick="OnCardDoubleClick"
+     @onmouseenter="OnMouseEnter"
+     @onmouseleave="OnMouseLeave"
+     style="@GetCardStyle()">
+    
+    <!-- Card Image -->
+    <div class="card-image-container">
+        <img src="@GetImageUrl()" alt="@CardName" class="card-image" />
+        
+        <!-- Card Overlay with Info -->
+        @if (ShowOverlay)
+        {
+            <div class="card-overlay">
+                <div class="card-name">@CardName</div>
+                @if (ShowStats && CardData != null)
+                {
+                    <div class="card-stats">
+                        @if (CardData.Cost > 0)
+                        {
+                            <span class="cost">@CardData.Cost</span>
+                        }
+                        @if (IsUnit())
+                        {
+                            <span class="power-toughness">@CardData.Attack/@CardData.Defence</span>
+                        }
+                        @if (!string.IsNullOrEmpty(CardData.Tier))
+                        {
+                            <span class="tier">T@CardData.Tier</span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        
+        <!-- Exertion Indicator -->
+        @if (IsExerted)
+        {
+            <div class="exertion-indicator">?</div>
+        }
+        
+        <!-- Selection Indicator -->
+        @if (IsSelected)
+        {
+            <div class="selection-indicator"></div>
+        }
+        
+        <!-- Counters -->
+        @if (Counters.Any())
+        {
+            <div class="counters-container">
+                @foreach (var counter in Counters)
+                {
+                    <div class="counter-badge @counter.Type">
+                        @counter.Count
+                    </div>
+                }
+            </div>
+        }
+    </div>
+    
+    <!-- Context Menu -->
+    @if (ShowContextMenu)
+    {
+        <div class="context-menu" style="left: @ContextMenuX; top: @ContextMenuY;">
+            <div class="context-menu-item" @onclick="ToggleExertion">
+                @(IsExerted ? "Unexert" : "Exert")
+            </div>
+            <div class="context-menu-item" @onclick="ViewCardDetails">
+                View Details
+            </div>
+            <div class="context-menu-divider"></div>
+            <div class="context-menu-item" @onclick='() => MoveToZone("hand")'>
+                Move to Hand
+            </div>
+            <div class="context-menu-item" @onclick='() => MoveToZone("graveyard")'>
+                Move to Graveyard
+            </div>
+            <div class="context-menu-item" @onclick='() => MoveToZone("exile")'>
+                Remove from Game
+            </div>
+            <div class="context-menu-divider"></div>
+            <div class="context-menu-item" @onclick='() => AddCounter("damage")'>
+                Add Damage
+            </div>
+            <div class="context-menu-item" @onclick='() => AddCounter("escalation")'>
+                Add Escalation Counter
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int CardId { get; set; }
+    [Parameter] public bool IsExerted { get; set; }
+    [Parameter] public bool IsSelected { get; set; }
+    [Parameter] public bool ShowOverlay { get; set; } = true;
+    [Parameter] public bool ShowStats { get; set; } = true;
+    [Parameter] public List<CardCounter> Counters { get; set; } = new();
+    [Parameter] public string Zone { get; set; } = "";
+    [Parameter] public double Scale { get; set; } = 1.0;
+    
+    [Parameter] public EventCallback<int> OnClick { get; set; }
+    [Parameter] public EventCallback<int> OnDoubleClick { get; set; }
+    [Parameter] public EventCallback<int> OnRightClickEvent { get; set; }
+    [Parameter] public EventCallback<DragEventArgs> OnDragStart { get; set; }
+    [Parameter] public EventCallback<DragEventArgs> OnDragEnd { get; set; }
+    [Parameter] public EventCallback<int> OnExertionToggled { get; set; }
+    [Parameter] public EventCallback<(int cardId, string zone)> OnMoveToZone { get; set; }
+    [Parameter] public EventCallback<(int cardId, string counterType)> OnCounterAdded { get; set; }
+
+    private CardData? CardData;
+    private string CardName => CardData?.Name ?? $"Card {CardId}";
+    private bool ShowContextMenu = false;
+    private string ContextMenuX = "0px";
+    private string ContextMenuY = "0px";
+
+    protected override async Task OnInitializedAsync()
+    {
+        CardData = await CardDataService.GetCardByIdAsync(CardId);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (CardData == null)
+        {
+            CardData = await CardDataService.GetCardByIdAsync(CardId);
+        }
+    }
+
+    private string GetImageUrl()
+    {
+        return CardData != null 
+            ? CardDataService.GetCardImageUrl(CardData) 
+            : "/images/card-back.png";
+    }
+
+    private string GetCardClasses()
+    {
+        var classes = new List<string> { "manual-card" };
+        
+        if (IsExerted) classes.Add("exerted");
+        if (IsSelected) classes.Add("selected");
+        if (CardData != null)
+        {
+            classes.Add($"card-type-{CardData.CardType.ToLower().Replace(" ", "-")}");
+            if (!string.IsNullOrEmpty(CardData.Faction))
+            {
+                classes.Add($"faction-{CardData.Faction.ToLower()}");
+            }
+        }
+        
+        return string.Join(" ", classes);
+    }
+
+    private string GetCardStyle()
+    {
+        var styles = new List<string>();
+        
+        if (Scale != 1.0)
+        {
+            styles.Add($"transform: scale({Scale})");
+        }
+        
+        if (IsExerted)
+        {
+            styles.Add("transform: rotate(90deg)");
+        }
+        
+        return string.Join("; ", styles);
+    }
+
+    private bool IsUnit()
+    {
+        return CardData?.CardType.Contains("Unit") == true || 
+               CardData?.CardType.Contains("Skirmisher") == true;
+    }
+
+    private async Task OnCardClick(MouseEventArgs e)
+    {
+        HideContextMenu();
+        await OnClick.InvokeAsync(CardId);
+    }
+
+    private async Task OnCardDoubleClick(MouseEventArgs e)
+    {
+        await OnDoubleClick.InvokeAsync(CardId);
+    }
+
+    private async Task OnCardRightClick(MouseEventArgs e)
+    {
+        ContextMenuX = $"{e.ClientX}px";
+        ContextMenuY = $"{e.ClientY}px";
+        ShowContextMenu = true;
+        
+        await OnRightClickEvent.InvokeAsync(CardId);
+        StateHasChanged();
+    }
+
+    private async Task OnCardDragStart(DragEventArgs e)
+    {
+        await OnDragStart.InvokeAsync(e);
+        await JSRuntime.InvokeVoidAsync("setDragData", e, CardId.ToString());
+    }
+
+    private async Task OnCardDragEnd(DragEventArgs e)
+    {
+        await OnDragEnd.InvokeAsync(e);
+    }
+
+    private void OnMouseEnter()
+    {
+        // Could trigger card preview
+    }
+
+    private void OnMouseLeave()
+    {
+        // Could hide card preview
+    }
+
+    private async Task ToggleExertion()
+    {
+        HideContextMenu();
+        await OnExertionToggled.InvokeAsync(CardId);
+    }
+
+    private async Task ViewCardDetails()
+    {
+        HideContextMenu();
+        // Could open card detail modal
+        await JSRuntime.InvokeVoidAsync("showCardDetails", CardId);
+    }
+
+    private async Task MoveToZone(string targetZone)
+    {
+        HideContextMenu();
+        await OnMoveToZone.InvokeAsync((CardId, targetZone));
+    }
+
+    private async Task AddCounter(string counterType)
+    {
+        HideContextMenu();
+        await OnCounterAdded.InvokeAsync((CardId, counterType));
+    }
+
+    private void HideContextMenu()
+    {
+        ShowContextMenu = false;
+        StateHasChanged();
+    }
+
+    public class CardCounter
+    {
+        public string Type { get; set; } = "";
+        public int Count { get; set; } = 0;
+    }
+}
+
+<style>
+.manual-card {
+    position: relative;
+    width: 100px;
+    height: 140px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    user-select: none;
+}
+
+.manual-card:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 10;
+}
+
+.manual-card.selected {
+    box-shadow: 0 0 0 3px #0066cc;
+}
+
+.manual-card.exerted {
+    opacity: 0.7;
+}
+
+.card-image-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.card-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #333;
+}
+
+.card-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+    color: white;
+    padding: 4px;
+    border-radius: 0 0 8px 8px;
+    font-size: 10px;
+}
+
+.card-name {
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+}
+
+.card-stats {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 9px;
+}
+
+.cost {
+    background: #ffcc00;
+    color: #000;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.power-toughness {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+
+.tier {
+    background: #8b4513;
+    color: white;
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+
+.exertion-indicator {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: rgba(255, 0, 0, 0.8);
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.selection-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border: 3px solid #0066cc;
+    border-radius: 8px;
+    pointer-events: none;
+}
+
+.counters-container {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.counter-badge {
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: bold;
+}
+
+.counter-badge.damage {
+    background: #cc0000;
+}
+
+.counter-badge.escalation {
+    background: #ff6600;
+}
+
+.context-menu {
+    position: fixed;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    min-width: 150px;
+}
+
+.context-menu-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.context-menu-item:hover {
+    background: #f0f0f0;
+}
+
+.context-menu-divider {
+    height: 1px;
+    background: #eee;
+    margin: 4px 0;
+}
+
+/* Card type styling */
+.card-type-unit { border-left: 4px solid #00aa00; }
+.card-type-tactic { border-left: 4px solid #0066cc; }
+.card-type-chronicle { border-left: 4px solid #cc00cc; }
+.card-type-settlement { border-left: 4px solid #8b4513; }
+.card-type-villager { border-left: 4px solid #ffaa00; }
+
+/* Faction colors */
+.faction-amali { border-top: 2px solid gold; }
+.faction-kyrushima { border-top: 2px solid red; }
+.faction-hjordict { border-top: 2px solid blue; }
+.faction-ndembe { border-top: 2px solid green; }
+.faction-ohotec { border-top: 2px solid purple; }
+</style>

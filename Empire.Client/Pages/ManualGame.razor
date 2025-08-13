@@ -1,0 +1,600 @@
+@page "/game-manual/{gameId}/{playerId}"
+@using Empire.Client.Services
+@using Empire.Client.Components
+@using Empire.Shared.Models
+@inject ManualGameService ManualGameService
+@inject CardDataService CardDataService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Empire TCG - Manual Game</PageTitle>
+
+@if (isLoading)
+{
+    <div class="loading-container">
+        <h3>Loading Empire TCG Manual Game...</h3>
+        <div class="spinner"></div>
+    </div>
+}
+else if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="error-container">
+        <h3>Error: @errorMessage</h3>
+        <button class="btn btn-primary" @onclick="RefreshGame">Retry</button>
+    </div>
+}
+else
+{
+    <div class="manual-game-layout">
+        <!-- Top Bar: Game Status and Controls -->
+        <div class="game-status-bar">
+            <div class="game-info">
+                <h2>Empire TCG - Manual Control</h2>
+                <span class="game-id">Game: @gameId</span>
+                <span class="player-id">Player: @playerId</span>
+            </div>
+            
+            <div class="phase-controls">
+                <button class="phase-btn" @onclick='() => QuickAction("strategy")'>Strategy Phase</button>
+                <button class="phase-btn" @onclick='() => QuickAction("battle")'>Battle Phase</button>
+                <button class="phase-btn" @onclick='() => QuickAction("replenishment")'>Replenishment Phase</button>
+            </div>
+            
+            <div class="quick-actions">
+                <button class="quick-btn" @onclick='() => QuickAction("draw")'>Draw Army</button>
+                <button class="quick-btn" @onclick='() => QuickAction("draw civic")'>Draw Civic</button>
+                <button class="quick-btn" @onclick='() => QuickAction("pass")'>Pass</button>
+                <button class="quick-btn" @onclick='() => QuickAction("unexert all")'>Unexert All</button>
+            </div>
+        </div>
+
+        <!-- Main Game Area -->
+        <div class="game-main-area">
+            <!-- Left Sidebar: Player Zones -->
+            <div class="player-zones-sidebar">
+                <!-- Hand Zones -->
+                <GameZoneComponent 
+                    ZoneType="hand-army"
+                    Title="Army Hand"
+                    Cards="@GetArmyHandCards()"
+                    Layout="fan"
+                    ShowZoneActions="true"
+                    OnCardClick="@OnCardClick"
+                    OnCardDoubleClick="@OnCardDoubleClick"
+                    OnCardDropped="@OnCardDropped"
+                    OnCardDrawn="@OnCardDrawn" />
+                
+                <GameZoneComponent 
+                    ZoneType="hand-civic"
+                    Title="Civic Hand"
+                    Cards="@GetCivicHandCards()"
+                    Layout="fan"
+                    ShowZoneActions="true"
+                    OnCardClick="@OnCardClick"
+                    OnCardDoubleClick="@OnCardDoubleClick"
+                    OnCardDropped="@OnCardDropped"
+                    OnCardDrawn="@OnCardDrawn" />
+
+                <!-- Deck Zones -->
+                <GameZoneComponent 
+                    ZoneType="deck-army"
+                    Title="Army Deck"
+                    Cards="@GetDeckCards("army")"
+                    Layout="stack"
+                    CardScale="0.8"
+                    ShowZoneActions="true"
+                    OnZoneShuffled="@OnDeckShuffled"
+                    OnCardDrawn="@OnCardDrawn" />
+                
+                <GameZoneComponent 
+                    ZoneType="deck-civic"
+                    Title="Civic Deck"
+                    Cards="@GetDeckCards("civic")"
+                    Layout="stack"
+                    CardScale="0.8"
+                    ShowZoneActions="true"
+                    OnZoneShuffled="@OnDeckShuffled"
+                    OnCardDrawn="@OnCardDrawn" />
+
+                <!-- Graveyard -->
+                <GameZoneComponent 
+                    ZoneType="graveyard"
+                    Title="Graveyard"
+                    Cards="@GetGraveyardCards()"
+                    Layout="stack"
+                    CardScale="0.7"
+                    OnCardClick="@OnCardClick"
+                    OnCardDropped="@OnCardDropped" />
+            </div>
+
+            <!-- Center: Battlefield -->
+            <div class="battlefield-area">
+                <!-- Opponent's Side -->
+                <div class="opponent-side">
+                    <h3>Opponent</h3>
+                    <div class="opponent-zones">
+                        <div class="opponent-board">
+                            <!-- This would show opponent's visible cards -->
+                            <div class="zone-placeholder">Opponent's Cards</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Territory Control Area -->
+                <div class="territory-control">
+                    <h3>Territory Control</h3>
+                    <div class="territories">
+                        @for (int i = 1; i <= 3; i++)
+                        {
+                            <div class="territory" data-territory="@i">
+                                <h4>Territory @i</h4>
+                                
+                                <!-- Opponent Settlement -->
+                                <div class="settlement-zone opponent">
+                                    <small>Opponent Settlement</small>
+                                    <div class="drop-zone" @ondrop="@((e) => OnTerritoryDrop(e, $"territory-{i}", "opponent-settlement"))" @ondragover:preventDefault>
+                                        <!-- Opponent settlements would go here -->
+                                    </div>
+                                </div>
+                                
+                                <!-- Battle Zone -->
+                                <div class="battle-zone">
+                                    <small>Battle Zone</small>
+                                    <div class="drop-zone battle" @ondrop="@((e) => OnTerritoryDrop(e, $"territory-{i}", "battle"))" @ondragover:preventDefault>
+                                        @foreach (var card in GetTerritoryCards(i))
+                                        {
+                                            <ManualCardComponent 
+                                                CardId="@card.CardId"
+                                                IsExerted="@card.IsExerted"
+                                                Scale="0.8"
+                                                OnClick="@OnCardClick"
+                                                OnDoubleClick="@OnCardDoubleClick"
+                                                OnDragStart="@OnCardDragStart" />
+                                        }
+                                    </div>
+                                </div>
+                                
+                                <!-- Player Settlement -->
+                                <div class="settlement-zone player">
+                                    <small>Your Settlement</small>
+                                    <div class="drop-zone" @ondrop="@((e) => OnTerritoryDrop(e, $"territory-{i}", "player-settlement"))" @ondragover:preventDefault>
+                                        @foreach (var card in GetPlayerSettlements(i))
+                                        {
+                                            <ManualCardComponent 
+                                                CardId="@card.CardId"
+                                                IsExerted="@card.IsExerted"
+                                                Scale="0.8"
+                                                OnClick="@OnCardClick"
+                                                OnDoubleClick="@OnCardDoubleClick"
+                                                OnDragStart="@OnCardDragStart" />
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Player's Side -->
+                <div class="player-side">
+                    <h3>Your Board</h3>
+                    
+                    <!-- Heartland -->
+                    <GameZoneComponent 
+                        ZoneType="heartland"
+                        Title="Heartland"
+                        Cards="@GetHeartlandCards()"
+                        Layout="spread"
+                        ShowZoneActions="true"
+                        OnCardClick="@OnCardClick"
+                        OnCardDoubleClick="@OnCardDoubleClick"
+                        OnCardDropped="@OnCardDropped"
+                        OnAllUnexerted="@OnAllUnexerted" />
+                    
+                    <!-- Villagers -->
+                    <GameZoneComponent 
+                        ZoneType="villagers"
+                        Title="Villagers"
+                        Cards="@GetVillagerCards()"
+                        Layout="spread"
+                        ShowZoneActions="true"
+                        OnCardClick="@OnCardClick"
+                        OnCardDoubleClick="@OnCardDoubleClick"
+                        OnCardDropped="@OnCardDropped" />
+                </div>
+            </div>
+
+            <!-- Right Sidebar: Tools and Chat -->
+            <div class="tools-sidebar">
+                <!-- Quick Tools -->
+                <div class="tools-panel">
+                    <h4>Quick Tools</h4>
+                    <button class="tool-btn" @onclick="RollDice">Roll d6</button>
+                    <button class="tool-btn" @onclick="FlipCoin">Flip Coin</button>
+                    <button class="tool-btn" @onclick='() => QuickAction("new round")'>New Round</button>
+                    <button class="tool-btn" @onclick="ShowCardSearch">Search Cards</button>
+                </div>
+
+                <!-- Selected Card Info -->
+                @if (selectedCard != null)
+                {
+                    <div class="selected-card-panel">
+                        <h4>Selected Card</h4>
+                        <div class="card-info">
+                            <img src="@CardDataService.GetCardImageUrl(selectedCard.CardID)" alt="@selectedCard.Name" class="selected-card-image" />
+                            <div class="card-details">
+                                <h5>@selectedCard.Name</h5>
+                                <p><strong>Type:</strong> @selectedCard.CardType</p>
+                                <p><strong>Cost:</strong> @selectedCard.Cost</p>
+                                @if (selectedCard.Attack > 0 || selectedCard.Defence > 0)
+                                {
+                                    <p><strong>Power/Toughness:</strong> @selectedCard.Attack/@selectedCard.Defence</p>
+                                }
+                                @if (!string.IsNullOrEmpty(selectedCard.CardText))
+                                {
+                                    <p><strong>Text:</strong> @selectedCard.CardText</p>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <!-- Chat -->
+                <div class="chat-panel">
+                    <h4>Game Log</h4>
+                    <div class="chat-log">
+                        @foreach (var message in chatMessages.TakeLast(10))
+                        {
+                            <div class="chat-message">
+                                <strong>@message.PlayerId:</strong> @message.Message
+                            </div>
+                        }
+                    </div>
+                    <div class="chat-input">
+                        <input type="text" @bind="chatInput" @onkeypress="OnChatKeyPress" placeholder="Type message or command..." class="form-control" />
+                        <button @onclick="SendChatMessage" class="btn btn-sm btn-primary">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string gameId { get; set; } = "";
+    [Parameter] public string playerId { get; set; } = "";
+
+    private bool isLoading = true;
+    private string errorMessage = "";
+    private string chatInput = "";
+    private CardData? selectedCard;
+    private List<ChatMessage> chatMessages = new();
+    private Dictionary<int, bool> cardExertionStates = new();
+    private Dictionary<string, List<int>> playerZones = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isLoading = true;
+            
+            // Initialize the manual game service
+            await ManualGameService.InitializeGame(gameId, playerId);
+            
+            // Subscribe to events
+            ManualGameService.OnGameStateChanged += OnGameStateChanged;
+            ManualGameService.OnChatMessage += OnChatMessageReceived;
+            ManualGameService.OnCardMoved += OnCardMoved;
+            ManualGameService.OnCardExertionChanged += OnCardExertionChanged;
+            
+            // Initialize player zones
+            InitializePlayerZones();
+            
+            await AddChatMessage("System", "Manual game initialized. You have full control over cards and game state.");
+            
+            isLoading = false;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            isLoading = false;
+        }
+    }
+
+    private void InitializePlayerZones()
+    {
+        playerZones["hand-army"] = new List<int>();
+        playerZones["hand-civic"] = new List<int>();
+        playerZones["heartland"] = new List<int>();
+        playerZones["villagers"] = new List<int>();
+        playerZones["graveyard"] = new List<int>();
+        playerZones["deck-army"] = GenerateMockDeck(30, 1001); // Army cards start at 1001
+        playerZones["deck-civic"] = GenerateMockDeck(15, 1080); // Civic cards start at 1080
+        
+        // Draw starting hand
+        DrawCardsToHand("army", 4);
+        DrawCardsToHand("civic", 3);
+    }
+
+    private List<int> GenerateMockDeck(int count, int startId)
+    {
+        var deck = new List<int>();
+        for (int i = 0; i < count; i++)
+        {
+            deck.Add(startId + (i % 20)); // Cycle through 20 different cards
+        }
+        return deck;
+    }
+
+    private void DrawCardsToHand(string deckType, int count)
+    {
+        var deckKey = $"deck-{deckType}";
+        var handKey = $"hand-{deckType}";
+        
+        if (!playerZones.ContainsKey(deckKey) || !playerZones.ContainsKey(handKey)) return;
+        
+        var deck = playerZones[deckKey];
+        var hand = playerZones[handKey];
+        
+        for (int i = 0; i < count && deck.Count > 0; i++)
+        {
+            var card = deck[0];
+            deck.RemoveAt(0);
+            hand.Add(card);
+        }
+    }
+
+    // Event Handlers
+    private async Task OnCardClick(int cardId)
+    {
+        selectedCard = await CardDataService.GetCardByIdAsync(cardId);
+        StateHasChanged();
+    }
+
+    private async Task OnCardDoubleClick(int cardId)
+    {
+        // Toggle exertion on double-click
+        cardExertionStates[cardId] = !cardExertionStates.GetValueOrDefault(cardId, false);
+        await ManualGameService.ToggleCardExertion(cardId);
+        await AddChatMessage(playerId, $"{(cardExertionStates[cardId] ? "exerted" : "unexerted")} card {cardId}");
+    }
+
+    private async Task OnCardDragStart(DragEventArgs e)
+    {
+        // Store the card ID for drag operations
+        await JSRuntime.InvokeVoidAsync("setDragData", e, selectedCard?.CardID.ToString() ?? "");
+    }
+
+    private async Task OnCardDropped((string zone, List<int> cardIds) args)
+    {
+        foreach (var cardId in args.cardIds)
+        {
+            await MoveCardToZone(cardId, args.zone);
+        }
+    }
+
+    private async Task OnTerritoryDrop(DragEventArgs e, string territoryId, string zoneType)
+    {
+        var cardIdStr = await JSRuntime.InvokeAsync<string>("getDragData", e);
+        if (int.TryParse(cardIdStr, out int cardId))
+        {
+            await ManualGameService.MoveCardManual(cardId, GetCardCurrentZone(cardId), $"{territoryId}-{zoneType}");
+            await AddChatMessage(playerId, $"moved card {cardId} to {territoryId} {zoneType}");
+        }
+    }
+
+    private async Task OnCardDrawn(string zoneType)
+    {
+        if (zoneType.Contains("army"))
+        {
+            DrawCardsToHand("army", 1);
+            await ManualGameService.DrawCardsManual("army", 1);
+        }
+        else if (zoneType.Contains("civic"))
+        {
+            DrawCardsToHand("civic", 2);
+            await ManualGameService.DrawCardsManual("civic", 2);
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnDeckShuffled(string zoneType)
+    {
+        var deckType = zoneType.Replace("deck-", "");
+        await ManualGameService.ShuffleDeckManual(deckType);
+    }
+
+    private async Task OnAllUnexerted(string zoneType)
+    {
+        await ManualGameService.QuickAction("unexert all");
+    }
+
+    private async Task MoveCardToZone(int cardId, string targetZone)
+    {
+        var currentZone = GetCardCurrentZone(cardId);
+        
+        // Remove from current zone
+        if (!string.IsNullOrEmpty(currentZone) && playerZones.ContainsKey(currentZone))
+        {
+            playerZones[currentZone].Remove(cardId);
+        }
+        
+        // Add to target zone
+        if (playerZones.ContainsKey(targetZone))
+        {
+            playerZones[targetZone].Add(cardId);
+        }
+        
+        await ManualGameService.MoveCardManual(cardId, currentZone, targetZone);
+        StateHasChanged();
+    }
+
+    private string GetCardCurrentZone(int cardId)
+    {
+        foreach (var kvp in playerZones)
+        {
+            if (kvp.Value.Contains(cardId))
+                return kvp.Key;
+        }
+        return "";
+    }
+
+    // Quick Actions
+    private async Task QuickAction(string action)
+    {
+        await ManualGameService.QuickAction(action);
+    }
+
+    private async Task RollDice()
+    {
+        await ManualGameService.RollDice(6, 1);
+    }
+
+    private async Task FlipCoin()
+    {
+        await ManualGameService.FlipCoin();
+    }
+
+    // Chat
+    private async Task SendChatMessage()
+    {
+        if (!string.IsNullOrWhiteSpace(chatInput))
+        {
+            if (chatInput.StartsWith("/"))
+            {
+                // Command
+                await ManualGameService.QuickAction(chatInput.Substring(1));
+            }
+            else
+            {
+                // Regular message
+                await ManualGameService.SendChatMessage(chatInput);
+            }
+            chatInput = "";
+        }
+    }
+
+    private async Task OnChatKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SendChatMessage();
+        }
+    }
+
+    private async Task AddChatMessage(string playerId, string message)
+    {
+        chatMessages.Add(new ChatMessage { PlayerId = playerId, Message = message, Timestamp = DateTime.Now });
+        StateHasChanged();
+    }
+
+    // Helper methods for zone data
+    private List<GameZoneComponent.GameCard> GetArmyHandCards()
+    {
+        return playerZones.GetValueOrDefault("hand-army", new()).Select(id => new GameZoneComponent.GameCard 
+        { 
+            CardId = id, 
+            IsExerted = cardExertionStates.GetValueOrDefault(id, false) 
+        }).ToList();
+    }
+
+    private List<GameZoneComponent.GameCard> GetCivicHandCards()
+    {
+        return playerZones.GetValueOrDefault("hand-civic", new()).Select(id => new GameZoneComponent.GameCard 
+        { 
+            CardId = id, 
+            IsExerted = cardExertionStates.GetValueOrDefault(id, false) 
+        }).ToList();
+    }
+
+    private List<GameZoneComponent.GameCard> GetDeckCards(string deckType)
+    {
+        return playerZones.GetValueOrDefault($"deck-{deckType}", new()).Take(1).Select(id => new GameZoneComponent.GameCard 
+        { 
+            CardId = id, 
+            IsExerted = false 
+        }).ToList();
+    }
+
+    private List<GameZoneComponent.GameCard> GetHeartlandCards()
+    {
+        return playerZones.GetValueOrDefault("heartland", new()).Select(id => new GameZoneComponent.GameCard 
+        { 
+            CardId = id, 
+            IsExerted = cardExertionStates.GetValueOrDefault(id, false) 
+        }).ToList();
+    }
+
+    private List<GameZoneComponent.GameCard> GetVillagerCards()
+    {
+        return playerZones.GetValueOrDefault("villagers", new()).Select(id => new GameZoneComponent.GameCard 
+        { 
+            CardId = id, 
+            IsExerted = cardExertionStates.GetValueOrDefault(id, false) 
+        }).ToList();
+    }
+
+    private List<GameZoneComponent.GameCard> GetGraveyardCards()
+    {
+        return playerZones.GetValueOrDefault("graveyard", new()).Select(id => new GameZoneComponent.GameCard 
+        { 
+            CardId = id, 
+            IsExerted = false 
+        }).ToList();
+    }
+
+    private List<GameZoneComponent.GameCard> GetTerritoryCards(int territoryIndex)
+    {
+        // This would get cards in battle zones
+        return new List<GameZoneComponent.GameCard>();
+    }
+
+    private List<GameZoneComponent.GameCard> GetPlayerSettlements(int territoryIndex)
+    {
+        // This would get player's settlements in this territory
+        return new List<GameZoneComponent.GameCard>();
+    }
+
+    // Event handlers from ManualGameService
+    private void OnGameStateChanged(GameState gameState)
+    {
+        StateHasChanged();
+    }
+
+    private void OnChatMessageReceived(string playerId, string message)
+    {
+        chatMessages.Add(new ChatMessage { PlayerId = playerId, Message = message, Timestamp = DateTime.Now });
+        StateHasChanged();
+    }
+
+    private void OnCardMoved(string playerId, int cardId, string fromZone, string toZone)
+    {
+        StateHasChanged();
+    }
+
+    private void OnCardExertionChanged(int cardId, bool isExerted)
+    {
+        cardExertionStates[cardId] = isExerted;
+        StateHasChanged();
+    }
+
+    private async Task RefreshGame()
+    {
+        await ManualGameService.RefreshGameState();
+        isLoading = false;
+        errorMessage = "";
+        StateHasChanged();
+    }
+
+    private void ShowCardSearch()
+    {
+        // Could open a card search modal
+    }
+
+    public class ChatMessage
+    {
+        public string PlayerId { get; set; } = "";
+        public string Message { get; set; } = "";
+        public DateTime Timestamp { get; set; }
+    }
+}

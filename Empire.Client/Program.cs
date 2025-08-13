@@ -30,4 +30,13 @@ builder.Services.AddScoped<DeckService>();
 builder.Services.AddScoped<EmpireGameService>();
 builder.Services.AddScoped<CardDataService>();
 
+// 🎮 Manual Game Services (Cockatrice-like)
+builder.Services.AddScoped<ManualGameService>();
+
+// 🃏 Enhanced Deck Management
+builder.Services.AddScoped<UserDeckService>();
+
+// 🏛️ Lobby Services
+builder.Services.AddScoped<LobbyService>();
+
 await builder.Build().RunAsync();

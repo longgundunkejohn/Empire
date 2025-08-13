@@ -1,0 +1,45 @@
+@using Empire.Client.Services
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="navbar-nav">
+    @if (isAuthenticated)
+    {
+        <a class="nav-link" href="/lobby">Lobby</a>
+        <a class="nav-link" href="/deckbuilder">Deck Builder</a>
+        <div class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="gameDropdown" role="button" data-bs-toggle="dropdown">
+                Game Modes
+            </a>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="/lobby">Standard Game</a></li>
+                <li><a class="dropdown-item" href="/game-manual/demo/player1">Manual Game (Demo)</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="/rules">Rules & Help</a></li>
+            </ul>
+        </div>
+        <a class="nav-link" href="/profile">Profile</a>
+        <a class="nav-link" href="#" @onclick="Logout">Logout</a>
+    }
+    else
+    {
+        <a class="nav-link" href="/login">Login</a>
+        <a class="nav-link" href="/register">Register</a>
+        <a class="nav-link" href="/about">About</a>
+    }
+</div>
+
+@code {
+    private bool isAuthenticated = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isAuthenticated = await AuthService.IsAuthenticatedAsync();
+    }
+
+    private async Task Logout()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/");
+    }
+}

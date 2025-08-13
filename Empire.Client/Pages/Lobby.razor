@@ -1,194 +1,445 @@
 ﻿@page "/lobby"
-@using Empire.Shared.Models
 @using Empire.Client.Services
-@using Empire.Client.Components
-@inject HttpClient Http
-@inject NavigationManager Navigation
-@inject IJSRuntime JSRuntime
+@using Empire.Shared.Models
 @inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject LobbyService LobbyService
+@inject IJSRuntime JSRuntime
 
-<PageTitle>Game Lobby</PageTitle>
+<PageTitle>Empire TCG - Lobby</PageTitle>
 
 <div class="lobby-container">
-    <div class="lobby-header">
-        <h2>Empire TCG - Multiplayer Lobby</h2>
-        <div class="user-info">
-            <i class="fas fa-user"></i>
-            Welcome, @currentUsername
+    @if (!isAuthenticated)
+    {
+        <div class="authentication-required">
+            <h3>Authentication Required</h3>
+            <p>Please log in to access the lobby.</p>
+            <button class="btn btn-primary" @onclick="NavigateToLogin">Go to Login</button>
         </div>
-    </div>
-
-    <div class="lobby-content">
-        @if (showCreateModal)
-        {
-            <CreateGameModal OnGameCreated="OnGameCreated" OnCancel="HideCreateModal" />
-        }
-
-        <LobbyBrowser OnJoinLobby="OnJoinLobby" OnCreateGame="ShowCreateModal" />
-
-        @if (!string.IsNullOrEmpty(errorMessage))
-        {
-            <div class="alert alert-danger alert-dismissible fade show mt-4" role="alert">
-                @errorMessage
-                <button type="button" class="btn-close" @onclick="ClearError"></button>
+    }
+    else
+    {
+        <div class="lobby-header">
+            <h1>⚔️ Empire TCG Lobby ⚔️</h1>
+            <div class="user-info">
+                <span>Welcome, @currentUsername!</span>
+                <button class="btn btn-outline-light" @onclick="Logout">Logout</button>
             </div>
-        }
+        </div>
 
-        @if (!string.IsNullOrEmpty(successMessage))
-        {
-            <div class="alert alert-success alert-dismissible fade show mt-4" role="alert">
-                @successMessage
-                <button type="button" class="btn-close" @onclick="ClearSuccess"></button>
+        <div class="lobby-content">
+            <!-- Left Panel: Game Lobbies -->
+            <div class="lobby-panel">
+                <div class="panel-header">
+                    <h3>Game Lobbies</h3>
+                    <button class="btn btn-success" @onclick="CreateLobby">Create Game</button>
+                </div>
+                
+                <div class="lobby-list">
+                    @if (gameLobbies.Any())
+                    {
+                        @foreach (var lobby in gameLobbies)
+                        {
+                            <div class="lobby-item @(lobby.Status == LobbyStatus.InProgress ? "in-progress" : "")">
+                                <div class="lobby-info">
+                                    <h4>@lobby.Name</h4>
+                                    <div class="lobby-details">
+                                        <span class="host">Host: @lobby.HostUsername</span>
+                                        <span class="players">Players: @lobby.PlayerCount/2</span>
+                                        <span class="status @lobby.Status.ToString().ToLower()">@lobby.Status</span>
+                                    </div>
+                                </div>
+                                <div class="lobby-actions">
+                                    @if (lobby.CanJoin && lobby.Status == LobbyStatus.WaitingForPlayers)
+                                    {
+                                        <button class="btn btn-primary btn-sm" @onclick="() => JoinLobby(lobby.Id)">Join</button>
+                                    }
+                                    @if (lobby.AllowSpectators && lobby.Status == LobbyStatus.InProgress)
+                                    {
+                                        <button class="btn btn-secondary btn-sm" @onclick="() => SpectateGame(lobby.Id)">Spectate</button>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="no-lobbies">
+                            <p>No active game lobbies</p>
+                            <small>Create a new game to get started!</small>
+                        </div>
+                    }
+                </div>
             </div>
-        }
-    </div>
+
+            <!-- Center Panel: Chat -->
+            <div class="chat-panel">
+                <div class="panel-header">
+                    <h3>Lobby Chat</h3>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="ClearChat">Clear</button>
+                </div>
+                
+                <div class="chat-log" @ref="chatLogElement">
+                    @foreach (var message in chatMessages.TakeLast(100))
+                    {
+                        <div class="chat-message @GetMessageClass(message)">
+                            <span class="timestamp">@message.Timestamp.ToString("HH:mm")</span>
+                            <span class="username">@message.Username:</span>
+                            <span class="content">@message.Content</span>
+                        </div>
+                    }
+                </div>
+                
+                <div class="chat-input">
+                    <input type="text" @bind="chatInput" @onkeypress="OnChatKeyPress" 
+                           placeholder="Type a message..." class="form-control" />
+                    <button class="btn btn-primary" @onclick="SendChatMessage" disabled="@string.IsNullOrWhiteSpace(chatInput)">
+                        Send
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right Panel: Online Players -->
+            <div class="players-panel">
+                <div class="panel-header">
+                    <h3>Online Players</h3>
+                    <span class="online-count">@onlinePlayers.Count online</span>
+                </div>
+                
+                <div class="players-list">
+                    @foreach (var player in onlinePlayers.OrderBy(p => p.Username))
+                    {
+                        <div class="player-item @GetPlayerStatusClass(player)">
+                            <div class="player-avatar">
+                                @GetPlayerInitials(player.Username)
+                            </div>
+                            <div class="player-info">
+                                <div class="player-name">@player.Username</div>
+                                <div class="player-status">@player.Status</div>
+                            </div>
+                            @if (player.Username != currentUsername)
+                            {
+                                <div class="player-actions">
+                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => ChallengePlayer(player.Username)">
+                                        Challenge
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="quick-actions">
+            <button class="btn btn-outline-warning" @onclick="NavigateToDeckBuilder">
+                <i class="fas fa-cards-blank"></i> Deck Builder
+            </button>
+            <button class="btn btn-outline-info" @onclick="NavigateToManualGame">
+                <i class="fas fa-gamepad"></i> Manual Game
+            </button>
+            <button class="btn btn-outline-success" @onclick="RefreshLobbies">
+                <i class="fas fa-sync"></i> Refresh
+            </button>
+        </div>
+    }
 </div>
 
-<style>
-    .lobby-container {
-        min-height: 100vh;
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-        padding: 20px;
-    }
-
-    .lobby-header {
-        text-align: center;
-        color: white;
-        margin-bottom: 30px;
-        padding: 20px;
-    }
-
-    .lobby-header h2 {
-        font-size: 2.5rem;
-        margin-bottom: 10px;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-    }
-
-    .user-info {
-        font-size: 1.1rem;
-        opacity: 0.9;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-    }
-
-    .lobby-content {
-        max-width: 1200px;
-        margin: 0 auto;
-        background: rgba(255, 255, 255, 0.95);
-        border-radius: 12px;
-        padding: 30px;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-    }
-
-    .alert {
-        border-radius: 8px;
-        border: none;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    }
-
-    .alert-danger {
-        background-color: #f8d7da;
-        color: #721c24;
-    }
-
-    .alert-success {
-        background-color: #d4edda;
-        color: #155724;
-    }
-
-    .btn-close {
-        background: none;
-        border: none;
-        font-size: 1.2rem;
-        opacity: 0.7;
-        cursor: pointer;
-    }
-
-    .btn-close:hover {
-        opacity: 1;
-    }
-
-    @@media (max-width: 768px) {
-        .lobby-container {
-            padding: 10px;
-        }
-
-        .lobby-header h2 {
-            font-size: 2rem;
-        }
-
-        .lobby-content {
-            padding: 20px;
-        }
-    }
-</style>
-
 @code {
-    private bool showCreateModal = false;
-    private string errorMessage = "";
-    private string successMessage = "";
-    private string currentUsername = "Player";
+    private bool isAuthenticated = false;
+    private string currentUsername = "";
+    private List<LobbyListItem> gameLobbies = new();
+    private List<OnlinePlayer> onlinePlayers = new();
+    private List<ChatMessage> chatMessages = new();
+    private string chatInput = "";
+    private ElementReference chatLogElement;
 
     protected override async Task OnInitializedAsync()
     {
-        // Check if user is authenticated
-        if (!await AuthService.IsAuthenticatedAsync())
+        isAuthenticated = await AuthService.IsAuthenticatedAsync();
+        
+        if (!isAuthenticated)
         {
-            Navigation.NavigateTo("/login");
             return;
         }
 
-        // Load current username
-        currentUsername = await GetCurrentUsername();
-    }
-
-    private async Task ShowCreateModal()
-    {
-        showCreateModal = true;
-    }
-
-    private async Task HideCreateModal()
-    {
-        showCreateModal = false;
-    }
-
-    private async Task OnGameCreated(string lobbyId)
-    {
-        showCreateModal = false;
-        successMessage = "Game created successfully!";
+        currentUsername = await AuthService.GetCurrentUsernameAsync() ?? "Unknown";
         
-        // Navigate to the specific lobby page
-        Navigation.NavigateTo($"/lobby/{lobbyId}");
+        // Load initial data
+        await RefreshLobbies();
+        await LoadOnlinePlayers();
+        await LoadChatHistory();
+        
+        // Set up real-time updates (would use SignalR)
+        await StartRealTimeUpdates();
     }
 
-    private async Task OnJoinLobby(string lobbyId)
+    private async Task RefreshLobbies()
     {
         try
         {
-            // For now, just navigate to the lobby. In the future, this could handle deck selection
-            Navigation.NavigateTo($"/lobby/{lobbyId}");
+            gameLobbies = await LobbyService.GetLobbyListAsync();
+            StateHasChanged();
         }
         catch (Exception ex)
         {
-            errorMessage = $"Failed to join lobby: {ex.Message}";
+            await JSRuntime.InvokeVoidAsync("console.error", $"Error loading lobbies: {ex.Message}");
         }
     }
 
-    private void ClearError()
+    private async Task LoadOnlinePlayers()
     {
-        errorMessage = "";
+        try
+        {
+            // This would come from a real service
+            onlinePlayers = new List<OnlinePlayer>
+            {
+                new() { Username = currentUsername, Status = "In Lobby", IsOnline = true },
+                new() { Username = "PlayerBot", Status = "Available", IsOnline = true },
+                new() { Username = "EmpireVet", Status = "In Game", IsOnline = true },
+                new() { Username = "Strategist", Status = "Available", IsOnline = true }
+            };
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", $"Error loading online players: {ex.Message}");
+        }
     }
 
-    private void ClearSuccess()
+    private async Task LoadChatHistory()
     {
-        successMessage = "";
+        try
+        {
+            // This would load recent chat messages from the server
+            chatMessages.Add(new ChatMessage 
+            { 
+                Username = "System", 
+                Content = "Welcome to the Empire TCG lobby!", 
+                Timestamp = DateTime.Now.AddMinutes(-5),
+                Type = MessageType.System
+            });
+            
+            StateHasChanged();
+            await ScrollChatToBottom();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", $"Error loading chat: {ex.Message}");
+        }
     }
 
-    private async Task<string> GetCurrentUsername()
+    private async Task StartRealTimeUpdates()
     {
-        var user = await AuthService.GetCurrentUserAsync();
-        return user?.Username ?? "Player";
+        // This would set up SignalR connections for real-time updates
+        // For now, we'll simulate with periodic updates
+        _ = Task.Run(async () =>
+        {
+            while (isAuthenticated)
+            {
+                await Task.Delay(30000); // Update every 30 seconds
+                await InvokeAsync(async () =>
+                {
+                    await RefreshLobbies();
+                    await LoadOnlinePlayers();
+                });
+            }
+        });
+    }
+
+    private async Task CreateLobby()
+    {
+        var lobbyName = await JSRuntime.InvokeAsync<string>("prompt", "Enter lobby name:");
+        if (!string.IsNullOrWhiteSpace(lobbyName))
+        {
+            try
+            {
+                var request = new CreateLobbyRequest { Name = lobbyName };
+                var lobby = await LobbyService.CreateLobbyAsync(request);
+                
+                if (lobby != null)
+                {
+                    Navigation.NavigateTo($"/lobby/{lobby.Id}");
+                }
+            }
+            catch (Exception ex)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", $"Error creating lobby: {ex.Message}");
+            }
+        }
+    }
+
+    private async Task JoinLobby(string lobbyId)
+    {
+        try
+        {
+            var success = await LobbyService.JoinLobbyAsync(lobbyId);
+            if (success)
+            {
+                Navigation.NavigateTo($"/lobby/{lobbyId}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error joining lobby: {ex.Message}");
+        }
+    }
+
+    private async Task SpectateGame(string lobbyId)
+    {
+        Navigation.NavigateTo($"/game/{lobbyId}/spectator");
+    }
+
+    private async Task ChallengePlayer(string playerName)
+    {
+        var confirm = await JSRuntime.InvokeAsync<bool>("confirm", $"Challenge {playerName} to a game?");
+        if (confirm)
+        {
+            // Create a private lobby and invite the player
+            try
+            {
+                var request = new CreateLobbyRequest { Name = $"{currentUsername} vs {playerName}" };
+                var lobby = await LobbyService.CreateLobbyAsync(request);
+                
+                if (lobby != null)
+                {
+                    // Send challenge notification (would use SignalR)
+                    var message = new ChatMessage
+                    {
+                        Username = "System",
+                        Content = $"🎯 {currentUsername} challenged {playerName} to a game! Lobby: {lobby.Name}",
+                        Timestamp = DateTime.Now,
+                        Type = MessageType.Challenge
+                    };
+                    chatMessages.Add(message);
+                    StateHasChanged();
+                    
+                    Navigation.NavigateTo($"/lobby/{lobby.Id}");
+                }
+            }
+            catch (Exception ex)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", $"Error creating challenge: {ex.Message}");
+            }
+        }
+    }
+
+    private async Task SendChatMessage()
+    {
+        if (string.IsNullOrWhiteSpace(chatInput)) return;
+
+        try
+        {
+            var message = new ChatMessage
+            {
+                Username = currentUsername,
+                Content = chatInput.Trim(),
+                Timestamp = DateTime.Now,
+                Type = MessageType.User
+            };
+
+            // Add to local chat (in real app, would send via SignalR)
+            chatMessages.Add(message);
+            chatInput = "";
+            
+            StateHasChanged();
+            await ScrollChatToBottom();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", $"Error sending chat: {ex.Message}");
+        }
+    }
+
+    private async Task OnChatKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SendChatMessage();
+        }
+    }
+
+    private async Task ClearChat()
+    {
+        chatMessages.Clear();
+        StateHasChanged();
+    }
+
+    private async Task ScrollChatToBottom()
+    {
+        await JSRuntime.InvokeVoidAsync("scrollToBottom", chatLogElement);
+    }
+
+    private string GetMessageClass(ChatMessage message)
+    {
+        return message.Type switch
+        {
+            MessageType.System => "system",
+            MessageType.User => "user",
+            MessageType.Challenge => "challenge",
+            _ => "user"
+        };
+    }
+
+    private string GetPlayerStatusClass(OnlinePlayer player)
+    {
+        return player.Status.ToLower() switch
+        {
+            "available" => "available",
+            "in game" => "in-game",
+            "in lobby" => "in-lobby",
+            _ => "unknown"
+        };
+    }
+
+    private string GetPlayerInitials(string username)
+    {
+        return username.Length > 1 ? username.Substring(0, 2).ToUpper() : username.ToUpper();
+    }
+
+    private async Task NavigateToLogin()
+    {
+        Navigation.NavigateTo("/login");
+    }
+
+    private async Task NavigateToDeckBuilder()
+    {
+        Navigation.NavigateTo("/deckbuilder");
+    }
+
+    private async Task NavigateToManualGame()
+    {
+        Navigation.NavigateTo("/game-manual/demo/player1");
+    }
+
+    private async Task Logout()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/");
+    }
+
+    // Models for lobby chat and online players
+    public class ChatMessage
+    {
+        public string Username { get; set; } = "";
+        public string Content { get; set; } = "";
+        public DateTime Timestamp { get; set; }
+        public MessageType Type { get; set; } = MessageType.User;
+    }
+
+    public class OnlinePlayer
+    {
+        public string Username { get; set; } = "";
+        public string Status { get; set; } = "";
+        public bool IsOnline { get; set; }
+        public DateTime LastSeen { get; set; } = DateTime.Now;
+    }
+
+    public enum MessageType
+    {
+        User,
+        System,
+        Challenge
     }
 }

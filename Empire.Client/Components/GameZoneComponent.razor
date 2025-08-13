@@ -1,0 +1,366 @@
+@using Empire.Shared.Models
+@using Empire.Client.Components
+
+<div class="game-zone @ZoneClass @(IsDropTarget ? "drop-target" : "")" 
+     @ondrop="OnDrop" 
+     @ondragover="OnDragOver" 
+     @ondragover:preventDefault="true"
+     @ondragenter="OnDragEnter"
+     @ondragleave="OnDragLeave">
+     
+    <div class="zone-header">
+        <h4 class="zone-title">@Title</h4>
+        <span class="zone-count">(@Cards.Count)</span>
+        
+        @if (ShowZoneActions)
+        {
+            <div class="zone-actions">
+                @if (ZoneType is "deck-army" or "deck-civic")
+                {
+                    <button class="zone-action-btn" @onclick="ShuffleDeck" title="Shuffle">
+                        ??
+                    </button>
+                    <button class="zone-action-btn" @onclick="DrawCard" title="Draw">
+                        ??
+                    </button>
+                }
+                @if (ZoneType == "hand")
+                {
+                    <button class="zone-action-btn" @onclick="RevealHand" title="Reveal">
+                        ???
+                    </button>
+                }
+                @if (ZoneType is "heartland" or "board")
+                {
+                    <button class="zone-action-btn" @onclick="UnexertAll" title="Unexert All">
+                        ?
+                    </button>
+                }
+            </div>
+        }
+    </div>
+    
+    <div class="zone-content @GetLayoutClass()">
+        @if (Cards.Any())
+        {
+            @foreach (var card in GetDisplayCards())
+            {
+                <ManualCardComponent 
+                    CardId="@card.CardId"
+                    IsExerted="@card.IsExerted"
+                    IsSelected="@(SelectedCardIds.Contains(card.CardId))"
+                    ShowOverlay="@ShowCardOverlays"
+                    ShowStats="@ShowCardStats"
+                    Scale="@CardScale"
+                    Zone="@ZoneType"
+                    OnClick="@OnCardClick"
+                    OnDoubleClick="@OnCardDoubleClick"
+                    OnRightClickEvent="@OnCardRightClick"
+                    OnDragStart="@OnCardDragStart"
+                    OnDragEnd="@OnCardDragEnd"
+                    OnExertionToggled="@OnCardExertionToggled"
+                    OnMoveToZone="@OnCardMoveToZone"
+                    OnCounterAdded="@OnCardCounterAdded" />
+            }
+        }
+        else
+        {
+            <div class="empty-zone">
+                <p>@GetEmptyMessage()</p>
+                @if (ZoneType is "deck-army" or "deck-civic")
+                {
+                    <small>Deck is empty</small>
+                }
+                else if (ZoneType == "hand")
+                {
+                    <small>No cards in hand</small>
+                }
+                else
+                {
+                    <small>Drag cards here</small>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string ZoneType { get; set; } = "";
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public List<GameCard> Cards { get; set; } = new();
+    [Parameter] public HashSet<int> SelectedCardIds { get; set; } = new();
+    [Parameter] public bool ShowZoneActions { get; set; } = true;
+    [Parameter] public bool ShowCardOverlays { get; set; } = true;
+    [Parameter] public bool ShowCardStats { get; set; } = true;
+    [Parameter] public double CardScale { get; set; } = 1.0;
+    [Parameter] public string Layout { get; set; } = "spread"; // spread, stack, grid
+    [Parameter] public int MaxVisibleCards { get; set; } = 20;
+    
+    [Parameter] public EventCallback<int> OnCardClick { get; set; }
+    [Parameter] public EventCallback<int> OnCardDoubleClick { get; set; }
+    [Parameter] public EventCallback<int> OnCardRightClick { get; set; }
+    [Parameter] public EventCallback<DragEventArgs> OnCardDragStart { get; set; }
+    [Parameter] public EventCallback<DragEventArgs> OnCardDragEnd { get; set; }
+    [Parameter] public EventCallback<int> OnCardExertionToggled { get; set; }
+    [Parameter] public EventCallback<(int cardId, string zone)> OnCardMoveToZone { get; set; }
+    [Parameter] public EventCallback<(int cardId, string counterType)> OnCardCounterAdded { get; set; }
+    
+    [Parameter] public EventCallback<string> OnZoneShuffled { get; set; }
+    [Parameter] public EventCallback<string> OnCardDrawn { get; set; }
+    [Parameter] public EventCallback<string> OnHandRevealed { get; set; }
+    [Parameter] public EventCallback<string> OnAllUnexerted { get; set; }
+    [Parameter] public EventCallback<(string zone, List<int> cardIds)> OnCardDropped { get; set; }
+
+    private bool IsDropTarget = false;
+
+    private string ZoneClass => $"zone-{ZoneType.Replace("-", "").ToLower()}";
+
+    private string GetLayoutClass()
+    {
+        return Layout switch
+        {
+            "stack" => "layout-stack",
+            "grid" => "layout-grid",
+            "fan" => "layout-fan",
+            _ => "layout-spread"
+        };
+    }
+
+    private string GetEmptyMessage()
+    {
+        return ZoneType switch
+        {
+            "hand" => "No cards in hand",
+            "deck-army" => "Army deck is empty",
+            "deck-civic" => "Civic deck is empty",
+            "heartland" => "No units in heartland",
+            "villagers" => "No villagers",
+            "graveyard" => "No cards in graveyard",
+            _ => "Empty zone"
+        };
+    }
+
+    private List<GameCard> GetDisplayCards()
+    {
+        if (ZoneType.Contains("deck") && Layout == "stack")
+        {
+            // For decks, only show the top card
+            return Cards.Take(1).ToList();
+        }
+        
+        if (Cards.Count > MaxVisibleCards && Layout != "stack")
+        {
+            // Show only the most recent cards if there are too many
+            return Cards.TakeLast(MaxVisibleCards).ToList();
+        }
+        
+        return Cards;
+    }
+
+    private async Task OnDrop(DragEventArgs e)
+    {
+        IsDropTarget = false;
+        
+        var cardIdsText = await GetDragData(e);
+        if (!string.IsNullOrEmpty(cardIdsText))
+        {
+            var cardIds = cardIdsText.Split(',').Select(int.Parse).ToList();
+            await OnCardDropped.InvokeAsync((ZoneType, cardIds));
+        }
+        
+        StateHasChanged();
+    }
+
+    private void OnDragOver(DragEventArgs e)
+    {
+        // Allow drop
+    }
+
+    private void OnDragEnter(DragEventArgs e)
+    {
+        IsDropTarget = true;
+        StateHasChanged();
+    }
+
+    private void OnDragLeave(DragEventArgs e)
+    {
+        IsDropTarget = false;
+        StateHasChanged();
+    }
+
+    private async Task<string> GetDragData(DragEventArgs e)
+    {
+        // This would need JavaScript interop to get the drag data
+        // For now, return empty string
+        return "";
+    }
+
+    private async Task ShuffleDeck()
+    {
+        await OnZoneShuffled.InvokeAsync(ZoneType);
+    }
+
+    private async Task DrawCard()
+    {
+        await OnCardDrawn.InvokeAsync(ZoneType);
+    }
+
+    private async Task RevealHand()
+    {
+        await OnHandRevealed.InvokeAsync(ZoneType);
+    }
+
+    private async Task UnexertAll()
+    {
+        await OnAllUnexerted.InvokeAsync(ZoneType);
+    }
+
+    public class GameCard
+    {
+        public int CardId { get; set; }
+        public bool IsExerted { get; set; }
+        public List<string> Counters { get; set; } = new();
+    }
+}
+
+<style>
+.game-zone {
+    border: 2px solid #8b4513;
+    border-radius: 8px;
+    background: rgba(139, 69, 19, 0.1);
+    margin: 8px;
+    min-height: 150px;
+    transition: all 0.3s ease;
+}
+
+.game-zone.drop-target {
+    border-color: #0066cc;
+    background: rgba(0, 102, 204, 0.1);
+    box-shadow: 0 0 10px rgba(0, 102, 204, 0.3);
+}
+
+.zone-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: rgba(139, 69, 19, 0.2);
+    border-bottom: 1px solid #8b4513;
+    border-radius: 6px 6px 0 0;
+}
+
+.zone-title {
+    margin: 0;
+    font-size: 14px;
+    color: #d4af37;
+    font-weight: bold;
+}
+
+.zone-count {
+    color: #888;
+    font-size: 12px;
+}
+
+.zone-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.zone-action-btn {
+    background: rgba(212, 175, 55, 0.2);
+    border: 1px solid #d4af37;
+    border-radius: 4px;
+    padding: 4px 6px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+}
+
+.zone-action-btn:hover {
+    background: rgba(212, 175, 55, 0.4);
+    transform: scale(1.1);
+}
+
+.zone-content {
+    padding: 8px;
+    min-height: 100px;
+}
+
+.layout-spread {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.layout-stack {
+    position: relative;
+}
+
+.layout-stack .manual-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.layout-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 8px;
+}
+
+.layout-fan {
+    position: relative;
+    display: flex;
+    justify-content: center;
+}
+
+.layout-fan .manual-card {
+    margin-left: -50px;
+}
+
+.layout-fan .manual-card:first-child {
+    margin-left: 0;
+}
+
+.empty-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100px;
+    color: #888;
+    font-style: italic;
+    text-align: center;
+}
+
+/* Zone-specific styling */
+.zone-hand {
+    background: rgba(0, 102, 204, 0.05);
+    border-color: #0066cc;
+}
+
+.zone-heartland {
+    background: rgba(0, 153, 0, 0.05);
+    border-color: #009900;
+}
+
+.zone-villagers {
+    background: rgba(255, 170, 0, 0.05);
+    border-color: #ffaa00;
+}
+
+.zone-deckarmy, .zone-deckcivic {
+    background: rgba(102, 51, 153, 0.05);
+    border-color: #663399;
+}
+
+.zone-graveyard {
+    background: rgba(102, 102, 102, 0.05);
+    border-color: #666666;
+}
+
+.zone-territories {
+    background: rgba(139, 69, 19, 0.05);
+    border-color: #8b4513;
+}
+</style>

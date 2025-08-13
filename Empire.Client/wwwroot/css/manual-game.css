@@ -1,0 +1,268 @@
+/* Manual Game Layout Styles */
+.manual-game-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    color: #f4f1e8;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.game-status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.4);
+    border-bottom: 2px solid #8b4513;
+    backdrop-filter: blur(10px);
+}
+
+.game-info h2 {
+    margin: 0;
+    color: #d4af37;
+}
+
+.game-info span {
+    color: #888;
+    margin-left: 1rem;
+    font-size: 0.9rem;
+}
+
+.phase-controls, .quick-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.phase-btn, .quick-btn {
+    padding: 0.5rem 1rem;
+    background: linear-gradient(135deg, #2196f3, #1976d2);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.phase-btn:hover, .quick-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
+}
+
+.game-main-area {
+    display: grid;
+    grid-template-columns: 300px 1fr 300px;
+    gap: 1rem;
+    flex: 1;
+    padding: 1rem;
+    overflow: hidden;
+}
+
+.player-zones-sidebar, .tools-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    overflow-y: auto;
+}
+
+.battlefield-area {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    overflow-y: auto;
+}
+
+.opponent-side, .player-side {
+    background: rgba(0, 0, 0, 0.2);
+    border: 2px solid #8b4513;
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.territory-control {
+    flex: 1;
+    background: rgba(139, 69, 19, 0.1);
+    border: 2px solid #8b4513;
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.territories {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    height: 100%;
+}
+
+.territory {
+    border: 1px solid #8b4513;
+    border-radius: 6px;
+    padding: 0.5rem;
+    background: rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.territory h4 {
+    margin: 0;
+    text-align: center;
+    color: #d4af37;
+    font-size: 1rem;
+}
+
+.settlement-zone, .battle-zone {
+    flex: 1;
+    border: 1px dashed #666;
+    border-radius: 4px;
+    padding: 0.25rem;
+    min-height: 60px;
+}
+
+.settlement-zone.opponent {
+    background: rgba(255, 0, 0, 0.1);
+}
+
+.settlement-zone.player {
+    background: rgba(0, 255, 0, 0.1);
+}
+
+.battle-zone {
+    background: rgba(255, 255, 0, 0.1);
+}
+
+.drop-zone {
+    height: 100%;
+    min-height: 50px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    align-items: center;
+    justify-content: center;
+}
+
+.tools-panel, .selected-card-panel, .chat-panel {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid #8b4513;
+    border-radius: 6px;
+    padding: 1rem;
+}
+
+.tools-panel h4, .selected-card-panel h4, .chat-panel h4 {
+    margin: 0 0 0.5rem 0;
+    color: #d4af37;
+}
+
+.tool-btn {
+    display: block;
+    width: 100%;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    background: rgba(212, 175, 55, 0.2);
+    border: 1px solid #d4af37;
+    border-radius: 4px;
+    color: #d4af37;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tool-btn:hover {
+    background: rgba(212, 175, 55, 0.4);
+    transform: scale(1.02);
+}
+
+.selected-card-image {
+    width: 100%;
+    max-width: 200px;
+    height: auto;
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+}
+
+.card-details {
+    font-size: 0.9rem;
+}
+
+.card-details h5 {
+    color: #d4af37;
+    margin: 0 0 0.5rem 0;
+}
+
+.chat-log {
+    height: 200px;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid #666;
+    border-radius: 4px;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.chat-message {
+    margin-bottom: 0.25rem;
+    font-size: 0.85rem;
+    line-height: 1.3;
+}
+
+.chat-input {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.chat-input input {
+    flex: 1;
+    padding: 0.5rem;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid #666;
+    border-radius: 4px;
+    color: white;
+}
+
+.loading-container, .error-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    color: white;
+}
+
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid rgba(255, 255, 255, 0.3);
+    border-top: 5px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-top: 1rem;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive design */
+@media (max-width: 1200px) {
+    .game-main-area {
+        grid-template-columns: 250px 1fr 250px;
+    }
+}
+
+@media (max-width: 768px) {
+    .game-main-area {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr auto;
+    }
+    
+    .game-status-bar {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .territories {
+        grid-template-columns: 1fr;
+    }
+}

@@ -1,0 +1,30 @@
+<!-- Placeholder SVG card for when actual images aren't available -->
+<svg width="200" height="280" viewBox="0 0 200 280" xmlns="http://www.w3.org/2000/svg">
+  <!-- Card Background -->
+  <rect width="200" height="280" rx="10" fill="#f4f1e8" stroke="#8b4513" stroke-width="2"/>
+  
+  <!-- Card Frame -->
+  <rect x="10" y="10" width="180" height="260" rx="8" fill="none" stroke="#d4af37" stroke-width="1"/>
+  
+  <!-- Title Area -->
+  <rect x="15" y="15" width="170" height="30" rx="4" fill="#8b4513" opacity="0.2"/>
+  <text x="100" y="35" text-anchor="middle" font-family="serif" font-size="16" font-weight="bold" fill="#2c1810">Card Name</text>
+  
+  <!-- Art Area -->
+  <rect x="15" y="50" width="170" height="120" rx="4" fill="#d4af37" opacity="0.1" stroke="#8b4513" stroke-width="1"/>
+  <text x="100" y="115" text-anchor="middle" font-family="serif" font-size="14" fill="#666">No Image</text>
+  
+  <!-- Text Box -->
+  <rect x="15" y="175" width="170" height="60" rx="4" fill="#f8f8f8" stroke="#8b4513" stroke-width="1"/>
+  <text x="20" y="190" font-family="serif" font-size="10" fill="#333">Card text would appear here.</text>
+  <text x="20" y="205" font-family="serif" font-size="10" fill="#333">Multiple lines of rules text</text>
+  <text x="20" y="220" font-family="serif" font-size="10" fill="#333">and flavor text.</text>
+  
+  <!-- Cost -->
+  <circle cx="185" cy="25" r="12" fill="#ffd700" stroke="#b8860b" stroke-width="2"/>
+  <text x="185" y="30" text-anchor="middle" font-family="serif" font-size="12" font-weight="bold" fill="#000">?</text>
+  
+  <!-- Power/Toughness (for units) -->
+  <rect x="150" y="250" width="35" height="20" rx="3" fill="#8b4513" opacity="0.8"/>
+  <text x="167" y="263" text-anchor="middle" font-family="serif" font-size="12" font-weight="bold" fill="#fff">?/?</text>
+</svg>

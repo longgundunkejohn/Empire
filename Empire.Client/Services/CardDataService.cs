@@ -87,18 +87,14 @@ namespace Empire.Client.Services
 
         public string GetCardImageUrl(int cardId)
         {
-            // Use card back as fallback since actual card images aren't available
-            return $"/Cardbacks/armyCardback.png";
+            // Images are stored as CardID.jpg in wwwroot/images/Cards/
+            return $"/images/Cards/{cardId}.jpg";
         }
 
         public string GetCardImageUrl(CardData card)
         {
-            // Use appropriate card back based on card type
-            if (card.CardType.Contains("Villager") || card.CardType.Contains("Settlement"))
-            {
-                return "/Cardbacks/civicCardback.png";
-            }
-            return "/Cardbacks/armyCardback.png";
+            // Use the CardID to get the image
+            return GetCardImageUrl(card.CardID);
         }
 
         private async Task LoadCardsAsync()
@@ -107,7 +103,10 @@ namespace Empire.Client.Services
             {
                 // Try to load from local JSON file first (for development)
                 var jsonString = await _httpClient.GetStringAsync("/empire_cards.json");
-                var cards = JsonSerializer.Deserialize<List<CardDataDto>>(jsonString);
+                var cards = JsonSerializer.Deserialize<List<CardDataDto>>(jsonString, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
                 
                 if (cards != null)
                 {
@@ -120,15 +119,18 @@ namespace Empire.Client.Services
                 // Fallback to API if local file doesn't exist
                 try
                 {
-                    var response = await _httpClient.GetAsync("/api/cards");
+                    var response = await _httpClient.GetAsync("/api/deckbuilder/cards");
                     if (response.IsSuccessStatusCode)
                     {
                         var jsonString = await response.Content.ReadAsStringAsync();
-                        var cards = JsonSerializer.Deserialize<List<CardDataDto>>(jsonString);
+                        var cards = JsonSerializer.Deserialize<List<CardData>>(jsonString, new JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        });
                         
                         if (cards != null)
                         {
-                            _allCards = cards.Select(ConvertFromDto).ToList();
+                            _allCards = cards;
                             _cardLookup = _allCards.ToDictionary(c => c.CardID, c => c);
                         }
                     }
@@ -155,7 +157,8 @@ namespace Empire.Client.Services
                 Attack = dto.Attack,
                 Defence = dto.Defence,
                 Unique = dto.Unique ?? "No",
-                Faction = dto.Faction ?? "No"
+                Faction = dto.Faction ?? "No",
+                ImageFileName = $"{dto.CardID}.jpg" // Set the image filename
             };
         }
     }
