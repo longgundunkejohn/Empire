@@ -3,21 +3,88 @@ using System;
 using System.Threading.Tasks;
 using Empire.Shared.Models.DTOs;
 using Empire.Shared.Models;
+using Empire.Server.Services;
+using System.Collections.Concurrent;
 
 namespace Empire.Server.Hubs
 {
     public class GameHub : Hub
     {
-        public override Task OnConnectedAsync()
+        private readonly ILobbyService _lobbyService;
+        private static readonly ConcurrentDictionary<string, UserConnectionInfo> _connections = new();
+
+        public GameHub(ILobbyService lobbyService)
         {
-            Console.WriteLine($"🔌 Connected: {Context.ConnectionId}");
-            return base.OnConnectedAsync();
+            _lobbyService = lobbyService;
         }
 
-        public override Task OnDisconnectedAsync(Exception? exception)
+        public override async Task OnConnectedAsync()
+        {
+            Console.WriteLine($"🔌 Connected: {Context.ConnectionId}");
+            
+            // Track user connection if authenticated
+            if (Context.User?.Identity?.IsAuthenticated == true)
+            {
+                var userId = GetCurrentUserId();
+                var username = Context.User.Identity.Name ?? "Unknown";
+                
+                if (userId > 0)
+                {
+                    _connections[Context.ConnectionId] = new UserConnectionInfo
+                    {
+                        UserId = userId,
+                        Username = username,
+                        ConnectionId = Context.ConnectionId,
+                        ConnectedAt = DateTime.UtcNow
+                    };
+                    
+                    Console.WriteLine($"👤 User {username} ({userId}) connected with {Context.ConnectionId}");
+                }
+            }
+            
+            await base.OnConnectedAsync();
+        }
+
+        public override async Task OnDisconnectedAsync(Exception? exception)
         {
             Console.WriteLine($"❌ Disconnected: {Context.ConnectionId}");
-            return base.OnDisconnectedAsync(exception);
+            
+            // Clean up user from lobbies when they disconnect
+            if (_connections.TryRemove(Context.ConnectionId, out var userInfo))
+            {
+                Console.WriteLine($"🧹 Cleaning up user {userInfo.Username} ({userInfo.UserId}) from lobbies");
+                
+                // Remove user from all lobbies they might be in
+                await CleanupUserFromLobbies(userInfo.UserId);
+            }
+            
+            await base.OnDisconnectedAsync(exception);
+        }
+
+        private async Task CleanupUserFromLobbies(int userId)
+        {
+            try
+            {
+                // Get all active lobbies and check if user is in any of them
+                var activeLobbies = await _lobbyService.GetActiveLobbiesAsync();
+                
+                foreach (var lobbyInfo in activeLobbies)
+                {
+                    var lobby = await _lobbyService.GetLobbyAsync(lobbyInfo.Id);
+                    if (lobby != null && lobby.IsParticipant(userId))
+                    {
+                        Console.WriteLine($"🚪 Removing user {userId} from lobby {lobby.Id}");
+                        await _lobbyService.LeaveLobbyAsync(lobby.Id, userId);
+                        
+                        // Notify other users in the lobby
+                        await Clients.Group($"lobby_{lobby.Id}").SendAsync("PlayerLeft", lobby.Id, userId);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error cleaning up user {userId} from lobbies: {ex.Message}");
+            }
         }
 
         public async Task JoinGameGroup(string gameId)

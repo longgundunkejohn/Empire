@@ -56,6 +56,13 @@
         window.scrollToBottom = (element) => {
             element.scrollTop = element.scrollHeight;
         };
+
+        window.setImageFallback = (imgElement, fallbackSrc) => {
+            if (imgElement && imgElement.src !== fallbackSrc) {
+                imgElement.src = fallbackSrc;
+                imgElement.onerror = null; // Prevent infinite loop
+            }
+        };
     </script>
 
     <style>

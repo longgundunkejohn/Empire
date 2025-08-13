@@ -63,7 +63,7 @@
                                 <img src="@CardDataService.GetCardImageUrl(card)" 
                                      alt="@card.Name" 
                                      class="card-image" 
-                                     @onerror="HandleImageError" />
+                                     @onerror="@((args) => HandleImageError(args, card.CardID))" />
                                 <div class="card-overlay">
                                     <div class="card-name">@card.Name</div>
                                     <div class="card-details">
@@ -128,7 +128,7 @@
                         <img src="@CardDataService.GetCardImageUrl(card)" 
                              alt="@card.Name" 
                              class="deck-card-image"
-                             @onerror="HandleImageError" />
+                             @onerror="@((args) => HandleImageError(args, card.CardID))" />
                         <div class="deck-card-info">
                             <div class="deck-card-name">@card.Name</div>
                             <div class="deck-card-details">
@@ -305,10 +305,10 @@
         }
     }
 
-    private void HandleImageError()
+    private async Task HandleImageError(Microsoft.AspNetCore.Components.Web.ErrorEventArgs args, int cardId)
     {
-        // This will be called if an image fails to load
-        // Could set a fallback image here
+        // Set fallback image when card image fails to load
+        await JSRuntime.InvokeVoidAsync("setImageFallback", args.Target, "/images/card-placeholder.svg");
     }
 }
 
