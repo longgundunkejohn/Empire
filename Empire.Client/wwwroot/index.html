@@ -63,6 +63,14 @@
                 imgElement.onerror = null; // Prevent infinite loop
             }
         };
+
+        window.setImageFallbackById = (elementId, fallbackSrc) => {
+            const imgElement = document.getElementById(elementId);
+            if (imgElement && imgElement.src !== fallbackSrc) {
+                imgElement.src = fallbackSrc;
+                imgElement.onerror = null; // Prevent infinite loop
+            }
+        };
     </script>
 
     <style>

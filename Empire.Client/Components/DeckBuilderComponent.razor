@@ -63,6 +63,7 @@
                                 <img src="@CardDataService.GetCardImageUrl(card)" 
                                      alt="@card.Name" 
                                      class="card-image" 
+                                     id="card-image-@card.CardID"
                                      @onerror="@((args) => HandleImageError(args, card.CardID))" />
                                 <div class="card-overlay">
                                     <div class="card-name">@card.Name</div>
@@ -128,6 +129,7 @@
                         <img src="@CardDataService.GetCardImageUrl(card)" 
                              alt="@card.Name" 
                              class="deck-card-image"
+                             id="deck-card-image-@card.CardID"
                              @onerror="@((args) => HandleImageError(args, card.CardID))" />
                         <div class="deck-card-info">
                             <div class="deck-card-name">@card.Name</div>
@@ -308,7 +310,9 @@
     private async Task HandleImageError(Microsoft.AspNetCore.Components.Web.ErrorEventArgs args, int cardId)
     {
         // Set fallback image when card image fails to load
-        await JSRuntime.InvokeVoidAsync("setImageFallback", args.Target, "/images/card-placeholder.svg");
+        // Note: In .NET 8 Blazor, we can't access the target element directly from ErrorEventArgs
+        // Instead, we'll use a different approach with JavaScript
+        await JSRuntime.InvokeVoidAsync("setImageFallbackById", $"card-image-{cardId}", "/images/card-placeholder.svg");
     }
 }
 
