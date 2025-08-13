@@ -1,0 +1,66 @@
+# Use the official .NET SDK image for building
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Install Python (required for WebAssembly compilation)
+RUN apt-get update && apt-get install -y python3 python3-pip && \
+    ln -s /usr/bin/python3 /usr/bin/python && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install wasm-tools workload without manifest update
+RUN dotnet workload install wasm-tools --skip-manifest-update
+
+# Copy project files for dependency restoration
+COPY Empire.Shared/Empire.Shared.csproj Empire.Shared/
+COPY Empire.Client/Empire.Client.csproj Empire.Client/
+COPY Empire.Server/Empire.Server.csproj Empire.Server/
+COPY Empire.sln .
+
+# Restore dependencies for all projects
+RUN dotnet restore Empire.Server/Empire.Server.csproj
+RUN dotnet restore Empire.Client/Empire.Client.csproj
+
+# Copy all source code
+COPY Empire.Shared/ Empire.Shared/
+COPY Empire.Client/ Empire.Client/
+COPY Empire.Server/ Empire.Server/
+
+# Build and publish the Blazor Client (WebAssembly) with minimal configuration
+RUN dotnet publish Empire.Client/Empire.Client.csproj -c Release -o /app/client \
+    --self-contained false \
+    -p:PublishTrimmed=false \
+    -p:BlazorEnableCompression=false
+
+# Build and publish the Server
+RUN dotnet publish Empire.Server/Empire.Server.csproj -c Release -o /app/server
+
+# Ensure proper directory structure and copy all Blazor files
+RUN mkdir -p /app/server/wwwroot
+RUN cp -a /app/client/. /app/server/wwwroot/
+
+# Verify critical framework files are present
+RUN ls -la /app/server/wwwroot/_framework/ | grep -E "(dotnet|blazor)" || echo "Warning: Some framework files may be missing"
+
+# Use the official .NET runtime image for the final stage
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+
+# Copy the published application
+COPY --from=build /app/server .
+
+# Set proper permissions for framework files
+RUN chmod -R 644 /app/wwwroot/_framework/* || true
+
+# Create a non-root user for security
+RUN adduser --disabled-password --gecos '' appuser && chown -R appuser /app
+USER appuser
+
+# Expose port 8080 (non-privileged port)
+EXPOSE 8080
+
+# Set environment variables
+ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_ENVIRONMENT=Production
+
+# Start the application
+ENTRYPOINT ["dotnet", "Empire.Server.dll"]
