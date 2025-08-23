@@ -39,4 +39,10 @@ builder.Services.AddScoped<UserDeckService>();
 // 🏛️ Lobby Services
 builder.Services.AddScoped<LobbyService>();
 
+// 📝 WordPress CMS Integration
+builder.Services.AddScoped<WordPressService>();
+
+// 🛒 E-commerce Integration
+builder.Services.AddScoped<CommerceService>();
+
 await builder.Build().RunAsync();

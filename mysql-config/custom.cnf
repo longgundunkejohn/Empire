@@ -1,0 +1,15 @@
+[mysqld]
+innodb_buffer_pool_size = 256M
+max_connections = 100
+query_cache_type = 1
+query_cache_size = 16M
+tmp_table_size = 32M
+max_heap_table_size = 32M
+
+# Character set and collation
+character-set-server = utf8mb4
+collation-server = utf8mb4_unicode_ci
+
+# Security
+skip-name-resolve
+bind-address = 0.0.0.0

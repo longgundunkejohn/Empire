@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  # WordPress CMS (Main Website)
+  wordpress:
+    image: wordpress:latest
+    container_name: empire-wordpress
+    restart: always
+    environment:
+      WORDPRESS_DB_HOST: mysql
+      WORDPRESS_DB_USER: empire_user
+      WORDPRESS_DB_PASSWORD: empire_secure_2024
+      WORDPRESS_DB_NAME: empire_wordpress
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_HOME', 'https://empirecardgame.com');
+        define('WP_SITEURL', 'https://empirecardgame.com');
+    volumes:
+      - ./wordpress:/var/www/html
+      - ./wp-config/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
+    depends_on:
+      - mysql
+    networks:
+      - empire-network
+
+  # MySQL Database for WordPress
+  mysql:
+    image: mysql:8.0
+    container_name: empire-mysql
+    restart: always
+    environment:
+      MYSQL_DATABASE: empire_wordpress
+      MYSQL_USER: empire_user
+      MYSQL_PASSWORD: empire_secure_2024
+      MYSQL_ROOT_PASSWORD: empire_root_2024
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql-config/custom.cnf:/etc/mysql/conf.d/custom.cnf
+    networks:
+      - empire-network
+
+  # Empire TCG Blazor Game (Embedded)
+  empire-game:
+    build: .
+    container_name: empire-tcg-game
+    restart: always
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Data Source=/app/data/empire.db"
+      JwtSettings__SecretKey: "YourSuperSecretKeyForEmpireTCG2024!"
+      JwtSettings__Issuer: "EmpireTCG"
+      JwtSettings__Audience: "EmpireTCGUsers"
+    volumes:
+      - ./game-data:/app/data
+      - ./game-logs:/app/logs
+    networks:
+      - empire-network
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: empire-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/empire-cms.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/ssl:/etc/ssl/certs
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    depends_on:
+      - wordpress
+      - empire-game
+    networks:
+      - empire-network
+
+  # SSL Certificate Management
+  certbot:
+    image: certbot/certbot
+    container_name: empire-certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    command: certonly --webroot --webroot-path=/var/www/certbot --email oskarmelorm@gmail.com --agree-tos --no-eff-email -d empirecardgame.com -d www.empirecardgame.com
+
+volumes:
+  mysql_data:
+
+networks:
+  empire-network:
+    driver: bridge

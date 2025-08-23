@@ -9,7 +9,8 @@
     
     <!-- ✅ Tell .NET this is a *hosted* WASM app -->
     <OutputType>Exe</OutputType>
-    <RuntimeIdentifier>browser-wasm</RuntimeIdentifier>
+    <!-- ❌ REMOVED: RuntimeIdentifier causes WASM0005 error -->
+    <!-- <RuntimeIdentifier>browser-wasm</RuntimeIdentifier> -->
 
     <!-- 🛠️ THE FIX for NullabilityInfoContext -->
     <NullabilityInfoContextSupport>true</NullabilityInfoContextSupport>

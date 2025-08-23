@@ -60,6 +60,61 @@ namespace Empire.Client.Services
             ).ToList();
         }
 
+        // ============ ENHANCED METHODS FOR CMS INTEGRATION ============
+
+        /// <summary>
+        /// Get cards suitable for e-commerce display with images
+        /// </summary>
+        public async Task<List<CardData>> GetCardsForShopAsync()
+        {
+            var allCards = await GetAllCardsAsync();
+            return allCards.Where(c => !string.IsNullOrEmpty(c.ImageFileName) && 
+                                     !string.IsNullOrEmpty(c.Name)).ToList();
+        }
+
+        /// <summary>
+        /// Get featured cards for WordPress homepage
+        /// </summary>
+        public async Task<List<CardData>> GetFeaturedCardsAsync(int count = 6)
+        {
+            var allCards = await GetCardsForShopAsync();
+            
+            // Get a mix of different types and tiers
+            var featured = new List<CardData>();
+            
+            // Add some high-tier cards
+            featured.AddRange(allCards.Where(c => c.Tier == "3" || c.Tier == "2").Take(count / 2));
+            
+            // Add some popular unit types
+            featured.AddRange(allCards.Where(c => c.CardType.Contains("Unit") && !featured.Contains(c)).Take(count / 2));
+            
+            // Fill remaining slots with random cards
+            var remaining = allCards.Except(featured).Take(count - featured.Count);
+            featured.AddRange(remaining);
+            
+            return featured.Take(count).ToList();
+        }
+
+        /// <summary>
+        /// Get card data formatted for WordPress product creation
+        /// </summary>
+        public async Task<List<WooCommerceProduct>> GetCardsAsProductsAsync()
+        {
+            var cards = await GetCardsForShopAsync();
+            
+            return cards.Select(card => new WooCommerceProduct
+            {
+                Name = card.Name,
+                Description = FormatCardDescription(card),
+                ShortDescription = $"{card.CardType} - {card.Tier} Tier",
+                Price = CalculateCardPrice(card),
+                Sku = $"CARD-{card.CardID}",
+                ImageUrl = GetCardImageUrl(card),
+                Categories = GetCardCategories(card),
+                Attributes = GetCardAttributes(card)
+            }).ToList();
+        }
+
         public async Task<List<CardData>> GetUnitsAsync()
         {
             return await GetCardsByTypeAsync("Unit");
@@ -85,17 +140,69 @@ namespace Empire.Client.Services
             return await GetCardsByTypeAsync("Villager");
         }
 
-        public string GetCardImageUrl(int cardId)
+        // ============ IMAGE HANDLING WITH CMS SUPPORT ============
+
+        public string GetCardImageUrl(int cardId, bool usePlaceholder = true)
         {
-            // Images are stored as CardID.jpg in wwwroot/images/Cards/
-            return $"/images/Cards/{cardId}.jpg";
+            // Check if running in WordPress context
+            var baseUrl = GetImageBaseUrl();
+            var imagePath = $"{baseUrl}/images/Cards/{cardId}.jpg";
+            
+            if (!usePlaceholder)
+            {
+                return imagePath;
+            }
+            
+            // Return placeholder path for missing images
+            return $"{baseUrl}/images/Cards/placeholder.jpg";
         }
 
-        public string GetCardImageUrl(CardData card)
+        public string GetCardImageUrl(CardData card, bool usePlaceholder = true)
         {
-            // Use the CardID to get the image
-            return GetCardImageUrl(card.CardID);
+            return GetCardImageUrl(card.CardID, usePlaceholder);
         }
+
+        /// <summary>
+        /// Get high-resolution image URL for WordPress product gallery
+        /// </summary>
+        public string GetCardImageUrlHighRes(CardData card)
+        {
+            var baseUrl = GetImageBaseUrl();
+            return $"{baseUrl}/images/Cards/hires/{card.CardID}.jpg";
+        }
+
+        /// <summary>
+        /// Get thumbnail image URL for WordPress product listings
+        /// </summary>
+        public string GetCardImageThumbnail(CardData card)
+        {
+            var baseUrl = GetImageBaseUrl();
+            return $"{baseUrl}/images/Cards/thumbs/{card.CardID}_thumb.jpg";
+        }
+
+        private string GetImageBaseUrl()
+        {
+            // Detect if running in WordPress iframe context
+            try
+            {
+                // Check current URL to determine context
+                var currentUrl = _httpClient.BaseAddress?.ToString() ?? "";
+                
+                if (currentUrl.Contains("/play/") || currentUrl.Contains("wp-"))
+                {
+                    // Running in WordPress context - use game API base
+                    return "/game-api";
+                }
+                
+                return "";
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        // ============ PRIVATE HELPER METHODS ============
 
         private async Task LoadCardsAsync()
         {
@@ -158,7 +265,87 @@ namespace Empire.Client.Services
                 Defence = dto.Defence,
                 Unique = dto.Unique ?? "No",
                 Faction = dto.Faction ?? "No",
-                ImageFileName = $"{dto.CardID}.jpg" // Set the image filename
+                ImageFileName = $"{dto.CardID}.jpg"
+            };
+        }
+
+        // ============ WORDPRESS INTEGRATION HELPERS ============
+
+        private string FormatCardDescription(CardData card)
+        {
+            var description = $"<strong>{card.Name}</strong><br/>";
+            description += $"<em>{card.CardType} - Tier {card.Tier}</em><br/><br/>";
+            
+            if (card.Attack > 0 || card.Defence > 0)
+            {
+                description += $"<strong>Combat:</strong> {card.Attack}/{card.Defence}<br/>";
+            }
+            
+            if (card.Cost > 0)
+            {
+                description += $"<strong>Cost:</strong> {card.Cost}<br/>";
+            }
+            
+            if (!string.IsNullOrEmpty(card.CardText))
+            {
+                description += $"<br/><strong>Effect:</strong> {card.CardText}";
+            }
+            
+            return description;
+        }
+
+        private decimal CalculateCardPrice(CardData card)
+        {
+            // Price based on tier and type
+            decimal basePrice = card.Tier switch
+            {
+                "1" => 2.99m,
+                "2" => 4.99m,
+                "3" => 7.99m,
+                _ => 1.99m
+            };
+            
+            // Adjust for card type
+            if (card.CardType.Contains("Chronicle"))
+                basePrice *= 1.5m;
+            else if (card.Unique == "Yes")
+                basePrice *= 1.3m;
+                
+            return Math.Round(basePrice, 2);
+        }
+
+        private List<string> GetCardCategories(CardData card)
+        {
+            var categories = new List<string> { "Single Cards" };
+            
+            categories.Add($"Tier {card.Tier}");
+            categories.Add(card.CardType);
+            
+            if (card.Faction != "No" && !string.IsNullOrEmpty(card.Faction))
+            {
+                categories.Add(card.Faction);
+            }
+            
+            if (card.Unique == "Yes")
+            {
+                categories.Add("Unique Cards");
+            }
+            
+            return categories;
+        }
+
+        private Dictionary<string, object> GetCardAttributes(CardData card)
+        {
+            return new Dictionary<string, object>
+            {
+                { "card_id", card.CardID },
+                { "tier", card.Tier },
+                { "card_type", card.CardType },
+                { "cost", card.Cost },
+                { "attack", card.Attack },
+                { "defence", card.Defence },
+                { "unique", card.Unique },
+                { "faction", card.Faction }
             };
         }
     }

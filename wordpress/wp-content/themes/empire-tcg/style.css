@@ -1,0 +1,537 @@
+/*
+Theme Name: Empire TCG
+Description: Official theme for Empire Trading Card Game
+Version: 1.0.0
+*/
+
+/* CSS Variables for Empire TCG Branding */
+:root {
+    --empire-gold: #d4af37;
+    --empire-dark: #1a1a2e;
+    --empire-blue: #16213e;
+    --empire-accent: #8b4513;
+    --empire-light: #f4f1e8;
+    --empire-gray: #666;
+}
+
+/* Global Styles */
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    color: var(--empire-light);
+    background: linear-gradient(135deg, var(--empire-dark) 0%, var(--empire-blue) 100%);
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+}
+
+.site {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.site-content {
+    flex: 1;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Cinzel', serif;
+    color: var(--empire-gold);
+    margin-bottom: 1rem;
+}
+
+h1 { font-size: 2.5rem; }
+h2 { font-size: 2rem; }
+h3 { font-size: 1.5rem; }
+
+/* Header Styles */
+.site-header {
+    background: rgba(0, 0, 0, 0.9);
+    border-bottom: 2px solid var(--empire-gold);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.header-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.site-title a {
+    color: var(--empire-gold);
+    text-decoration: none;
+    font-size: 1.8rem;
+    font-weight: 600;
+}
+
+.main-navigation {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
+.nav-menu {
+    list-style: none;
+    display: flex;
+    gap: 1.5rem;
+    margin: 0;
+    padding: 0;
+}
+
+.nav-menu a {
+    color: var(--empire-light);
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+.nav-menu a:hover {
+    background: var(--empire-gold);
+    color: var(--empire-dark);
+}
+
+/* Buttons */
+.btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+    cursor: pointer;
+}
+
+.btn-primary {
+    background: var(--empire-gold);
+    color: var(--empire-dark);
+}
+
+.btn-primary:hover {
+    background: #b8860b;
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    background: var(--empire-accent);
+    color: var(--empire-light);
+}
+
+.btn-outline {
+    background: transparent;
+    color: var(--empire-gold);
+    border-color: var(--empire-gold);
+}
+
+.btn-outline:hover {
+    background: var(--empire-gold);
+    color: var(--empire-dark);
+}
+
+.btn-large {
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+}
+
+/* Hero Section */
+.hero-section {
+    position: relative;
+    min-height: 80vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    overflow: hidden;
+}
+
+.hero-content {
+    position: relative;
+    z-index: 2;
+    max-width: 800px;
+    padding: 2rem;
+}
+
+.hero-title {
+    font-size: 3.5rem;
+    margin-bottom: 1rem;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+}
+
+.hero-subtitle {
+    font-size: 1.3rem;
+    margin-bottom: 2rem;
+    color: var(--empire-light);
+    opacity: 0.9;
+}
+
+.hero-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.hero-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, var(--empire-dark), var(--empire-blue));
+}
+
+.hero-particles {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-image: 
+        radial-gradient(2px 2px at 20px 30px, var(--empire-gold), transparent),
+        radial-gradient(2px 2px at 40px 70px, var(--empire-gold), transparent),
+        radial-gradient(1px 1px at 90px 40px, var(--empire-gold), transparent),
+        radial-gradient(1px 1px at 130px 80px, var(--empire-gold), transparent);
+    background-repeat: repeat;
+    background-size: 200px 100px;
+    animation: sparkle 20s linear infinite;
+    opacity: 0.3;
+}
+
+@keyframes sparkle {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(-100px); }
+}
+
+/* Stats Section */
+.stats-section {
+    padding: 4rem 0;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 2rem;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 2rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    border: 1px solid var(--empire-gold);
+}
+
+.stat-number {
+    font-size: 3rem;
+    font-weight: bold;
+    color: var(--empire-gold);
+    margin-bottom: 0.5rem;
+}
+
+.stat-label {
+    font-size: 1.1rem;
+    color: var(--empire-light);
+}
+
+/* Content Styles */
+.content-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+
+.entry-content {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+}
+
+.entry-header {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--empire-gold);
+}
+
+.entry-meta {
+    color: var(--empire-gray);
+    font-size: 0.9rem;
+    margin-top: 1rem;
+}
+
+.entry-meta span {
+    margin-right: 1rem;
+}
+
+/* Game Integration Styles */
+.empire-game-container {
+    width: 100%;
+    margin: 2rem 0;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 2px solid var(--empire-gold);
+}
+
+.empire-game-iframe {
+    width: 100%;
+    border: none;
+    display: block;
+}
+
+/* Shop Integration */
+.empire-products-grid {
+    display: grid;
+    gap: 2rem;
+    margin: 2rem 0;
+}
+
+.empire-products-grid.columns-2 { grid-template-columns: repeat(2, 1fr); }
+.empire-products-grid.columns-3 { grid-template-columns: repeat(3, 1fr); }
+.empire-products-grid.columns-4 { grid-template-columns: repeat(4, 1fr); }
+
+.empire-product-item {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+    transition: transform 0.3s ease;
+}
+
+.empire-product-item:hover {
+    transform: translateY(-5px);
+}
+
+.empire-product-item img {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+}
+
+.empire-add-to-cart {
+    background: var(--empire-gold);
+    color: var(--empire-dark);
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 1rem;
+}
+
+.empire-add-to-cart:hover {
+    background: #b8860b;
+}
+
+/* Cart and User Status */
+.header-cart, .game-status {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.cart-link, .play-button, .login-button, .logout-link {
+    color: var(--empire-light);
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.cart-count {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: var(--empire-gold);
+    color: var(--empire-dark);
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.play-button {
+    background: var(--empire-gold);
+    color: var(--empire-dark);
+    font-weight: 600;
+}
+
+/* Footer */
+.site-footer {
+    background: rgba(0, 0, 0, 0.9);
+    border-top: 2px solid var(--empire-gold);
+    margin-top: auto;
+}
+
+.footer-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+
+.footer-content {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+
+.footer-section h3 {
+    color: var(--empire-gold);
+    margin-bottom: 1rem;
+}
+
+.footer-links {
+    list-style: none;
+    padding: 0;
+}
+
+.footer-links a {
+    color: var(--empire-light);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.footer-links a:hover {
+    color: var(--empire-gold);
+}
+
+.social-links {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.social-link {
+    color: var(--empire-light);
+    font-size: 1.2rem;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.social-link:hover {
+    color: var(--empire-gold);
+}
+
+.footer-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 2rem;
+    border-top: 1px solid var(--empire-gray);
+    font-size: 0.9rem;
+    color: var(--empire-gray);
+}
+
+/* Mobile Styles */
+.menu-toggle {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--empire-light);
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+@media (max-width: 768px) {
+    .header-container {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .menu-toggle {
+        display: block;
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+    }
+    
+    .main-navigation {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .nav-menu {
+        flex-direction: column;
+        width: 100%;
+        text-align: center;
+    }
+    
+    .hero-title {
+        font-size: 2.5rem;
+    }
+    
+    .hero-actions {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .empire-products-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .footer-bottom {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+    }
+}
+
+/* WooCommerce Overrides */
+.woocommerce .button {
+    background: var(--empire-gold);
+    color: var(--empire-dark);
+}
+
+.woocommerce .button:hover {
+    background: #b8860b;
+}
+
+.woocommerce-message {
+    border-top-color: var(--empire-gold);
+}
+
+.woocommerce .star-rating span {
+    color: var(--empire-gold);
+}
+
+/* Accessibility */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+}

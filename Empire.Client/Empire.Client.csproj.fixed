@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <BlazorWebAssemblyLoadAllGlobalizationData>true</BlazorWebAssemblyLoadAllGlobalizationData>
+    
+    <!-- ✅ Tell .NET this is a *hosted* WASM app -->
+    <OutputType>Exe</OutputType>
+    <!-- ❌ REMOVED: RuntimeIdentifier causes WASM0005 error -->
+    <!-- <RuntimeIdentifier>browser-wasm</RuntimeIdentifier> -->
+
+    <!-- 🛠️ THE FIX for NullabilityInfoContext -->
+    <NullabilityInfoContextSupport>true</NullabilityInfoContextSupport>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- ✅ Hosted WASM needs this package -->
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="8.0.8" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="8.0.8" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Empire.Shared\Empire.Shared.csproj" />
+  </ItemGroup>
+
+</Project>
