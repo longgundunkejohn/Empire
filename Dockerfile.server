@@ -5,10 +5,10 @@ WORKDIR /src
 COPY Empire.Shared/Empire.Shared.csproj Empire.Shared/
 COPY Empire.Server/Empire.Server.csproj Empire.Server/
 
-# Remove client dependencies from server project using multiple sed commands
+# Remove ALL client dependencies from server project using more comprehensive sed commands
 RUN sed -i '/<ProjectReference.*Empire\.Client/d' Empire.Server/Empire.Server.csproj && \
     sed -i '/<PackageReference.*WebAssembly\.Server/d' Empire.Server/Empire.Server.csproj && \
-    sed -i '/<Target.*PublishBlazorClient/,/<\/Target>/d' Empire.Server/Empire.Server.csproj
+    sed -i '/PublishBlazorClient/,/<\/Target>/d' Empire.Server/Empire.Server.csproj
 
 # Restore server only
 RUN dotnet restore Empire.Server/Empire.Server.csproj
