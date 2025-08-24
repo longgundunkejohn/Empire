@@ -40,7 +40,9 @@ services:
 
   # Empire TCG Blazor Game (Embedded)
   empire-game:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.server
     container_name: empire-tcg-game
     restart: always
     environment:

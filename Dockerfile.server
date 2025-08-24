@@ -1,0 +1,34 @@
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Copy only server projects
+COPY Empire.Shared/Empire.Shared.csproj Empire.Shared/
+COPY Empire.Server/Empire.Server.csproj Empire.Server/
+
+# Remove client dependencies from server project
+RUN sed -i '/<ProjectReference.*Empire\.Client/d' Empire.Server/Empire.Server.csproj
+RUN sed -i '/<PackageReference.*WebAssembly\.Server/d' Empire.Server/Empire.Server.csproj
+RUN sed -i '/<Target.*PublishBlazorClient/,/<\/Target>/d' Empire.Server/Empire.Server.csproj
+
+# Restore server only
+RUN dotnet restore Empire.Server/Empire.Server.csproj
+
+# Copy source
+COPY Empire.Shared/ Empire.Shared/
+COPY Empire.Server/ Empire.Server/
+
+# Publish server only
+RUN dotnet publish Empire.Server/Empire.Server.csproj -c Release -o /app/publish
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+RUN mkdir -p /app/data
+COPY --from=build /app/publish .
+
+# Simple test page
+RUN mkdir -p /app/wwwroot && echo '<html><body><h1>Empire TCG API</h1><p><a href="/swagger">API Docs</a></p><p><a href="/api/deckbuilder/cards">Test API</a></p></body></html>' > /app/wwwroot/index.html
+
+EXPOSE 8080
+ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_ENVIRONMENT=Production
+ENTRYPOINT ["dotnet", "Empire.Server.dll"]
