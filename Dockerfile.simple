@@ -1,0 +1,36 @@
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Copy all project files
+COPY Empire.Shared/Empire.Shared.csproj Empire.Shared/
+COPY Empire.Client/Empire.Client.csproj Empire.Client/
+COPY Empire.Server/Empire.Server.csproj Empire.Server/
+
+# Restore both projects
+RUN dotnet restore Empire.Server/Empire.Server.csproj
+RUN dotnet restore Empire.Client/Empire.Client.csproj
+
+# Copy source
+COPY Empire.Shared/ Empire.Shared/
+COPY Empire.Client/ Empire.Client/
+COPY Empire.Server/ Empire.Server/
+
+# Build client first (separately)
+RUN dotnet publish Empire.Client/Empire.Client.csproj -c Release -o /app/client
+
+# Build server
+RUN dotnet publish Empire.Server/Empire.Server.csproj -c Release -o /app/publish
+
+# Runtime
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+RUN mkdir -p /app/data
+COPY --from=build /app/publish .
+
+# Copy client to wwwroot
+COPY --from=build /app/client ./wwwroot
+
+EXPOSE 8080
+ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_ENVIRONMENT=Production
+ENTRYPOINT ["dotnet", "Empire.Server.dll"]

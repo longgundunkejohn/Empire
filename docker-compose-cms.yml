@@ -42,7 +42,7 @@ services:
   empire-game:
     build:
       context: .
-      dockerfile: Dockerfile.server
+      dockerfile: Dockerfile.simple
     container_name: empire-tcg-game
     restart: always
     environment:
