@@ -1,5 +1,5 @@
 ﻿public class JoinGameRequest
 {
-    public List<int> CivicDeck { get; set; }
-    public List<int> MilitaryDeck { get; set; }
+    public required List<int> CivicDeck { get; set; }
+    public required List<int> MilitaryDeck { get; set; }
 }
